@@ -108,6 +108,7 @@ in [docs/building.md](docs/building.md) and is not the product.
 | [building.md](docs/building.md) | Building, cross-compiling, packaging |
 | [workspace-manifest.md](docs/workspace-manifest.md) | Exact target content of `Cargo.toml`, `rust-toolchain.toml`, `deny.toml` |
 | [releases.md](docs/releases.md) | Release process, artefacts, checksums |
+| [tasks/](docs/tasks/) | Assignments for the coder: Phase 0 (fixtures), Phase 1 (skeleton) |
 
 ## Licence
 

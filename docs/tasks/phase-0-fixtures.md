@@ -30,13 +30,11 @@ Read, in this order, before writing anything:
    places where "identical" is *not* the goal.
 3. [../testing.md](../testing.md) §4 — fixture format, provenance and anonymisation.
 4. [../extensions.md](../extensions.md) §3–§5 — how a command is selected and how output is split into lines.
-5. The code: `src/utility.h` (`context`, ~1873–2135), `src/engines.cpp` (command assembly, proxy injection),
-   `src/engines/*.cpp` (`updateDownLoadCmdOptions` in each), `src/settings.cpp`.
+5. The code: `legacy/src/utility.h` (`context`, ~1873–2135), `legacy/src/engines.cpp` (command assembly, proxy
+   injection), `legacy/src/engines/*.cpp` (`updateDownLoadCmdOptions` in each), `legacy/src/settings.cpp`.
 
-**Path convention in this task:** at the time of writing, the C++ tree is still in `src/` at the repository root.
-It moves to `legacy/src/` only in Phase 1 (Task 2, `git mv`). Every `legacy/...` path in this document therefore
-means "the C++ tree, wherever it currently lives" — today `src/`. Do not create `legacy/` yourself and do not
-move anything: the move is Task 2's job and doing it here would collide with it.
+The C++ tree was moved into `legacy/` in commit `9f1c0d5` (the Phase 1 move, done ahead of this task because the
+repository had to be in its final layout before Phase 0 started). The paths above are correct as written.
 
 You will have to **build and run the C++ program**; that is expected and is the only permitted reason to build
 it. See [../building.md](../building.md) §7. Record the Qt version you used.
@@ -178,7 +176,7 @@ in `fixtures/README.md` that it will be folded into `xtask` in Phase 1 if it is 
 
 ## 4. Constraints
 
-- **Do not modify the C++ tree** (today `src/`, later `legacy/`). Its behaviour is the reference. If it is wrong, record the defect in
+- **Do not modify the C++ tree** in `legacy/`. Its behaviour is the reference. If it is wrong, record the defect in
   `fixtures/README.md` and cross-reference [../migration.md](../migration.md) §6.
 - **Do not write Rust.** No workspace, no crates, no `Cargo.toml`. That is Phase 1. This task is deliberately
   possible without a Rust toolchain.
@@ -242,5 +240,5 @@ Updated by the manager after the work is reviewed, not by you:
 - [../roadmap.md](../roadmap.md) §1 — Phase 0 marked done, estimate corrected against actual.
 - [../features.md](../features.md) — a case that revealed an undocumented behaviour gets its note.
 
-Report any inconsistency you find between these documents and the real behaviour of the C++ program; do not resolve
+Report any inconsistency you find between these documents and the real behaviour of `legacy/`; do not resolve
 it yourself.

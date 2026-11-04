@@ -167,17 +167,19 @@ Notes:
 
 ## 5. `.gitignore` additions
 
-The C++ tree arriving in `legacy/` brings its own ignore expectations. The root `.gitignore` must cover:
+The C++ tree in `legacy/` builds in place, so the root `.gitignore` must cover:
 
 ```
 /target
-/legacy/build
-/legacy/src/build
+/legacy/build/
+/legacy/BUILD/
+/legacy/src/build/
 *.qm
 ```
 
-`*.qm` was previously committed; it is now generated from the `.ts` sources at build time, so a stale binary
-translation cannot be shipped silently. `Cargo.lock` is **committed**, deliberately
+`legacy/BUILD/` is where `legacy/build_windows.ps1` writes; `legacy/build/` is where the CMake instructions in
+[building.md](building.md) §7 write. `*.qm` was previously committed; it is now generated from the `.ts` sources
+at build time, so a stale binary translation cannot be shipped silently. `Cargo.lock` is **committed**, deliberately
 ([dependencies.md](dependencies.md) §7).
 
 ---

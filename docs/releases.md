@@ -22,8 +22,7 @@ surfaces**, and neither is allowed to break in a minor release.
 | Anything that changes the argv generated for an existing input | reviewed as a compatibility break; major unless shown to fix a defect |
 
 Morid's own numbering restarts at `0.1.0`; it does not continue the original's `5.x`. The original's history is
-kept in `CHANGELOG-legacy.md` (today still the file `[changelog](../changelog)` in the repository root) and is
-not Morid's history. Confusing the two would make
+kept in [CHANGELOG-legacy.md](../CHANGELOG-legacy.md) and is not Morid's history. Confusing the two would make
 "Morid 6.0 is older than Media Downloader 5.6.8" a conversation somebody has to have.
 
 ---

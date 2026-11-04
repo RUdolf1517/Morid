@@ -16,6 +16,20 @@ Everything below is in service of that sentence.
 
 ---
 
+## 0. Where the two programs live
+
+The C++ program is in `legacy/` and is read-only ([D-006](decisions.md), [D-015](decisions.md),
+[../legacy/README.md](../legacy/README.md)). The Rust program will be in `crates/`. Neither build invokes the
+other: the root build never touches Qt, and CI never compiles `legacy/`.
+
+The move into `legacy/` was made on 4 November 2026 with `git mv`, so history follows the files. It changed no
+line of C++. The one thing the move broke — `CMakeLists.txt` copying `changelog` into a macOS bundle — is
+recorded with its workaround in [../legacy/removed-ci-workflows.md](../legacy/removed-ci-workflows.md).
+
+Everything below refers to files by their path inside `legacy/`.
+
+---
+
 ## 1. Why not port the C++ structure
 
 A direct translation of the C++ architecture into Rust would produce a program with:

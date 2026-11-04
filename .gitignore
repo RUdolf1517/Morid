@@ -12,3 +12,12 @@ build/
 
 #for ${default} where youtube-dl keeps getting downloaded to.
 ${default}/
+
+# root Rust workspace
+/target/
+
+# the C++ reference tree builds in place (legacy/build_windows.ps1 writes to
+# legacy/BUILD); nothing produced there is committed
+/legacy/build/
+/legacy/BUILD/
+/legacy/src/build/

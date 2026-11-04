@@ -178,11 +178,16 @@ pull request.
 
 `legacy/` contains the original C++ program and stays in the repository permanently
 ([D-015](docs/decisions.md)). It is a reference, not a product: it receives no features, no cleanup and no
-security fixes.
+security fixes. The ten CI workflows that came with it are retired; what they did is recorded in
+[`legacy/removed-ci-workflows.md`](legacy/removed-ci-workflows.md).
 
 Changes inside `legacy/` are allowed only when they are strictly necessary to compare behaviour — for example
-a build fix that lets it compile on a current system. Such a change must say in the commit message which
-comparison it enables.
+a build fix that lets it compile on a current system, or the macOS bundle workaround documented in
+`legacy/removed-ci-workflows.md`. Such a change must say in the commit message which comparison it enables.
+
+Building it is optional and never part of CI: run `cmake -S legacy -B legacy/build` and read
+[`docs/building.md`](docs/building.md#7-building-the-c-reference). Build output is ignored. Never copy a
+generated binary into the repository.
 
 ---
 

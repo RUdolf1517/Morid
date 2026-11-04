@@ -150,7 +150,9 @@ cmake --build build -j
 ```
 
 Requires Qt5 or Qt6 with Core, Widgets and Network, plus CMake 3.26 or newer (the project accepts older CMake
-with reduced guarantees). On Windows the original's `legacy/build_windows.ps1` encodes the maintainer's local
+with reduced guarantees). One known breakage from the move: `CMakeLists.txt` copies `changelog` into the macOS
+bundle, and that file is now `../CHANGELOG-legacy.md`. A macOS bundle build needs a local, uncommitted adjustment,
+recorded in [../legacy/removed-ci-workflows.md](../legacy/removed-ci-workflows.md). On Windows the original's `legacy/build_windows.ps1` encodes the maintainer's local
 paths and will need editing — it is a record of how the original was built, not a script for a stranger.
 
 Why you would build it: to capture a golden fixture ([testing](testing.md) §4), or to compare behaviour on a

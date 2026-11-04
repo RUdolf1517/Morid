@@ -9,9 +9,8 @@ decisions and planning, not a program you can run. See [docs/roadmap.md](docs/ro
 built and in what order.
 
 The history of the original C++/Qt program that Morid reimplements — 71 releases from 1.0.0 to 5.6.8 — is kept
-unmodified in `CHANGELOG-legacy.md` (created in Phase 1 when `changelog` is moved to the repository root; until
-then it is [changelog](changelog)). It is the reference for what "same functionality"
-means, and it is not part of Morid's own version history.
+unmodified in [CHANGELOG-legacy.md](CHANGELOG-legacy.md). It is the reference for what "same functionality" means,
+and it is not part of Morid's own version history.
 
 ## [Unreleased]
 

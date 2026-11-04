@@ -16,14 +16,14 @@ Decisions taken on the basis of this audit are in [decisions.md](decisions.md).
 | Property | Value |
 | --- | --- |
 | Language | C++14, Qt 5.15 or Qt 6 (`CMakeLists.txt:11,32-52`) |
-| Build system | CMake, plus a qmake project (`src/media-downloader.pro`) as a second path |
+| Build system | CMake, plus a qmake project (`legacy/src/media-downloader.pro`) as a second path |
 | Code size | 42,910 lines: 37 `.cpp`, 35 `.h`, 8 `.hpp` |
 | Files / tree size | 202 files / ~12 MB |
 | UI | 2 `.ui` files, 2,958 lines (`mainwindow.ui` 2,872, `logwindow.ui` 86) |
 | Localisation | 18 `.ts`/`.qm` catalogues, 354 messages each |
-| Extensions | 17 JSON engine descriptions in `extensions/` |
+| Extensions | 17 JSON engine descriptions in `extensions/` (the only part of the original tree that stays at the repository root) |
 | Licence | GPL-2.0-or-later (`LICENSE` = GPLv2 text, `LICENSE.txt` = copyright notice) |
-| CI | 10 workflows, all building and publishing artefacts. **None runs a test** |
+| CI | 10 workflows, all building and publishing artefacts, **none running a test**. Retired in Phase 1; recorded in [../legacy/removed-ci-workflows.md](../legacy/removed-ci-workflows.md) |
 | Version control | one commit of history in this fork (`46e881e code improvement`) |
 | Release history | 71 releases, 1.0.0 (January 2021) to 5.6.8 |
 
@@ -33,7 +33,7 @@ history — only the current state is. Copyright notices inside the files are in
 Three findings matter more for planning than the size of the code:
 
 1. **There are no automated tests.** The only verification is a hidden CLI mode that spawns real backends against
-   the network (`src/engines/tests.cpp`, `--media-downloader-test-engine-*`). The "reference behaviour" therefore
+   the network (`legacy/src/engines/tests.cpp`, `--media-downloader-test-engine-*`). The "reference behaviour" therefore
    has to be recorded by us, or there will be nothing to compare a Rust implementation against.
 2. **The core is not the GUI; it is parsing other programs' output.** Most of the difficulty — 3,024 lines of
    `engines.cpp`, 2,083 of `engines.h`, 1,853 of `engines/yt-dlp.cpp`, 986 of `logger.h` — is reading progress and
@@ -49,25 +49,25 @@ Three findings matter more for planning than the size of the code:
 
 ### 2.1 Entry point and lifecycle
 
-`src/main.cpp`:
+`legacy/src/main.cpp`:
 
-- `argv` parsed into `utility::cliArguments` (`src/utility.cpp:1705`);
+- `argv` parsed into `utility::cliArguments` (`legacy/src/utility.cpp:1705`);
 - platform detection, including "pretend" platforms for debugging (`PretendPlatform`, `--pretend-win`,
   `--pretend-winLegacy`, `--pretend-winModern`);
 - `settings` and `engines::enginePaths`;
-- the self-update branch `utility::startedUpdatedVersion` — **Windows only** (`src/utility.cpp:1358`): renames
+- the self-update branch `utility::startedUpdatedVersion` — **Windows only** (`legacy/src/utility.cpp:1358`): renames
   the `update`/`update_new` directories at startup;
 - the hidden engine test mode (`tests::test_engine`);
-- single- or multi-instance mode selected by `-s` or the `SingleInstance` setting (`src/main.cpp:93`),
-  implemented with `QLocalServer`/`QLocalSocket` (`src/utils/single_instance.hpp`).
+- single- or multi-instance mode selected by `-s` or the `SingleInstance` setting (`legacy/src/main.cpp:93`),
+  implemented with `QLocalServer`/`QLocalSocket` (`legacy/src/utils/single_instance.hpp`).
 
-The IPC protocol is a JSON event (`utility::event::toJson`, `src/utility.h:699`) carrying `Url`, `AutoDownload`,
+The IPC protocol is a JSON event (`utility::event::toJson`, `legacy/src/utility.h:699`) carrying `Url`, `AutoDownload`,
 `ShowMetaData` and `Proxy`. The socket path is `<basePath>/tmp/ipc` on Unix and `\\.\pipe\MediaDownloaderIPC` on
-Windows (`src/engines.cpp:1350-1360`).
+Windows (`legacy/src/engines.cpp:1350-1360`).
 
 ### 2.2 Composition: `Context` as a service locator
 
-`src/context.hpp` — `Context` holds references to `settings`, `translator`, `Ui::MainWindow`, `QWidget`,
+`legacy/src/context.hpp` — `Context` holds references to `settings`, `translator`, `Ui::MainWindow`, `QWidget`,
 `MainWindow`, `Logger`, `engines`, `tabManager`, `networkAccess`, `versionInfo` and `printOutPut`.
 
 Good: dependencies are passed explicitly; there are almost no global singletons. Bad: fifteen dependencies in one
@@ -78,9 +78,9 @@ This is the direct explanation for the absence of unit tests: the architecture d
 
 ### 2.3 The engine layer is a god object
 
-`src/engines.h` (2,083 lines) contains in one file:
+`legacy/src/engines.h` (2,083 lines) contains in one file:
 
-- `engines::enginePaths` — every data path (`src/engines.h:202-330`);
+- `engines::enginePaths` — every data path (`legacy/src/engines.h:202-330`);
 - `engines::metadata` — release metadata from GitHub;
 - `engines::engine` — a facade wrapper;
 - `engines::engine::baseEngine` — the engine base class with **57 virtual methods**;
@@ -88,14 +88,14 @@ This is the direct explanation for the absence of unit tests: the architecture d
   `optionsEnvironment`, `mediaInfo`, `finishedState`;
 - `jsRuntimeInstalled`, `EnginesList`, `Iterator`, `proxySettings`.
 
-Type nesting reaches `engines::engine::baseEngine::filterOutPut::result::callables` (`src/engines.h:660`).
+Type nesting reaches `engines::engine::baseEngine::filterOutPut::result::callables` (`legacy/src/engines.h:660`).
 
 The 57 virtual methods are not an "engine interface"; they are "everything an engine might want to override":
 version parsing, JSON parsing, argument rewriting, argument-to-environment conversion, directory deletion, archive
 renaming, completion text, skip conditions, update policy. Inheritance was used where composition would have
 been smaller.
 
-### 2.4 `baseEngine` subclasses (13 files in `src/engines/`)
+### 2.4 `baseEngine` subclasses (13 files in `legacy/src/engines/`)
 
 | File | What is specific |
 | --- | --- |
@@ -133,29 +133,29 @@ UserName, Version, VersionArgument, VersionStringLine, VersionStringPosition
 
 `ControlJsonStructure` is a small condition language over output lines: `Connector` (`&&`), `lhs`/`rhs` with
 `startsWith`, `endsWith`, `contains`, `containsAny`, `containsAll` (`meetExtraCondition`,
-`src/engines.cpp:1494-1580`). It exists to separate progress lines from noise without regular expressions.
+`legacy/src/engines.cpp:1494-1580`). It exists to separate progress lines from noise without regular expressions.
 
 Schema defects found during the audit:
 
 1. **`ExtraOptions*` versus `ExtraArguments*`.** The code reads `ExtraOptions`, `ExtraOptionsWin7`,
-   `ExtraOptionsFlatpakAppImage` (`src/engines.cpp:1052-1058`), while `extensions/ytdl-patched.json` contains
+   `ExtraOptionsFlatpakAppImage` (`legacy/src/engines.cpp:1052-1058`), while `extensions/ytdl-patched.json` contains
    `ExtraArguments`, `ExtraArgumentsFlatpak`, `ExtraArgumentsWin7` — **the code never reads them**. A shipped
    extension therefore silently loses three of its keys. Handled in [extensions.md](extensions.md) §4.1.
 2. `DefaultSubstitlesCmdOptions` — a misspelling fixed in five files; must be preserved for compatibility.
-3. `RequiredMinimumVersionOfMediaDownloader` is enforced at load time (`src/engines.cpp:264-272`): an extension
+3. `RequiredMinimumVersionOfMediaDownloader` is enforced at load time (`legacy/src/engines.cpp:264-272`): an extension
    with a higher minimum is rejected. With a new product version this rejects every existing extension — see
    [decisions.md](decisions.md) D-004.
 4. `Version` is a schema version (1–4), but the difference between versions is documented nowhere and the reader
    almost never branches on it; the field is effectively decorative.
 5. Source of extensions: a **pinned upstream commit**
    (`https://raw.githubusercontent.com/mhogomchungu/media-downloader/d20c57211494276b206b19c021d358746de5ba29/extensions/`,
-   `src/configure.cpp:876`) and a menu of 10 names plus `custom` (`src/configure.cpp:1231-1252`), while the
+   `legacy/src/configure.cpp:876`) and a menu of 10 names plus `custom` (`legacy/src/configure.cpp:1231-1252`), while the
    repository ships **17** files (`lux`, `safaribooks`, `yt-dlp-aria2c-native`, `quickjs*`, `deno`,
    `ytdl-patched` are unreachable from the menu).
 
 ### 2.6 The download pipeline
 
-`utility::context<AppCtx, Logger, Events, Connection>` (`src/utility.h:1873-2135`) is a template wrapper over
+`utility::context<AppCtx, Logger, Events, Connection>` (`legacy/src/utility.h:1873-2135`) is a template wrapper over
 `QProcess`:
 
 - `whenCreated` — environment, working directory, channel mode, echo of the command into the log;
@@ -166,43 +166,43 @@ Schema defects found during the audit:
 - `cmd(args)` — proxy injection (as an argument **or** as environment variables) and argument-to-environment
   conversion by the engine.
 
-Process control: `utils::qprocess::run` (`src/utils/qprocess.hpp`); cancellation via `utility::Terminator`
-(`src/utility.cpp:621-680`) — `taskkill` on Windows, `SIGTERM` by PID on Unix.
+Process control: `utils::qprocess::run` (`legacy/src/utils/qprocess.hpp`); cancellation via `utility::Terminator`
+(`legacy/src/utility.cpp:621-680`) — `taskkill` on Windows, `SIGTERM` by PID on Unix.
 
 Orchestration lives in the tabs: `basicdownloader` (694 lines), `batchdownloader` (3,208),
 `playlistdownloader` (1,863). Each tab manages its own processes, queue, row state and completion reports. There
 is no single scheduler: a "queue" is a walk over table rows with flags such as `running`, `finished`,
-`splitByChapters` (`src/tableWidget.h:94-180`).
+`splitByChapters` (`legacy/src/tableWidget.h:94-180`).
 
-Concurrency is bounded by `MaxConcurrentDownloads` (default 4, `src/settings.cpp:623`) and `ConcurrentDownloading`.
+Concurrency is bounded by `MaxConcurrentDownloads` (default 4, `legacy/src/settings.cpp:623`) and `ConcurrentDownloading`.
 
 ### 2.7 `Logger` is a progress model, not a logger
 
-`src/logger.h` (986 lines): per-process ring buffers, "progress lines" that replace rather than append,
+`legacy/src/logger.h` (986 lines): per-process ring buffers, "progress lines" that replace rather than append,
 specialisations `ProcessData`/`YtDlpData`/`SvtData`, limits (`MaxLoggerProcesses`, `HistorySize`,
 `StringTruncationSize`), the log window, and the download history file (`downloadHistory.json`, appended objects
-and substring search — `src/utility.cpp:2470-2520`).
+and substring search — `legacy/src/utility.cpp:2470-2520`).
 
 It is simultaneously the log, the progress parser and the result store. In Rust this becomes three things.
 
 ### 2.8 Network and updates
 
-`src/networkAccess.cpp` (1,168 lines):
+`legacy/src/networkAccess.cpp` (1,168 lines):
 
 - downloading backend binaries from GitHub (`api.github.com/.../releases/latest`) with size and SHA-256
-  (`digest`) verification — `hashDoNotMatch` (`src/networkAccess.cpp:918`);
-- archive extraction via external `bsdtar`/`unzip` (`src/networkAccess.cpp:929-990`);
+  (`digest`) verification — `hashDoNotMatch` (`legacy/src/networkAccess.cpp:918`);
+- archive extraction via external `bsdtar`/`unzip` (`legacy/src/networkAccess.cpp:929-990`);
 - updating extensions and the application itself (Windows; `settings::gitHubDownloadUrl`,
-  `src/settings.cpp:353-372`);
-- proxy: `None` / `System` / `Env` / `Manual` (`src/settings.cpp:1416-1470`), with system proxy discovery from
-  environment variables (`src/proxy.cpp`).
+  `legacy/src/settings.cpp:353-372`);
+- proxy: `None` / `System` / `Env` / `Manual` (`legacy/src/settings.cpp:1416-1470`), with system proxy discovery from
+  environment variables (`legacy/src/proxy.cpp`).
 
 For a fork, every one of these addresses points at `mhogomchungu` and at a pinned commit — see
 [decisions.md](decisions.md) D-010 and D-014.
 
 ### 2.9 GUI
 
-`src/mainwindow.ui` (2,872 lines), tabs:
+`legacy/src/mainwindow.ui` (2,872 lines), tabs:
 
 | Tab | Contents |
 | --- | --- |
@@ -213,15 +213,15 @@ For a fork, every one of these addresses points at `mhogomchungu` and at a pinne
 | Configure | 6 sub-tabs: General Options, Engine's Options, Preset Options, Extensions, Url Manager, Proxy Settings, UI Scale |
 | About | links, engine versions |
 
-Plus `logwindow.ui`, a tray icon with notifications (`src/mainwindow.cpp:88-218`), generated dark themes
-(`<data>/themes`, `src/themes.cpp:201-280`), and RTL text alignment for Arabic
+Plus `logwindow.ui`, a tray icon with notifications (`legacy/src/mainwindow.cpp:88-218`), generated dark themes
+(`<data>/themes`, `legacy/src/themes.cpp:201-280`), and RTL text alignment for Arabic
 (`translator::setLanguage` → `setLayoutDirection` + `textAlignmentChanged`).
 
 ### 2.10 Settings and data files
 
-`QSettings`, INI format, `<AppData>/media-downloader/settings/settings.ini` (`src/settings.cpp:374-410`). The
+`QSettings`, INI format, `<AppData>/media-downloader/settings/settings.ini` (`legacy/src/settings.cpp:374-410`). The
 directory can be overridden with the `MediaDownloaderAppDataPath` environment variable
-(`src/settings.cpp:423`); portable mode on Windows. 51 distinct keys via `getOption`, 61 including the dynamic
+(`legacy/src/settings.cpp:423`); portable mode on Windows. 51 distinct keys via `getOption`, 61 including the dynamic
 families (`CookieBrowser_<engine>`, `LastUsedOption<tab>_<engine>`, `TextEncoding_<engine>`,
 `WindowDimensions_<tab>`). There is a migration path from the older registry-based
 `QSettings("media-downloader","media-downloader")`.
@@ -245,15 +245,15 @@ Details and import rules: [data-compat.md](data-compat.md).
 
 18 catalogues: `ar, bg_BG, de_DE, el_GR, en_US, es_ES, fr_FR, it_IT, ja_JP, ko_KR, nl_NL, pl_PL, pt_BR, ru_RU,
 sv_SE, tr_TR, uk_UA, zh_CN`. 354 messages each. Strings in code use `tr()`, strings in the UI live in `.ui`.
-Language names are themselves translated (`src/translator.cpp:32-52`). The format is Qt `.ts`/`.qm`. There is no
-documentation for translators; there is a script, `src/update_translations`.
+Language names are themselves translated (`legacy/src/translator.cpp:32-52`). The format is Qt `.ts`/`.qm`. There is no
+documentation for translators; there is a script, `legacy/src/update_translations`.
 
 ### 2.12 Build and distribution
 
 - CMake: Qt5/Qt6, `AUTOMOC`/`AUTORCC`/`AUTOUIC`, C++14; generates `version.h`, `.desktop`, AppStream metainfo,
   the macOS bundle and Inno Setup scripts for Qt5 and Qt6 inside `CMakeLists.txt`.
 - Scripts: `build_linux-qt5.sh`, `build_arch-qt5.sh`, `build_fedora-qt5.sh`, `build_windows.ps1`.
-- Flatpak manifest (`src/flatpak/*.json`), AUR, Fedora and AppImage packaging live elsewhere.
+- Flatpak manifest (`legacy/src/flatpak/*.json`), AUR, Fedora and AppImage packaging live elsewhere.
 - CI (10 workflows): macOS arm/Intel, Windows (Qt5), publishing through `repository-dispatch` into
   `mhogomchungu/media-downloader-git` using secrets. **In the fork these cannot work** (no secrets, no target
   repositories) and, more importantly, none of them runs a test.
@@ -262,16 +262,16 @@ documentation for translators; there is a script, `src/update_translations`.
 
 | # | Finding | Where |
 | --- | --- | --- |
-| D1 | `metadata::valid()` checks `m_url` twice and does not check hash or file name — a release without a digest is "valid" | `src/engines.h:344-350` |
-| D2 | Errors are strings recognised by substring: `m.contains("Download Failed(ErrorCode=1)")` | `src/playlistdownloader.cpp:1791-1795` |
-| D3 | `baseEngine` has 57 virtual methods and deeply nested types | `src/engines.h` |
-| D4 | No unit tests; engine verification is a hidden CLI mode that needs the network | `src/engines/tests.cpp` |
-| D5 | Extensions are fetched from a pinned upstream commit; the menu lists 10 while 17 ship | `src/configure.cpp:876,1231` |
+| D1 | `metadata::valid()` checks `m_url` twice and does not check hash or file name — a release without a digest is "valid" | `legacy/src/engines.h:344-350` |
+| D2 | Errors are strings recognised by substring: `m.contains("Download Failed(ErrorCode=1)")` | `legacy/src/playlistdownloader.cpp:1791-1795` |
+| D3 | `baseEngine` has 57 virtual methods and deeply nested types | `legacy/src/engines.h` |
+| D4 | No unit tests; engine verification is a hidden CLI mode that needs the network | `legacy/src/engines/tests.cpp` |
+| D5 | Extensions are fetched from a pinned upstream commit; the menu lists 10 while 17 ship | `legacy/src/configure.cpp:876,1231` |
 | D6 | `ExtraArguments*` keys in `ytdl-patched.json` are never read | §2.5 |
 | D7 | Four licence files, none identified as normative | repository root |
-| D8 | `QSettings` is read from worker threads (15 call sites) — potential races | `src/*.cpp` |
-| D9 | `//?????` placeholders in the extension-download completion handlers | `src/configure.cpp:983-987` |
-| D10 | Application self-update renames directories at startup — a fragile path | `src/utility.cpp:1358-1400` |
+| D8 | `QSettings` is read from worker threads (15 call sites) — potential races | `legacy/src/*.cpp` |
+| D9 | `//?????` placeholders in the extension-download completion handlers | `legacy/src/configure.cpp:983-987` |
+| D10 | Application self-update renames directories at startup — a fragile path | `legacy/src/utility.cpp:1358-1400` |
 
 ---
 

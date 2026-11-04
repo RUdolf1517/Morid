@@ -21,8 +21,8 @@ legacy/
 │   └── *.ui        Qt Designer forms
 ├── translations/   18 .ts/.qm catalogues, 354 messages each
 ├── images/         icons and artwork
-├── changelog       the original's history, 1.0.0 → 5.6.8 (also at ../CHANGELOG-legacy.md)
 ├── CMakeLists.txt, src/media-downloader.pro
+├── removed-ci-workflows.md   what the ten inherited CI jobs did, and how to build this tree now
 ├── build_linux-qt5.sh, build_arch-qt5.sh, build_fedora-qt5.sh, build_windows.ps1
 └── cmake_uninstall.cmake.in
 ```
@@ -33,7 +33,7 @@ Three things that were part of the original tree do **not** move here:
 | --- | --- | --- |
 | `extensions/` (17 JSON files) | repository root | an active contract that Morid loads, not a historical artefact — D-003, D-010 |
 | `LICENSE`, `LICENSE.txt`, `GPLv2`, `GPLv3` | repository root | the project's licence and the original author's copyright notice, not an artefact of the C++ program |
-| `changelog` | `CHANGELOG-legacy.md` in the root | the original's release history, kept unedited next to Morid's own `CHANGELOG.md` |
+| `changelog` | `CHANGELOG-legacy.md` in the root | the original's release history, kept unedited next to Morid's own `CHANGELOG.md` (done) |
 
 The licence files remain in the repository root: they are the project's licence, not an artefact of the C++
 program, and the copyright notices in them must not be moved or edited.

@@ -38,6 +38,7 @@ working program. What exists today:
 | Functional map (every feature, priority, acceptance criterion) | done — [`docs/features.md`](docs/features.md) |
 | Architecture, roadmap, migration plan | done — [`docs/architecture.md`](docs/architecture.md), [`docs/roadmap.md`](docs/roadmap.md), [`docs/migration.md`](docs/migration.md) |
 | Rust workspace, CI, first code | not started — Phase 1 |
+| Repository layout: C++ in `legacy/`, 10 inherited workflows retired | done — see [`legacy/`](legacy/) |
 
 The roadmap explains the order and why it is that order: [docs/roadmap.md](docs/roadmap.md).
 
@@ -86,8 +87,9 @@ Once the workspace exists (Phase 1):
 cargo build --release
 ```
 
-Until then the only buildable code in this repository is the C++ original in `legacy/`, which is documented
-in [docs/building.md](docs/building.md) and is not the product.
+Until then the only buildable code in this repository is the C++ original in [`legacy/`](legacy/), which is
+documented in [docs/building.md](docs/building.md) §7 and is not the product. Building it needs Qt and is
+optional; CI never does it.
 
 ## Documentation
 

@@ -69,7 +69,9 @@ support has at least one captured output.
 **Deliverable:** a workspace that builds, tests and reports size on three platforms, with no features.
 
 - Cargo workspace, the eight crates of [architecture](architecture.md) §1, all empty but compiling.
-- Move the C++ tree to `legacy/`, add `legacy/README.md`, retire the 10 inherited CI workflows.
+- **Done ahead of the phase** (4 November 2026): the C++ tree is in `legacy/`, `changelog` is
+  `CHANGELOG-legacy.md`, and the 10 inherited CI workflows are retired — see
+  [legacy/removed-ci-workflows.md](../legacy/removed-ci-workflows.md).
 - New CI: fmt, clippy, test, build, size report, `cargo deny`, `cargo audit` on Linux, macOS, Windows.
 - Root documentation in its final structure, in English (D-012); `CHANGELOG.md` restarted with
   `CHANGELOG-legacy.md` holding the original history.

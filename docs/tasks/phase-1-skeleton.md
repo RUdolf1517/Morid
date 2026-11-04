@@ -10,7 +10,7 @@
 
 Turn this repository into a Rust workspace that is **continuously verifiable** before it contains anything
 useful. At the end of this task `cargo build --offline` succeeds, `morid --version` prints a version, CI is green
-on Linux, macOS and Windows, and the C++ tree has moved to `legacy/`.
+on Linux, macOS and Windows, and the C++ tree sits in `legacy/` out of the build path.
 
 This phase exists to make every later phase cheap to check. Its deliverable is not code that does something; it
 is a pipeline that will tell us when later code is wrong. Resisting the temptation to add features here is part
@@ -38,18 +38,22 @@ of the task.
 
 ## 3. What to produce
 
-### 3.1 The move
+### 3.1 The move — already done
 
-- Move `src/`, `translations/`, `images/`, `CMakeLists.txt`, `cmake_uninstall.cmake.in`, the four build scripts
-  and `changelog` into `legacy/`. **Use `git mv`**, one commit, so history is preserved.
-- `extensions/` and the four licence files (`LICENSE`, `LICENSE.txt`, `GPLv2`, `GPLv3`) **stay in the root.**
+The move was carried out on 4 November 2026, before this task was issued, so that the repository had its final
+layout when Phase 0 started. **Do not repeat it.** Verify it instead:
+
+- `src/`, `translations/`, `images/`, `CMakeLists.txt`, `cmake_uninstall.cmake.in` and the four build scripts are
+  in `legacy/`, moved with `git mv` in one commit so that history is preserved.
+- `changelog` is now `CHANGELOG-legacy.md` in the root, contents unedited.
+- `extensions/` and the four licence files (`LICENSE`, `LICENSE.txt`, `GPLv2`, `GPLv3`) are still in the root;
   [../../legacy/README.md](../../legacy/README.md) §"What is inside" explains why.
-- `changelog` becomes `CHANGELOG-legacy.md` in the root. Do not edit its contents, not even the heading.
-- Delete `.github/workflows/`: all ten inherited jobs need secrets and target repositories that do not exist in
-  this fork, and none of them runs a test. Record what was removed in the commit message, one line each.
-- Fix path references broken by the move: `legacy/CMakeLists.txt` and the build scripts may reference `../`, and
-  `docs/building.md` §7 tells users how to build the C++ tree in its new place. Make the build instructions
-  actually work from `legacy/`; if a script needs a two-line change to run from the new location, make it.
+- The ten inherited workflows are gone. What each did, and the path references the move broke, are recorded in
+  [../../legacy/removed-ci-workflows.md](../../legacy/removed-ci-workflows.md). That file also says how to build
+  the C++ tree from its new location without editing it.
+
+Your `git log --follow` check in §5 criterion 5 proves the move was a rename and not a copy. Nothing else about
+the layout is yours to change.
 
 ### 3.2 The workspace
 

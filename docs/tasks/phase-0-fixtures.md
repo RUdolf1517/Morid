@@ -30,8 +30,13 @@ Read, in this order, before writing anything:
    places where "identical" is *not* the goal.
 3. [../testing.md](../testing.md) §4 — fixture format, provenance and anonymisation.
 4. [../extensions.md](../extensions.md) §3–§5 — how a command is selected and how output is split into lines.
-5. The code: `legacy/src/utility.h` (`context`, ~1873–2135), `legacy/src/engines.cpp` (command assembly,
-   proxy injection), `legacy/src/engines/*.cpp` (`updateDownLoadCmdOptions` in each), `legacy/src/settings.cpp`.
+5. The code: `src/utility.h` (`context`, ~1873–2135), `src/engines.cpp` (command assembly, proxy injection),
+   `src/engines/*.cpp` (`updateDownLoadCmdOptions` in each), `src/settings.cpp`.
+
+**Path convention in this task:** at the time of writing, the C++ tree is still in `src/` at the repository root.
+It moves to `legacy/src/` only in Phase 1 (Task 2, `git mv`). Every `legacy/...` path in this document therefore
+means "the C++ tree, wherever it currently lives" — today `src/`. Do not create `legacy/` yourself and do not
+move anything: the move is Task 2's job and doing it here would collide with it.
 
 You will have to **build and run the C++ program**; that is expected and is the only permitted reason to build
 it. See [../building.md](../building.md) §7. Record the Qt version you used.
@@ -74,46 +79,56 @@ About **40** cases. Each case ID is `s<NN>-<short-name>`, stable forever, and ea
 
 | # | Case | Feature | What must be visible in the argv |
 | --- | --- | --- | --- |
-| 01 | plain yt-dlp download, default options | F-01 | engine defaults, output template, `--newline`-class flags |
-| 02 | download with a preset (highest quality) | F-03 | preset option string placement |
+| 01 | plain yt-dlp download, default options | F-03 | engine defaults, output template, `--newline`-class flags |
+| 02 | download with a bundled preset | F-06 | preset option string placement |
 | 03 | download with user-supplied `-f 22` | F-02 | user options versus engine defaults order |
-| 04 | download with two conflicting user options | F-02 | order preserved |
+| 04 | download with two conflicting user options | F-02 | order preserved, last occurrence wins where the backend says so |
 | 05 | format listing | F-01 | list command, `DumptJsonArguments` if any |
-| 06 | playlist URL, whole playlist | F-20 | playlist vs single-video flags |
+| 06 | playlist URL, whole playlist | F-20 | playlist versus single-video flags |
 | 07 | playlist URL, item range | F-21 | range syntax as the engine expects it |
 | 08 | playlist URL with `--no-playlist` forced by the user | F-21 | last-wins order |
-| 09 | download with download-archive | F-24 | `--download-archive` path form |
-| 10 | batch download of two URLs | F-10 | batch argument mechanism (`BatchFileArgument`) |
-| 11 | cookies from a browser | F-57 | cookie argument per engine |
-| 12 | cookies from a file | F-57 | path form, quoting |
-| 13 | proxy: mode `None` | F-59 | nothing added |
-| 14 | proxy: mode `Manual`, `http://user:pass@host:8080` | F-59 | how credentials are passed, argument vs environment |
-| 15 | proxy: mode `Env` | F-59 | which variables are set |
-| 16 | subtitle download enabled | F-06 | `DefaultSubtitleDownloadOptions` |
-| 17 | subtitle languages specified | F-06 | token splitting |
-| 18 | comments download | F-07 | engine-specific flag |
-| 19 | chapters split | F-16 | naming template with chapter fields |
+| 09 | download with download-archive | F-23 | `--download-archive` path form |
+| 10 | batch download of two URLs | F-10 | whether URLs go as separate arguments or by `BatchFileArgument` |
+| 11 | cookies from a browser | F-55 | cookie argument per engine |
+| 12 | cookies from a file | F-55 | path form, quoting |
+| 13 | proxy: mode `None` | F-54 | nothing added |
+| 14 | proxy: mode `Manual`, `http://user:pass@host:8080` | F-54 | how credentials are passed, argument versus environment |
+| 15 | proxy: mode `Env` | F-54 | which variables are set |
+| 16 | subtitle download enabled | F-08 | `DefaultSubstitlesCmdOptions` (spelling preserved) |
+| 17 | subtitle languages specified | F-08 | token splitting |
+| 18 | comments download | F-09 | engine-specific flag |
+| 19 | chapters split | F-15 | naming template with chapter fields, `--download-sections` |
 | 20 | output directory with a space and a non-ASCII name | F-50 | path passing, no shell |
-| 21 | filename template containing `%(title)s` from user text | F-50 | template is passed through, not expanded by us |
-| 22 | URL with `&`, `?`, `#`, `%` | F-50 | no URL decoding, no splitting |
-| 23 | URL that is not HTTP (a bare filesystem path) | F-69 | rejection or pass-through, whichever the original does |
-| 24 | custom extension, template text with `${...}` substitution | F-30 | substitution result |
-| 25 | extension with `Cmd` for the current OS only | F-30 | correct branch selected |
-| 26 | extension with `Cmd` for a different arch | F-30 | fallback behaviour, whatever it is |
+| 21 | filename template containing `%(title)s` from user text | F-50 | template passed through, not expanded by us |
+| 22 | URL containing `&`, `?`, `#`, `%` | F-50 | no URL decoding, no splitting |
+| 23 | URL-manager rule selects the engine and its options | F-52 | which extension is chosen and where its options land |
+| 24 | custom extension, template text with `${...}` substitution | F-39 | substitution result |
+| 25 | extension with `Cmd` for the current OS only | F-31 | correct branch selected |
+| 26 | extension with `Cmd` for a different architecture | F-31 | fallback behaviour, whatever it actually is |
 | 27 | extension with `ExtraOptions` | F-30 | where they land in the order |
-| 28 | extension whose `AutoUpdate` is false | F-33 | update command not produced |
-| 29 | gallery-dl, default options | F-28 | its own defaults |
-| 30 | gallery-dl with a per-engine option | F-28 | order |
-| 31 | wget | F-28 | `ReplaceOutputWithProgressReport` effect on argv |
-| 32 | aria2c | F-28 | CR-based output engine's argv |
-| 33 | you-get | F-28 | interpreter invocation |
-| 34 | svtplay-dl | F-28 | its own flag set |
-| 35 | unknown extension name | F-30 | error path, argv is empty and that is the point |
-| 36 | extension with a missing required key | F-30 | load failure, argv empty |
-| 37 | yt-dlp with `-x` and audio format | F-08 | conversion flags, ffmpeg reference |
-| 38 | `--run-command-after-download` configured | F-70 | the second command's argv |
-| 39 | non-UTF-8 encoding setting | F-56 | `EncodingArgument` |
+| 28 | extension whose `AutoUpdate` is false | F-34 | update command not produced |
+| 29 | gallery-dl, default options | F-31 | its own command and defaults |
+| 30 | gallery-dl with a per-engine default option | F-02 | placement relative to engine defaults |
+| 31 | wget | F-31 | `ReplaceOutputWithProgressReport` effect on argv |
+| 32 | aria2c | F-31 | CR-based output engine's argv |
+| 33 | you-get | F-31 | interpreter invocation |
+| 34 | svtplay-dl | F-31 | its own flag set |
+| 35 | unknown extension name | F-30 | error path; empty argv is the expected result |
+| 36 | extension with a missing required key | F-30 | load failure, empty argv |
+| 37 | yt-dlp with `-x` and an audio format | F-02 | conversion flags, ffmpeg reference |
+| 38 | command configured to run after a download | F-60 | the second command's argv and where its output goes |
+| 39 | non-UTF-8 encoding setting | F-56 | `EncodingArgument` and the decoder behaviour |
 | 40 | Flatpak/AppImage packaging flag | F-30 | `ExtraOptionsFlatpakAppImage` inclusion |
+
+Every feature ID above exists in [../features.md](../features.md) — all of them are `not started`, and a row
+without a captured case cannot become `done` later. Some features are deliberately **not** in this set because
+they produce no argument vector: history (F-07), themes (F-57), UI scale (F-58), tray (F-59), window geometry
+(F-67), library (F-65), thumbnails (F-14). Their evidence is of another kind and belongs to their own phase.
+
+**Where the source list comes from:** the task table above is the specification; the scenario files themselves do
+not exist yet and are not supposed to exist before you work. `docs/features.md` gives the feature ID behind each
+row, `docs/extensions.md` §3–§5 gives the schema keys named in the right-hand column. If a row names a feature ID
+that `docs/features.md` does not contain, report it rather than inventing a scenario.
 
 For each case, `argv.json` is produced by the program under test. **How to obtain it** — pick whichever works
 and say which you used in `fixtures/README.md`:
@@ -163,7 +178,7 @@ in `fixtures/README.md` that it will be folded into `xtask` in Phase 1 if it is 
 
 ## 4. Constraints
 
-- **Do not modify `legacy/`.** Its behaviour is the reference. If it is wrong, record the defect in
+- **Do not modify the C++ tree** (today `src/`, later `legacy/`). Its behaviour is the reference. If it is wrong, record the defect in
   `fixtures/README.md` and cross-reference [../migration.md](../migration.md) §6.
 - **Do not write Rust.** No workspace, no crates, no `Cargo.toml`. That is Phase 1. This task is deliberately
   possible without a Rust toolchain.
@@ -227,5 +242,5 @@ Updated by the manager after the work is reviewed, not by you:
 - [../roadmap.md](../roadmap.md) §1 — Phase 0 marked done, estimate corrected against actual.
 - [../features.md](../features.md) — a case that revealed an undocumented behaviour gets its note.
 
-Report any inconsistency you find between these documents and the real behaviour of `legacy/`; do not resolve
+Report any inconsistency you find between these documents and the real behaviour of the C++ program; do not resolve
 it yourself.

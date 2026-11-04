@@ -1,165 +1,125 @@
-# Media Downloader
+<div align="center">
 
-This project is a Qt/C++ based GUI frontend to CLI multiple CLI-based tools that deal with downloading online media.
+# Morid
 
-[yt-dlp](https://github.com/yt-dlp/yt-dlp) CLI tool is the default supported tool and other tools can be added by
-downloading their extension and a list of supported extensions is managed [here](https://github.com/mhogomchungu/media-downloader/wiki/Extensions).
+**A GUI for command-line media downloaders — rewritten in Rust.**
 
+[![license](https://img.shields.io/badge/license-GPL--2.0--or--later-0b3d91?style=flat-square)](LICENSE)
+[![status](https://img.shields.io/badge/status-pre--alpha-orange?style=flat-square)](docs/roadmap.md)
 
-Features offered:-
+</div>
 
-1. The GUI can be used to download any media from any website supported by installed extensions.
+---
 
-2. The GUI offers a configurable list of preset options that can be used to download media if they are provided in multiple formats.
+## What this is
 
-3. The GUI offers the ability to do an unlimited number of concurrent downloads. Be careful with this ability because doing too many concurrent
-downloads may cause the host to ban you.
+Morid is a graphical application for downloading video, audio and other media from the internet. It is a
+frontend: the actual downloading is done by well-known command-line tools, primarily
+[yt-dlp](https://github.com/yt-dlp/yt-dlp), and by others such as [gallery-dl](https://github.com/mikf/gallery-dl),
+[you-get](https://github.com/soimort/you-get), [aria2c](https://aria2.github.io/) and
+[wget](https://www.gnu.org/software/wget/).
 
-4. The GUI offers the ability to do batch downloads by entering individual links in the UI or telling the app to read them from a local file.
+Morid is a from-scratch **Rust** reimplementation of [Media Downloader](https://github.com/mhogomchungu/media-downloader)
+by Francis Banyikwa. The original C++/Qt program is the functional reference; it is kept in
+[`legacy/`](legacy/) for comparison and is not the product.
 
-5. The GUI offers an ability to download a playlist from websites that supports them like YouTube.
+## Project status
 
-6. The GUI offers the ability to manage links to playlists to easily monitor their activities(subscriptions).
+**Pre-alpha. There is no Rust code yet.**
 
-7. The GUI is offered in multiple languages and as of this writing, the supported languages are English, Chinese, Spanish, Polish, Turkish, Russian, Japanese, French, Italian, Portuguese, Arabic, Korean, Swedish, German, Greek and Ukrainian.
+The inventory of what has to be built, how it is verified and in what order is complete and is recorded in
+[`docs/`](docs/). No functional Rust code exists, so nothing here should be read as a description of a
+working program. What exists today:
 
-## Extensions
+| Area | State |
+| --- | --- |
+| Audit of the original C++ code base | done — [`docs/audit-original.md`](docs/audit-original.md) |
+| Product decisions (15 open questions) | decided — [`docs/decisions.md`](docs/decisions.md) |
+| Functional map (every feature, priority, acceptance criterion) | done — [`docs/features.md`](docs/features.md) |
+| Architecture, roadmap, migration plan | done — [`docs/architecture.md`](docs/architecture.md), [`docs/roadmap.md`](docs/roadmap.md), [`docs/migration.md`](docs/migration.md) |
+| Rust workspace, CI, first code | not started — Phase 1 |
 
-Media Downloader is a GUI front end to [yt-dlp](https://github.com/yt-dlp/yt-dlp), [gallery-dl](https://github.com/mikf/gallery-dl), [you-get](https://github.com/soimort/you-get), [svtplay-dl](https://github.com/spaam/svtplay-dl), [aria2c](https://aria2.github.io/), [wget](https://www.gnu.org/software/wget) and [get-sauce](https://github.com/gan-of-culture/get-sauce).
+The roadmap explains the order and why it is that order: [docs/roadmap.md](docs/roadmap.md).
 
-To Install these extensins, go to "Configure" tab and then go to "Extensions" sub tab and then click the "Add An Extension" button and then select from the list an extension you want to install.
+## What it will do
 
-## FAQ
-A Frequently asked Questions page is [here](https://github.com/mhogomchungu/media-downloader/wiki/Frequently-Asked-Questions).
+Everything the original program does, which is more than "download a link":
 
-#### Prerequisite before running for the first time
+- download video and audio, with format and quality selection driven by the backend;
+- show the formats a URL offers and let the user pick one;
+- support yt-dlp, gallery-dl, you-get, svtplay-dl, get-sauce and other backends through the same JSON
+  extension format the original uses;
+- batch downloads, including reading links from a file;
+- playlists, with ranges and selective download;
+- subscriptions to playlists, checked against a download archive so nothing is fetched twice;
+- an unlimited number of concurrent downloads, with a configurable limit;
+- per-engine default options, reusable presets, and URL rules that select an engine and options
+  automatically;
+- cookies from a browser or a file, proxy configuration, text encoding handling;
+- the same 18 interface languages, dark themes, tray icon and notifications;
+- a download library to browse, rename and delete what was downloaded;
+- a console interface (`morid`) that does all of the above without a window.
 
-Make sure you have access to the internet before you run "Media Downloader" for the first time because it will attempt to use the internet to download the latest version of yt-dlp. Installing most extensions will also cause "Media Downloader" to access the internet to download the extension's executable.
+A console interface is a product feature here, not an afterthought: it is what makes the behaviour testable
+and it is described in [docs/cli.md](docs/cli.md).
 
-## Binary packages
+## What it will not do
 
-#### Bundle for MacOS
+- **No mirroring for right-to-left languages.** Arabic is translated and renders correctly, but the
+  interface layout is not mirrored. Slint, the chosen UI toolkit, does not support interface direction yet;
+  see [D-002](docs/decisions.md). The item is on the roadmap with no release attached.
+- **No Windows 7, 8 or 8.1.** Windows 10 and 11, x86_64 only; see [D-005](docs/decisions.md).
+- **No self-updating.** Morid checks for a new version and tells you; it does not install it; see
+  [D-013](docs/decisions.md).
+- **No lossy assumptions.** Morid never silently changes what a backend downloads.
 
-Bundle for arm64 build of MacOS is [here](https://github.com/mhogomchungu/media-downloader/releases/download/5.6.8/MediaDownloaderQt6-arm64-5.6.8.dmg).
+## Install
 
-Bundle for x86_64 build of MacOS is [here](https://github.com/mhogomchungu/media-downloader/releases/download/5.6.8/MediaDownloaderQt6-x86_64-5.6.8.dmg).
+There are no packages yet. When there are, they will be listed in
+[docs/releases.md](docs/releases.md).
 
-These bundles are not notarized and your system may report it as "corrupted". Search the internet on how to install bundles that are not notarized if you want to use this app on MacOS. This bundle works on macOS 14.0 or later.
+## Build from source
 
-#### Installer for Microsoft Windows
+Once the workspace exists (Phase 1):
 
-Installer for Microsoft Windows that is 32 bit, build with Qt5 and has a minimum requirenment of windows 7 is [here](https://github.com/mhogomchungu/media-downloader/releases/download/5.6.8/MediaDownloaderQt5-5.6.8.setup.exe).
-
-Installer for Microsoft Windows that is 64 bit, build with Qt6 and has a minimum requirenment of windows 10 is [here](https://github.com/mhogomchungu/media-downloader/releases/download/5.6.8/MediaDownloaderQt6-5.6.8.setup.exe).
-
-#### Portable version for Microsoft Windows
-
-A portable version is a self-contained version that keeps everything in the application folder and does not need to be installed first.
-
-Portable version for Microsoft Windows that is 32 bit, build with Qt5 and has a minimum requirenment of windows 7 is [here](https://github.com/mhogomchungu/media-downloader/releases/download/5.6.8/MediaDownloaderQt5-5.6.8.zip).
-
-Portable version for Microsoft Windows that is 64 bit, build with Qt6 and has a minimum requirenment of windows 10 is [here](https://github.com/mhogomchungu/media-downloader/releases/download/5.6.8/MediaDownloaderQt6-5.6.8.zip).
-
-You can also install the portable version for Windows using scoop with the following commands:
-
-Add the extras bucket:
-```powershell
-scoop bucket add extras
-```
-Install Media Downloader:
-```powershell
-scoop install media-downloader
-```
-
-Git versions for windows and macos can be downloaded from [here](https://github.com/mhogomchungu/media-downloader-git/releases).
-
-#### Problems with Windows's antivirus programs
-
-Once in a while, Windows Defender and other antivirus tools will report this application as a virus/unsafe
-or Potentially unwanted. These are false positive reports and they are tracked [here](https://github.com/mhogomchungu/media-downloader/issues/481).
-
-
-#### Flatpak
-
-Media Downloader is on [flathub](https://flathub.org/apps/io.github.mhogomchungu.media-downloader) for those who prefer to use flatpaks.
-
-### AppImage
-
-Users of AppImages can get an AppImage package of Media Downloader from [here](https://github.com/pkgforge-dev/Media-Downloader-AppImage/releases).
-
-#### Aur package for Arch Linux
-Arch Linux users can build the project from source using [this](https://aur.archlinux.org/packages/media-downloader) aur package.
-
-#### Package for Fedora
-Media Downloader is in official Fedora repositories and can be installed by running ```sudo dnf -y install media-downloader```
-
-### Binary packages for other Linux distributions
-
-Binary packages i maintain for a few Linux distributions are [here](https://software.opensuse.org//download.html?project=home%3Aobs_mhogomchungu&package=media-downloader).
-
-### Packaging Status
-
-A short list of distributions that have Media Downloader in their repositories and the version they have is maintained [here](https://repology.org/project/media-downloader/badges).
-
-
-# How to compile for Linux
-
-1. clone the repo and cd into it
-```console
-git clone https://github.com/mhogomchungu/media-downloader && cd media-downloader
+```sh
+cargo build --release
 ```
 
-2. chmod it to make it a executeable
-```console
-chmod +x build_linux.sh
-```
+Until then the only buildable code in this repository is the C++ original in `legacy/`, which is documented
+in [docs/building.md](docs/building.md) and is not the product.
 
-3. now run the shell script
-```console
-./build_linux.sh
-```
+## Documentation
 
+| Document | Contents |
+| --- | --- |
+| [audit-original.md](docs/audit-original.md) | What the original program is, how it is built, what was found |
+| [decisions.md](docs/decisions.md) | Every product decision taken by the owner, with reasons |
+| [features.md](docs/features.md) | Functional map: each feature, where it lives, priority, acceptance criterion |
+| [architecture.md](docs/architecture.md) | Rust design: crates, boundaries, how the pieces talk |
+| [migration.md](docs/migration.md) | How the C++ behaviour becomes Rust behaviour, and how equivalence is proven |
+| [roadmap.md](docs/roadmap.md) | Phases, what each phase delivers, what is deliberately deferred |
+| [extensions.md](docs/extensions.md) | The extension JSON contract — 34 keys, schema versions 1–4 |
+| [data-compat.md](docs/data-compat.md) | The original's settings and data files, and how they are imported |
+| [cli.md](docs/cli.md) | Console interface: commands, exit codes, output format |
+| [testing.md](docs/testing.md) | Test strategy, fixtures, and what is *not* covered |
+| [dependencies.md](docs/dependencies.md) | Every dependency and the argument for it |
+| [platforms.md](docs/platforms.md) | Supported platforms and what each one requires |
+| [building.md](docs/building.md) | Building, cross-compiling, packaging |
+| [workspace-manifest.md](docs/workspace-manifest.md) | Exact target content of `Cargo.toml`, `rust-toolchain.toml`, `deny.toml` |
+| [releases.md](docs/releases.md) | Release process, artefacts, checksums |
 
-### Fedora
+## Licence
 
-Fedora users can use the following script to build from source:
+Morid is free software under the **GNU General Public License, version 2 or (at your option) any later
+version**. See [LICENSE](LICENSE). It is a derivative work of Media Downloader; the original author's
+copyright notices in [LICENSE.txt](LICENSE.txt) are retained and must not be removed.
 
-```console
-./build_fedora.sh
-```
-### Arch linux
+Third-party components and their licences are listed in [THIRD-PARTY.md](THIRD-PARTY.md).
 
-Arch linux users can use the following script to build from source:
+## Credit
 
-```console
-./build_arch.sh
-```
-
-# Screenshots
-
-
-![media-downloader.png](https://raw.githubusercontent.com/mhogomchungu/media-downloader/main/images/media-downloader-1.png)
-
-![media-downloader.png](https://raw.githubusercontent.com/mhogomchungu/media-downloader/main/images/media-downloader-2.png)
-
-![media-downloader.png](https://raw.githubusercontent.com/mhogomchungu/media-downloader/main/images/media-downloader-3.png)
-
-![media-downloader.png](https://raw.githubusercontent.com/mhogomchungu/media-downloader/main/images/media-downloader-4.png)
-
-![media-downloader.png](https://raw.githubusercontent.com/mhogomchungu/media-downloader/main/images/media-downloader-5.png)
-
-![media-downloader.png](https://raw.githubusercontent.com/mhogomchungu/media-downloader/main/images/media-downloader-6.png)
-
-![media-downloader.png](https://raw.githubusercontent.com/mhogomchungu/media-downloader/main/images/media-downloader-7.png)
-
-# Disclaimer
-
-This program is intended to be used  in a way that does not violate any laws that are applicable to its users.
-
-# License
-
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+Morid exists because of [Media Downloader](https://github.com/mhogomchungu/media-downloader) by
+**Francis Banyikwa** (`mhogomchungu@gmail.com`), Copyright (c) 2021–2026, GPL-2.0-or-later. The functional
+specification, the extension format and the user data formats are his work. Any defect in the Rust
+reimplementation is ours, not his.

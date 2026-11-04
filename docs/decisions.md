@@ -1,318 +1,231 @@
-# Решения владельца проекта
+# Decisions
 
-Журнал принятых решений. Каждая запись фиксирует решение, дату, обоснование и последствия.
-Изменение записи возможно только решением владельца; устаревшие записи не удаляются, а помечаются
-как заменённые.
+The log of product decisions taken by the project owner, Rudolf Zinovev. Each entry records the decision, the
+date, the reasoning and its consequences.
 
----
+**This file is the source of truth for the project.** When a task, a document or a line of code disagrees with
+an entry here, the entry wins. Entries are never deleted; a decision that is superseded gets a new entry that
+names the old one.
 
-## D-001. GUI-тулкит: Slint
-
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q1 (`docs/audit-original.md` §9)
-- **Решение:** интерфейс Morid разрабатывается на **Slint** (`.slint` — декларация UI, логика — Rust).
-- **Обоснование владельца:** решение принято по рекомендации технического руководителя; Slint —
-  единственный Rust-тулкит, близкий к Qt по модели работы (декларативное описание форм, а не
-  императивное рисование), с живым предпросмотром интерфейса и компактными итоговыми сборками.
-- **Последствия:**
-  - Qt как часть конечной архитектуры не используется; мост Rust↔Qt отклонён.
-  - Требуется решить Q3 (лицензионный путь Slint) до первого публичного выпуска.
-  - Slint не поддерживает зеркалирование интерфейса → см. D-002.
-  - `morid-gui` собирается с `slint` и `slint-build`; `.slint`-файлы входят в отдельный каталог
-    (`ui/`), их правки — обычные изменения в репозитории.
-- **Открытые зависимости:** Q3 (лицензия), Q2/D-002 (RTL).
+A Russian-language record of the same decisions, with the full argumentation written for a non-technical reader,
+is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-in-english).
 
 ---
 
-## D-002. Зеркальный интерфейс (RTL, арабский): откладывается
+## D-001. User interface toolkit: Slint
 
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q2
-- **Решение:** в первой версии **нет зеркалирования интерфейса**. Арабский язык остаётся в списке
-  языков: строки переводятся, текст отображается и соединяется корректно, но расположение элементов
-  не зеркалится (полоса прокрутки, порядок кнопок, выравнивание остаются LTR).
-- **Обоснование:** поддержка Slint не готова (открытый upstream-запрос без сроков); самостоятельная
-  реализация зеркалирования оценивается в 20–40 дней и требует сопровождения при каждом новом экране.
-  Один язык из восемнадцати не должен задерживать программу для остальных семнадцати.
-- **Последствия:**
-  - Ограничение фиксируется **публично**: в README (раздел ограничений) и в `CHANGELOG.md`, чтобы
-    пользователь не считал это дефектом перевода.
-  - В `docs/roadmap.md` — отдельный пункт «RTL-раскладка», не привязанный к релизу.
-  - В `docs/testing.md` — критерий: арабские строки отображаются без обрезки и в правильном
-    направлении текста, но раскладка не зеркалится (это ожидаемое поведение, а не баг).
-  - Пересмотреть решение, если Slint добавит поддержку направленности интерфейса или если появится
-    требование от пользователей.
+- **Date:** 4 November 2026 · **Question:** Q1 of the audit
+- **Decision:** the interface is built with **Slint** — declared in `.slint` files, driven by Rust.
+- **Reasoning:** Slint is the only Rust toolkit that matches the original's declarative UI model rather than
+  requiring the interface to be drawn imperatively; it has a live preview, and its binaries are compact, which
+  serves the minimalism principle. Qt through a C++ bridge was rejected because the point of the project is to
+  leave C++ behind.
+- **Consequences:** Qt is not part of the final architecture. `morid-gui` depends on `slint` and `slint-build`;
+  `.slint` files live in `ui/`. Slint does not support interface direction, which forces D-002. The licence
+  question is settled in D-007.
 
----
+## D-002. Right-to-left interface mirroring is deferred
 
-## D-003. Совместимость с расширениями и данными пользователя: полная
+- **Date:** 4 November 2026 · **Question:** Q2
+- **Decision:** the first version does **not** mirror the interface for right-to-left languages. Arabic stays a
+  supported language: strings are translated and render correctly, but the layout stays left-to-right.
+- **Reasoning:** Slint has an open upstream request for interface direction with no date. Implementing mirroring
+  ourselves is estimated at 20–40 days and must be maintained for every new screen. One language out of eighteen
+  must not hold back the program for the other seventeen.
+- **Consequences:** the limitation is stated **publicly** — in the README, in `CHANGELOG.md`, and in the About
+  text — so a user does not read it as a translation defect. It is on the roadmap with no release attached. The
+  test criterion is that Arabic text is correct and unclipped, not that the layout mirrors. Revisit if Slint adds
+  the feature or if users ask.
 
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q5
-- **Решение:** Morid — **замена** Media Downloader, а не новый продукт с похожей функцией.
-  - Все 17 файлов из `extensions/` читаются и работают.
-  - Файлы данных пользователя (`settings.ini`, `presetOptions.json`, `downloadDefaultOptions.json`,
-    `downloadEngineDefaultOptions.json`, `subscriptions.json`, `autoSavedList.json`,
-    `downloadHistory.json`, архивы `archiveFile-*`, `themes/`) читаются и импортируются одноразовой
-    процедурой.
-  - Схема расширений закрепляется как **публичный контракт с номером версии** и покрывается тестами.
-- **Обоснование:** сохранение функциональности оригинала — основная задача проекта. Без совместимости
-  переход пользователей невозможен.
-- **Последствия:**
-  - Появляется документ `docs/extensions.md` — контракт схемы: все ключи, типы, значения по умолчанию,
-    правила версий 1–4, семантика `ControlJsonStructure`.
-  - Появляется документ `docs/data-compat.md` — форматы файлов данных оригинала и правила импорта.
-  - Расхождения, найденные при аудите (ключи `ExtraArguments*` в `ytdl-patched.json`, которые код
-    оригинала не читает), **не исправляются молча**: решение по каждому фиксируется в
-    `docs/extensions.md` отдельной строкой (см. D-004).
-  - Импорт данных — отдельная фаза с тестами на реальном каталоге пользователя (копия, не оригинал).
-  - Загрузка расширений из upstream по зашитому коммиту (`src/configure.cpp:876`) не переносится:
-    источник расширений должен быть под контролем проекта Morid (см. открытый вопрос Q11 в аудите,
-    риск R7). Требуется отдельное решение владельца о конечных точках.
+## D-003. Full compatibility with extensions and user data
 
----
+- **Date:** 4 November 2026 · **Question:** Q5
+- **Decision:** Morid is a **replacement** for Media Downloader, not a new program with a similar function.
+  - All 17 bundled extension files load and work.
+  - User data is read and imported once: `settings.ini`, `presetOptions.json`, `downloadDefaultOptions.json`,
+    `downloadEngineDefaultOptions.json`, `subscriptions.json`, `autoSavedList.json`, `downloadHistory.json`,
+    `archiveFile-*`, `themes/`.
+  - The extension schema becomes a **public contract with a version number** and is covered by tests.
+- **Reasoning:** preserving the original's functionality is the purpose of the project; without compatibility
+  no existing user can move.
+- **Consequences:** two documents that did not exist in the plan — [extensions](extensions.md) and
+  [data-compat](data-compat.md). Discrepancies found in the audit are **not fixed silently**: each is decided in
+  `docs/extensions.md` (the `ExtraArguments*` case) or `docs/migration.md` §6. Import becomes its own phase with
+  a test against a real data directory. The upstream extension download by pinned commit
+  (`legacy/src/configure.cpp:876`) is not carried over — see D-010.
 
-## D-004. Совместимость версий в расширениях: мягкая проверка
+## D-004. Extension version requirements: soft check
 
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q6 (принято вместе с D-003 как следствие)
-- **Решение:** поле `RequiredMinimumVersionOfMediaDownloader` со значением семейства `2.x`
-  трактуется как **совместимое**. Расширение загружается, а реальная работоспособность выясняется
-  по факту; при отказе выводится понятное сообщение с указанием причины.
-- **Статус:** подтверждено владельцем как часть решения D-003. Если владелец захочет иначе —
-  запись заменяется новой.
-- **Последствия:** в `docs/extensions.md` описывается таблица «требуемая версия → поведение Morid»;
-  молчаливого игнорирования нет, каждое расхождение логируется.
+- **Date:** 4 November 2026 · **Question:** Q6 (decided as a consequence of D-003)
+- **Decision:** a `RequiredMinimumVersionOfMediaDownloader` in the `2.x` family is treated as **satisfied**. A
+  higher requirement refuses the extension with a message naming the required and the running version.
+- **Reasoning:** every existing extension asks for `2.x`. Once Morid has its own numbering, a strict comparison
+  would reject all of them, including ones that work.
+- **Consequences:** the mapping table lives in [extensions](extensions.md) §1. Nothing is silently ignored: the
+  extension loads, and a real failure is reported with a clear diagnosis.
 
----
+## D-005. Windows: 10 and 11 only
 
-## D-005. Платформы Windows: только Windows 10 и 11
+- **Date:** 4 November 2026 · **Question:** Q7
+- **Decision:** support is limited to **Windows 10 and 11, x86_64**. Windows 7, 8 and 8.1 are not supported. No
+  32-bit Windows build is produced.
+- **Reasoning:** old-Windows support freezes the toolchain, forbids crates that dropped it, requires a 32-bit
+  build and testing on an unpatched system — a permanent tax on every later choice. Windows 7 has had no security
+  updates since 2020.
+- **Consequences:** [platforms](platforms.md) records the matrix and the reason. The roadmap records that support
+  is not planned, so it does not resurface as forgotten debt. Not carried over: `win7amd64`/`win7x86` command
+  selection, `yt-dlp_win7.exe` variants, the quickjs-ng pinning done for Windows 7 (changelog 5.6.2, 5.6.8).
+  CI matrix: Linux x86_64 + aarch64, macOS arm64 + x86_64, Windows x86_64.
 
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q7
-- **Решение:** поддержка ограничивается **Windows 10 и 11, x86_64**. Windows 7, 8 и 8.1 не
-  поддерживаются. 32-битная сборка под Windows не выпускается.
-- **Обоснование:** поддержка старых систем не разовая работа, а постоянное ограничение на выбор
-  библиотек, плюс отдельное тестирование и 32-битная сборка. Windows 7 не получает обновлений
-  безопасности с 2020 года.
-- **Последствия:**
-  - `docs/platforms.md` фиксирует матрицу платформ; Windows 7/8 отмечены как неподдерживаемые с
-    указанием причины.
-  - `docs/roadmap.md` содержит запись «поддержка Windows 7/8 не планируется», чтобы это не
-    всплывало как забытый долг.
-  - Из переносимого кода не переезжают: `win7amd64`/`win7x86`-ветки выбора команд, отдельные
-    `yt-dlp_win7.exe`-варианты, патчи quickjs-ng ради Windows 7 (changelog 5.6.2 и 5.6.8).
-  - Целевая матрица CI: Linux x86_64 + aarch64, macOS arm64 + x86_64, Windows x86_64.
+## D-006. Repository: this fork, C++ in `legacy/`
 
----
+- **Date:** 4 November 2026 · **Question:** Q11
+- **Decision:** the project continues in the current repository. The existing C++ code moves to `legacy/` and is
+  kept as the behavioural reference.
+- **Reasoning:** one link to the project, the whole transition in one history, and an easy "before and after"
+  story.
+- **Consequences:** `legacy/` contains `src/`, `CMakeLists.txt`, the build scripts, `src/flatpak/`,
+  `translations/`. **Not** moved: `extensions/` (an active contract, D-003), the licence and copyright files,
+  `images/`. `changelog` becomes `CHANGELOG-legacy.md` without edits; the new `CHANGELOG.md` starts with Morid.
+  The root builds with Cargo only. The 10 inherited CI workflows are removed — they need secrets and repositories
+  from the upstream project and none of them runs a test; new CI is Rust. GitHub still labels the repository a
+  fork; that is accepted.
 
-## D-006. Репозиторий: этот форк, C++ в `legacy/`
+## D-007. Slint licence: royalty-free with attribution
 
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q11
-- **Решение:** проект продолжается в текущем репозитории. Существующий C++-код переносится в
-  каталог `legacy/` и сохраняется как эталон поведения. Удаление `legacy/` — отдельное решение
-  после того, как эталон зафиксирован тестами.
-- **Обоснование:** вся история перехода в одном месте, возможность показывать «было/стало»,
-  одна ссылка на проект.
-- **Последствия:**
-  - `legacy/` содержит: `src/`, `CMakeLists.txt`, `build_*.sh`, `build_windows.ps1`,
-    `cmake_uninstall.cmake.in`, `src/media-downloader.pro`, `src/flatpak/`, `translations/`.
-  - `extensions/`, `images/`, `LICENSE`, `LICENSE.txt`, `GPLv2`, `GPLv3`, `changelog` **не**
-    переезжают в `legacy/`: расширения — действующий контракт (D-003), лицензии и уведомления
-    остаются в корне, `changelog` переименовывается в `CHANGELOG-legacy.md` (история оригинала
-    сохраняется без искажений; новый `CHANGELOG.md` начинается с Morid).
-  - Корневая сборка — Cargo workspace. CMake-сборка из корня больше не работает; в
-    `legacy/README.md` описано, как собрать C++-версию при необходимости сверки.
-  - 10 workflow в `.github/workflows/` относятся к C++-сборке и в форке неработоспособны
-    (чужие секреты и репозитории). Они удаляются; новый CI — под Rust.
-  - GitHub продолжает помечать репозиторий как форк. Это принимается.
+- **Date:** 4 November 2026 · **Question:** Q3
+- **Decision:** Slint is used under its **free licence with attribution** — not the GPLv3 option, not the
+  commercial one.
+- **Reasoning:** the project licence does not change (GPL-2.0-or-later) and the obligation is a line of
+  attribution.
+- **Consequences:** the About window names Slint; `THIRD-PARTY.md` records version, licence and the required
+  attribution; `docs/dependencies.md` §2.1 records the reasoning. Changing this later requires a licence review
+  and a new entry.
 
----
+## D-008. Binary size: measured, not gated
 
----
+- **Date:** 4 November 2026 · **Question:** Q12
+- **Decision:** the size of every build is **measured and published automatically**, but a large size does not
+  fail the build. Targets, not gates: GUI ≤ 20 MiB, console ≤ 4 MiB.
+- **Reasoning:** the owner chose the softer mode so that early phases, where the dependency set is still moving,
+  are not blocked.
+- **Consequences and a stated risk:**
+  - required: the size appears in every task report and in `CHANGELOG.md` when it moves by more than 5 %; the
+    history is kept in [dependencies](dependencies.md) §6;
+  - a growth of more than 10 % over the previous measurement requires a written justification in the pull
+    request;
+  - **the risk is accepted knowingly:** without a gate, minimalism stays a declaration. The technical lead
+    proposes revisiting gates at version 1.0, when the dependency set has settled — either to enable them or to
+    record the refusal;
+  - size measurement is part of Phase 1 CI, so this decision blocks nothing.
 
-## D-007. Лицензионный путь Slint: royalty-free с указанием авторства
+## D-009. Console interface is a product feature
 
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q3
-- **Решение:** Slint используется по **бесплатной лицензии с указанием авторства** (не по GPLv3-ветке
-  и не по коммерческой).
-- **Обоснование:** лицензия проекта не меняется (остаётся GPL-2.0-or-later), обязательство сводится
-  к атрибуции.
-- **Последствия:**
-  - В окне «О программе» — строка об использовании Slint.
-  - В `THIRD-PARTY.md` — запись: Slint, версия, лицензия, ссылка, текст требуемой атрибуции.
-  - В `docs/dependencies.md` — обоснование выбора и лицензионная проверка.
-  - Смена этого решения потребует ревизии файлов лицензий; фиксируется отдельной записью.
+- **Date:** 4 November 2026 · **Question:** Q13
+- **Decision:** Morid ships **two binaries**: `morid` (console, documented, with compatibility promises for
+  commands, exit codes and the JSON stream) and `morid-gui` (window).
+- **Reasoning:** without a console interface the behaviour cannot be tested — the tests would be tied to the
+  window, which is exactly why the original has none. It is also a second audience: scripts, schedulers,
+  servers.
+- **Consequences:** [cli](cli.md) is a specification with stable exit codes and a versioned JSON stream. The core
+  is designed as a library and the window is one consumer. Commands: `list`, `download`, `engines`, `import`,
+  `export`, `gui`, plus `--dry-run`, which prints the argument vector and never spawns a process — that is the
+  main compatibility-testing tool.
 
----
+## D-010. Extension source: the `extensions/` directory in this repository
 
-## D-008. Размер бинарника: измеряем, но не блокируем
+- **Date:** 4 November 2026 · **Question:** Q14
+- **Decision:** the only source of extension descriptions is `extensions/` in this repository. Nothing is
+  downloaded from a URL.
+- **Reasoning:** works without a network, does not depend on somebody else's repository or a pinned commit, and
+  keeps the contract of D-003 under our control.
+- **Consequences:** `configure::setUrl` with the pinned upstream hash is not carried over. Updating a
+  description requires a Morid release; accepted, because schema changes are rare. The mismatch between 17 files
+  on disk and 10 in the menu (audit defect D5) is resolved in [extensions](extensions.md) §7. Automatic updating
+  of the backend **binaries** stays — that is about the tools, not about descriptions (see D-014).
 
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q12
-- **Решение:** размер сборок **измеряется автоматически** на каждой сборке и публикуется, но
-  сборка **не ломается** при превышении. Ориентиры (не ворота): GUI ≤ 20 МБ, консольная версия ≤ 4 МБ.
-- **Обоснование владельца:** выбран более мягкий режим, чтобы не блокировать работу на ранних фазах,
-  когда состав зависимостей ещё меняется.
-- **Последствия и оговорка технического руководителя:**
-  - обязательное: размер попадает в каждый отчёт о задаче и в `CHANGELOG.md` при изменении более чем
-    на 5 %; история размеров ведётся в `docs/dependencies.md`;
-  - рост более чем на 10 % от предыдущего замера требует письменного обоснования в задаче;
-  - **риск принят сознательно:** без жёстких ворот принцип «минимализм» остаётся декларацией.
-    Предлагаю вернуться к вопросу о воротах к версии 1.0, когда состав зависимостей стабилизируется,
-    и либо включить их, либо зафиксировать отказ;
-  - измерение настраивается в CI фазы 1 (см. задание кодеру), поэтому решение не блокирует Фазу 1.
+## D-011. "Download profiles" are not introduced
 
----
+- **Date:** 4 November 2026 · **Question:** Q9
+- **Decision:** there is no separate "download profile" entity. The need is covered by three existing
+  mechanisms: presets, the URL manager, and per-engine default options.
+- **Reasoning:** the original never had the feature, so there is nothing to migrate; inventing it now delays
+  parity.
+- **Consequences:** [features](features.md) F-53 is marked as covered rather than as a feature, so the map does
+  not promise something that does not exist. Named profiles appear in the roadmap as a possible improvement
+  after parity, with no release attached.
 
-## D-009. Консольный интерфейс: продуктовая функция
+## D-012. Documentation in English
 
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q13
-- **Решение:** Morid поставляется **двумя бинарниками**: `morid` (консольный, документированный,
-  с обещанием совместимости команд и формата вывода) и `morid-gui` (окно).
-- **Обоснование:** консольный режим — то, что делает поведение проверяемым (без него тесты снова
-  упрутся в окно), плюс вторая аудитория: скрипты, планировщик, сервер.
-- **Последствия:**
-  - Появляется документ `docs/cli.md` — команды, флаги, коды возврата, формат вывода, обещания
-    совместимости. Изменение вывода — через версионирование, а не «как получилось».
-  - Ядро проектируется как библиотека, окно — один из потребителей. Тесты идут через ядро и через
-    консольный бинарник, без запуска GUI.
-  - Команды: `list`, `download`, `engines`, `version`, `import` (импорт данных Media Downloader).
-  - Коды возврата фиксируются в `docs/cli.md` и покрываются тестами.
+- **Date:** 4 November 2026 · **Question:** Q10
+- **Decision:** **all documentation is written in English.** The technical lead's recommendation to split public
+  English from internal Russian was not adopted.
+- **Consequences:** README, SECURITY, CONTRIBUTING, CHANGELOG, THIRD-PARTY and everything in `docs/` is English.
+  The three working documents written in Russian before this decision — the audit, the owner-facing explanation
+  and this log — are available in English here (`docs/audit-original.md`, this file) and their Russian versions
+  are kept in [`archive/ru/`](../archive/ru/) for the owner's reference, marked as archival. They are not
+  maintained and must not be cited as current. Communication with the owner in chat may be in Russian; that is
+  conversation, not documentation.
 
----
+## D-013. Self-update replaced by a version notice
 
-## D-010. Источник расширений: файлы в репозитории Morid
+- **Date:** 4 November 2026 · **Question:** Q8
+- **Decision:** Morid does **not** update itself. It checks for a newer version and says so, with a link.
+- **Reasoning:** self-update produces a class of failure where the program stops starting for every user at once,
+  and it widens the attack surface of the delivery channel, in exchange for convenience.
+- **Consequences:** `startedUpdatedVersion` (`legacy/src/utility.cpp:1358`), which renames `update`/`update_new`
+  directories at startup, is not carried over. The `WindowsUpdateChannel` and `CheckForUpdates` settings are
+  imported but dropped, with a report ([data-compat](data-compat.md) §3). Updates arrive through package managers
+  and the releases page. Automatic updating of **backend** binaries is unaffected (D-014).
 
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q14
-- **Решение:** единственный источник описаний расширений — каталог `extensions/` в репозитории
-  Morid. Загрузка с внешних адресов не используется.
-- **Обоснование:** работает без сети, не зависит от чужого репозитория и зашитого коммита,
-  контракт (D-003) полностью под нашим контролем.
-- **Последствия:**
-  - Из переносимого кода уходит `configure::setUrl` (`src/configure.cpp:876`) с зашитым хэшем
-    upstream-коммита.
-  - Обновление описания расширения требует нового выпуска Morid. Это принимается: изменения в
-    схемах редки.
-  - Расхождение «17 файлов на диске против 10 в меню» (дефект D5 аудита) устраняется осознанно:
-    в меню попадает весь набор, либо файл исключается из каталога. Решение по каждому — в
-    `docs/extensions.md`.
-  - Автообновление *бинарников* движков (yt-dlp и др.) сохраняется — оно про сами инструменты, а не
-    про описания.
+## D-014. Network endpoints: theirs and ours
 
----
+- **Date:** 4 November 2026 · **Question:** Q15
+- **Decision:**
+  - release endpoints of **third-party backends** (yt-dlp, gallery-dl, you-get, svtplay-dl, get-sauce, wget,
+    aria2, ffmpeg, deno, quickjs-ng) stay the projects' own — the same ones the original uses;
+  - endpoints of **Morid itself** (the "a newer version exists" check) are Morid's own;
+  - extension **descriptions** have no endpoint at all (D-010).
+- **Reasoning:** the backends are not ours to mirror, and the application update check is not theirs to serve.
+  Leaving the original's application URL in place would make Morid offer to update itself into somebody else's
+  program.
+- **Consequences:** `settings::gitHubDownloadUrl` (`legacy/src/settings.cpp:353-372`), which points at Media
+  Downloader releases, is replaced. Integrity checking of downloaded binaries — size and SHA-256 from the GitHub
+  API — is preserved. The endpoint list is recorded in [extensions](extensions.md) §6 and
+  [THIRD-PARTY](../THIRD-PARTY.md) §3 with the note that external sources are not under our control.
 
-## D-011. Профили загрузки: не вводим, считаем покрытым
+## D-015. `legacy/` stays permanently
 
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q9
-- **Решение:** отдельной сущности «профиль загрузки» нет. Функциональность обеспечивают три
-  существующих механизма: пресеты, Url Manager, опции по умолчанию на движок.
-- **Последствия:**
-  - В `docs/features.md` «профили» описываются как эти три механизма, а не как отдельная функция —
-    чтобы карта функций не обещала того, чего нет.
-  - В `docs/roadmap.md` — запись «именованные профили» как возможное улучшение после паритета,
-    без привязки к релизу.
-
----
-
-## D-012. Язык документации: английский
-
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q10
-- **Решение:** **вся документация проекта — на английском.** Отклонена рекомендация о
-  разделении на «английский публично + русский рабочий».
-- **Последствия:**
-  - Все создаваемые документы (README, SECURITY, CONTRIBUTING, CHANGELOG, THIRD-PARTY, `docs/*`)
-    пишутся на английском.
-  - Три существующих рабочих документа на русском (`audit-original.md`, `owner-questions.md`,
-    `decisions.md`) переводятся на английский в рамках задачи по документации Фазы 1; русские
-    версии остаются в истории Git и в переписке, но не в актуальном дереве.
-  - Правила разработки, описанные в CONTRIBUTING (в том числе требования к сообщениям коммитов),
-    действуют на английском.
-  - Общение с владельцем в чате остаётся на русском — это не документ.
+- **Date:** 4 November 2026 · **Question:** Q4
+- **Decision:** the `legacy/` directory is kept **indefinitely**. Removal is not planned.
+- **Reasoning:** the source of truth for the original's behaviour should be permanently at hand, not only in the
+  form of captured fixtures.
+- **Consequences:** `legacy/README.md` states that the code is not a product, receives no features and no
+  security fixes, and exists for comparison. [CONTRIBUTING](../CONTRIBUTING.md) §9 restricts changes inside it to
+  what is strictly necessary to compare behaviour. The root builds with Cargo only; the C++ build is described
+  separately in [building](building.md) §7. While `legacy/` exists, a behaviour change in Rust is checked against
+  it before the change is accepted.
 
 ---
 
----
+## Open questions
 
-## D-013. Самообновление: только уведомление о новой версии
+**None.** All fifteen questions of the audit were decided on 4 November 2026.
 
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q8
-- **Решение:** Morid **не обновляет себя сам**. Реализуется только проверка и уведомление: «доступна
-  версия X» со ссылкой на страницу загрузки.
-- **Обратная совместимость:** механизм `startedUpdatedVersion` (`legacy/src/utility.cpp:1358`) —
-  переименование каталогов `update`/`update_new` при старте — **не переносится**.
-- **Обоснование:** самообновление даёт удобство, но создаёт класс отказов, при которых программа
-  перестаёт запускаться у всех пользователей одновременно, и расширяет поверхность атаки на канал
-  поставки.
-- **Последствия:**
-  - Обновление распространяется через пакетные менеджеры (Flatpak, apt, AUR) и страницу релизов.
-  - В `docs/roadmap.md` — запись «полное самообновление» с пометкой «требует отдельного решения по
-    безопасности», без привязки к релизу.
-  - Проверка версий движков (yt-dlp и др.) и их автообновление **сохраняются** — это про сторонние
-    инструменты, а не про сам Morid (см. D-010).
-
----
-
-## D-014. Сетевые адреса: разделение на «чужие» и «наши»
-
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q15
-- **Решение:**
-  - адреса релизов **сторонних загрузчиков** (yt-dlp, gallery-dl, you-get, svtplay-dl, get-sauce,
-    wget, aria2c, ffmpeg, deno, quickjs-ng) остаются адресами соответствующих проектов — те же, что
-    в оригинале;
-  - адреса **самого приложения** (проверка новой версии Morid) — собственные, проекта Morid;
-  - адреса **расширений** не используются вовсе: источник — каталог `extensions/` (D-010).
-- **Последствия:**
-  - `settings::gitHubDownloadUrl` (`legacy/src/settings.cpp:353-372`), указывающий на релизы
-    Media Downloader, заменяется на адрес Morid. Иначе программа предлагала бы обновиться до чужого
-    продукта.
-  - Список адресов сторонних движков фиксируется в `docs/extensions.md` и `THIRD-PARTY.md` с
-    указанием, что это внешние источники, за которые проект не отвечает.
-  - Проверка целостности загружаемых бинарников (размер + SHA-256 из GitHub API) сохраняется.
-
----
-
-## D-015. C++-код в `legacy/` остаётся бессрочно
-
-- **Дата:** 4 ноября 2026
-- **Вопрос:** Q4
-- **Решение:** каталог `legacy/` сохраняется **бессрочно**. Удаление не планируется.
-- **Обоснование владельца:** источник истины по поведению оригинала должен быть постоянно под рукой,
-  а не только в виде тестов.
-- **Последствия:**
-  - `legacy/README.md` фиксирует: код не поддерживается как продукт, обновления безопасности в него
-    не вносятся, он служит эталоном поведения и материалом для сверки.
-  - В `CONTRIBUTING.md` — правило: изменения в `legacy/` допускаются только как исправления кода,
-    необходимые для сверки поведения, и не являются частью продукта.
-  - Сборка из корня — только Cargo. C++ собирается отдельно, инструкция в `legacy/README.md`.
-  - Обязательство: при каждом изменении поведения в Rust-версии проверять `legacy/` на предмет
-    расхождений, пока не зафиксировано обратное.
-
----
-
-## Открытые вопросы
-
-**Открытых вопросов нет.** Все 15 вопросов аудита решены 4 ноября 2026.
-
-| Вопрос | Решение | Вопрос | Решение |
+| Question | Decision | Question | Decision |
 | --- | --- | --- | --- |
-| Q1 GUI-тулкит | D-001 Slint | Q9 профили загрузки | D-011 не вводим |
-| Q2 RTL | D-002 отложен | Q10 язык документации | D-012 английский |
-| Q3 лицензия Slint | D-007 royalty-free + атрибуция | Q11 репозиторий | D-006 этот форк, `legacy/` |
-| Q4 `legacy/` | D-015 бессрочно | Q12 размер бинарника | D-008 измеряем, не блокируем |
-| Q5 совместимость | D-003 полная | Q13 консольный режим | D-009 продуктовая функция |
-| Q6 версии расширений | D-004 мягкая проверка | Q14 источник расширений | D-010 файлы в репозитории |
-| Q7 Windows | D-005 только 10/11 | Q15 сетевые адреса | D-014 разделение |
-| Q8 самообновление | D-013 только уведомление | | |
+| Q1 UI toolkit | D-001 Slint | Q9 download profiles | D-011 not introduced |
+| Q2 RTL | D-002 deferred | Q10 documentation language | D-012 English |
+| Q3 Slint licence | D-007 royalty-free + attribution | Q11 repository | D-006 this fork, `legacy/` |
+| Q4 `legacy/` lifetime | D-015 permanent | Q12 binary size | D-008 measured, not gated |
+| Q5 compatibility | D-003 full | Q13 console interface | D-009 product feature |
+| Q6 extension versions | D-004 soft check | Q14 extension source | D-010 repository files |
+| Q7 Windows | D-005 10/11 only | Q15 network endpoints | D-014 split |
+| Q8 self-update | D-013 notice only | | |
 
-Новые вопросы, если появятся, добавляются сюда с указанием, что именно они блокируют и к какому сроку
-нужен ответ. Открытый вопрос — это не повод останавливать работу: останавливается только та часть,
-которая от него зависит.
+Engineering choices that are not product decisions — thread model, HTTP client, INI parsing, translation format
+— are listed in [architecture](architecture.md) §10 and [roadmap](roadmap.md) §5, and are settled in the phase
+that needs them.
+
+New questions are added to the table above with what they block and by when an answer is needed. An open
+question stops only the work that depends on it, never the whole project.

@@ -192,6 +192,20 @@ deliberately left alone with a reason.
 | D9 | Empty `//?????` completion handlers for extension download | `legacy/src/configure.cpp:983` | download has an outcome and reports it |
 | D10 | Self-update renames directories at startup | `legacy/src/utility.cpp:1358` | not carried over |
 
+### 6.1 Observed during Phase 0 capture
+
+Behaviour found by running the original, which no document predicted. Recorded here because it was previously
+assumed to be the opposite, and because the fixture records the real thing.
+
+| # | Observation | Case | Consequence for Morid |
+| --- | --- | --- | --- |
+| O1 | An unknown extension name does not produce an empty command. The original logs the error and downloads with a different, available engine. | s35, s36 | "Unknown engine" is a warning plus a fallback decision, not a hard failure. Decide and state which engine is chosen and whether the user is told before or after the download starts; the golden fixture pins the original's choice. |
+| O2 | An extension whose `Cmd` exists only for another architecture is likewise replaced by a working engine. | s26 | The selection table is a fallback chain, not a lookup that can fail. [extensions](extensions.md) §3 must describe the chain. |
+| O3 | Adding a URL to batch mode issues metadata commands before the download, so a scenario's transcript holds more than the command under test. | s10, s16, s18, s19 | Any argv test must name the invocation it asserts on, and the fixtures do so explicitly. Metadata preview is switched off in those captures rather than filtered afterwards. |
+| O4 | On Linux the shipped `Generic` branch of the you-get extension invokes `you-get` directly; the interpreter invocation exists only in the Windows branch. | s33 | The per-OS command tables are not interchangeable and cannot be reduced to one. Not captured as a golden; the observed command is kept. |
+| O5 | `AutoUpdate` produces no external process at all — updating a backend is done in-process through the network layer. | s28 | There is no argv to reproduce for updates; the equivalent behaviour is "fetch release metadata, verify, replace the binary" ([F-34](features.md)). |
+| O6 | Subtitles and comments are fetched with `--print`/`--get-comments` and `--no-download`, not by a separate list command. | s16, s18 | The metadata reader is the same code path as the download planner; it must not be modelled as a separate "probe" subsystem. |
+
 The distinction between §5 and §6: §5 changes something users see; §6 fixes something that was broken. Both are
 documented, because "we silently improved it" is how a replacement becomes untrustworthy.
 

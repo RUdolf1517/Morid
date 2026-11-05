@@ -59,6 +59,12 @@ Estimates are for the work, not for the waiting.
 
 **Estimate:** 5–8 days. **Not** a coding task in the Rust sense, and it must not be skipped.
 
+**Status 5 November 2026:** delivered as `fixtures/` (PR #2, commit `8fba615`) — 36 of 40 cases captured with
+wrapper transcripts, seven backends of raw output, an anonymised data directory reloaded by the original
+program, and a comparator. Accepted with five follow-up items, chiefly making the goldens independent of the
+capture host ([tasks/phase-0-fixtures.md](tasks/phase-0-fixtures.md) §0 and §8). The four uncaptured cases are
+real observations, not omissions: see [migration](migration.md) §6.
+
 **Exit criteria:** a reviewer can take any scenario and see both argument vectors; every backend that Morid will
 support has at least one captured output.
 

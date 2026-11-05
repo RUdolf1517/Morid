@@ -1,7 +1,38 @@
 # Task 1 for the coder — Phase 0: reference behaviour and fixtures
 
-**Status:** not started · **Issued:** 4 November 2026 · **Estimated:** 5–8 person-days
+**Status:** accepted with conditions, 5 November 2026 · **Issued:** 4 November 2026 · **Estimated:** 5–8
+person-days · **Delivered:** PR #2, commit `8fba615`
 **Requires:** nothing to exist first. **Must finish before** any Rust code is written.
+
+---
+
+## 0. Review verdict (5 November 2026)
+
+Checked by running the verifier and by independent inspection, not by reading the report.
+
+**Accepted:** 36/40 captured with wrapper transcripts; all invariant, hash, manifest, userdata and
+comparator checks pass when re-run (`VERIFY_OK`); `legacy/` is untouched; no Rust, no Cargo artefacts, no
+media, no cookie or credential residue in the fixtures.
+
+**Not accepted as delivered, to be fixed in the same branch before merge:** G1–G4 below.
+
+| # | Finding | Why it matters |
+| --- | --- | --- |
+| G1 | 22 of the 36 goldens in the committed fixtures contain absolute capture-host paths — `/home/user/.cache/morid-capture/runtime/...` — and `fixtures/README.md` claims that only disposable **workspace** paths were replaced. The claim is true for `userdata/`, not for the scenario goldens. | The fixture is not reproducible, so `candidate == golden` is unsatisfiable on any other machine; this is the core artefact of Phase 0. Fixed as T1 below. |
+| G2 | 23 goldens contain the capture host's `node:/usr/local/bin/node`. | The application derives this path at run time; the golden must not depend on it. Same fix as T1. |
+| G3 | `env.json` exists for s13/s14/s15 but nothing verifies it, and s14 (manual proxy) records `{}` while s15 records the proxy string. | The V of "proxy credentials are passed, not interpolated" is only partly evidenced; an unverified file that looks like evidence is worse than no file. Fixed as T3. |
+| G4 | `s28-auto-update-false` is `not-captured` with `backend: wget` and no app.log content beyond `completed 0 steps`; `s36` reports `backend: capture-custom` for what is a fallback-to-another-engine observation. | Metadata that names a backend for a case that spawns nothing is misleading. Fixed as T4. |
+
+Two smaller things, accepted as they are: `tools/capture/capture_userdata.py` keeps an existing
+`fixtures/userdata` unless `--force` is given, so re-running it is a no-op rather than a re-capture — this is
+stated in `fixtures/README.md` and is the right trade (regenerating timestamps would create false diffs).
+`legacy/images/` and the Qt icons are photographs and artwork, not fixtures; the "no binary artifacts" check
+is correctly scoped to `fixtures/`.
+
+The four `not-captured` cases are accepted as real observations, not as gaps in effort. s33 (interpreter
+invocation exists only in the Windows branch), s28 (no external update argv exists) and s35/s36 (the original
+falls back to another engine instead of producing an empty argv) are all things the migration plan must now
+record — see [../migration.md](../migration.md) §6.
 
 ---
 
@@ -242,3 +273,101 @@ Updated by the manager after the work is reviewed, not by you:
 
 Report any inconsistency you find between these documents and the real behaviour of `legacy/`; do not resolve
 it yourself.
+
+---
+
+## 8. Follow-up tasks before merge (added 5 November 2026)
+
+Scope: the review findings G1–G4 in §0. Everything else stays as delivered. Do not re-capture anything
+that is not listed here, and do not change the scenario list, the reasons of the four `not-captured` cases,
+or the raw streams.
+
+### T1 — make the goldens machine-independent (G1, G2)
+
+The problem is not that the paths are absolute; it is that they encode one capture host, so a golden can
+only ever match on that host. Fix it by role, not by deleting information.
+
+1. In `tools/capture/capture.py`, when writing `argv.json` (and `argv-N.json`, `post-argv.json`,
+   `invocations.json`, `observed-argv.json`), canonicalise each argument:
+   - the scenario's runtime root `<runtime>/<case-id>/` becomes the token `<case-dir>`; all deeper paths
+     keep their relative tail, e.g. `<case-dir>/appdata/data/archiveFile-yt-dlp.txt`,
+     `<case-dir>/downloads`, `<case-dir>/working`;
+   - the mirror `/home/user` used by the anonymised userdata stays `/home/user` (it is already a fixed,
+     documented placeholder);
+   - the host's interpreter path in `node:<path>` becomes `node:<node>`;
+   - nothing else is rewritten. Argument count and order must not change; if a substitution can alter
+     either, the capture fails loudly instead of writing a fixture.
+2. Canonicalise the same way inside `log.txt` / `post-log.txt` JSONL `program` and `cwd` fields, so the
+   transcript and the golden stay byte-comparable to each other.
+3. Leave `meta.json`'s `command` arrays in `fixtures/streams/**` alone: they already carry `<local-url>` and
+   are explicitly a record of how a stream was produced. Do not touch raw stream bytes at all.
+4. State the vocabulary in `fixtures/README.md` (a short "Placeholders" section: `<case-dir>`, `<local-url>`,
+   `<node>`, `/home/user`), and say that a golden contains no other host-specific path.
+5. `tools/compare-argv` must compare canonicalised goldens against a candidate that is **not** canonicalised
+   — i.e. a future `morid --dry-run` prints real paths. Add a `--canonicalise` step to the comparator that
+   applies the same substitutions to the candidate, using the candidate's own case directory as
+   `<case-dir>`. Without this the comparator cannot work on another machine, which is the whole point.
+6. Re-run the full capture, then the verifier, then a second capture and confirm `sha256_diff=empty` and
+   `git_diff=empty`.
+
+Acceptance: `grep -r "/home/user/.cache" fixtures/scenarios` returns nothing; every captured `argv.json`
+contains at most the placeholders above; the comparator's positive run still exits 0 and its negative run 1;
+the two consecutive captures produce no diff.
+
+### T2 — prove the idempotency claim, do not assert it
+
+`fixtures/README.md` says a second normal run produces no fixture diff, and your report says it did. Add the
+measurement to the tooling so it can be repeated by a reviewer: a `tools/capture/check-idempotency.sh` that
+runs the capture twice, hashes `fixtures/` before and after (sorted `sha256sum` manifest, excluding nothing)
+and diffs the two manifests plus `git status --porcelain`. Print `IDEMPOTENCY_OK` or the first differing path.
+
+Acceptance: the script exists, is executable, and its output is pasted into the hand-back along with the
+count of files hashed.
+
+### T3 — make `env.json` mean something, or remove it (G3)
+
+1. Extend `verify_fixtures.py` to check, for every scenario that has `env.json`: the file is an object of
+   string values; its keys are a subset of the wrapper's recorded `PROXY_VARIABLES`; and it equals the `env`
+   object of the first transcript record for that case (which is what the wrapper actually observed).
+2. Then explain, in the same file or in `fixtures/README.md`, why s14 (manual proxy with credentials) records
+   an **empty** `env` while s15 (env mode) records the proxy string. Both are plausible — manual mode passes
+   `--proxy-user/--proxy-password` as arguments, env mode passes variables — but the fixture must say so, and
+   the check must confirm the recorded evidence matches that explanation rather than merely agreeing with
+   itself.
+3. If, after the check, `env.json` turns out to add nothing beyond the `env` field already present in
+   `log.txt`, delete the three `env.json` files, drop them from `manifest.json` and say so. Evidence that
+   duplicates evidence is clutter.
+
+Acceptance: either the strengthened check passes with the explanation written down, or the files are gone
+and the manifest is consistent; `verify_fixtures.py` output shows the new check by name.
+
+### T4 — correct the metadata of the two misleading cases (G4)
+
+1. `s28-auto-update-false`: `backend` must not name an engine that is never spawned. Use `null` (or omit the
+   field) and put the subject in `subject: "AutoUpdate / versionInfo"`. `backend_version` likewise. Keep
+   `backend_invocations: 0`.
+2. `s36-missing-required-key`: the observation is a fallback, so record `backend` as the engine that actually
+   ran (`yt-dlp`) and add `requested_extension: "capture-custom"` plus
+   `observed_behaviour: "extension rejected, fell back to yt-dlp"`. `s35-unknown-extension` gets the same
+   treatment. Do not change their `status`.
+3. Whichever field names you choose, update `verify_fixtures.py` so `PROGRAMS[...]` lookups can never be
+   fed a `null` backend, and so a `not-captured` case with `backend_invocations == 0` must not name a
+   spawned backend.
+
+Acceptance: the verifier passes; the two meta files read correctly to somebody who has not seen this task;
+the manifest is unchanged apart from file lists if any changed.
+
+### T5 — write down what Phase 0 taught, in the fixtures README
+
+Add a short section "Behaviour discovered, not specified" to `fixtures/README.md`, listing at least:
+s35/s36 fallback instead of empty argv; s26 fallback by architecture; s10's two extra metadata commands
+(and the decision to disable metadata preview so the golden holds the download command); s33's Linux-vs-
+Windows interpreter difference; s28's update path having no argv. One line each, each pointing at the case
+id. This is the raw material for [../migration.md](../migration.md) §6 and [../features.md](../features.md);
+the manager will fold it in, you do not edit those files.
+
+### Reporting
+
+For this follow-up, report only: the files changed, the four acceptance outputs (T1 grep, T1 comparator,
+T2 idempotency, T3/T4 verifier), the canonicalisation vocabulary you settled on, and anything in these
+instructions that turned out to be wrong. No summary of the previous delivery.

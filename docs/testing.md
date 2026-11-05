@@ -96,20 +96,35 @@ It is how I5 is tested at all.
 
 ## 4. Fixtures: capture, storage, provenance
 
+**As built (5 November 2026):** the fixtures exist, in `fixtures/`, not in `tests/fixtures/`. The layout that was
+specified in [tasks/phase-0-fixtures.md](tasks/phase-0-fixtures.md) and delivered differs slightly from the table
+below, and the delivered one wins: `fixtures/scenarios/<case-id>/` (an `argv.json` plus the wrapper transcript it
+was copied from), `fixtures/streams/<backend>/` (raw bytes with a SHA-256 per file in `meta.json`),
+`fixtures/userdata/media-downloader/` (an anonymised data directory, reloaded by the original program),
+`fixtures/manifest.json` (the index) and `fixtures/README.md` (provenance, re-capture, gaps). The capture helpers
+are dev tooling in `tools/`, not a Cargo dependency.
+
+Two properties of the delivered set matter for everything below. The argv goldens record **argument boundaries
+as passed to `QProcess`**, not a shell string — the capture went through a wrapper backend that wrote
+`sys.argv[1:]`, so quoting bugs cannot hide in the fixture. And the goldens are being made host-independent
+(`<case-dir>`, `<node>`, `<local-url>` placeholders) so that a comparison on another machine is meaningful; until
+that lands, a golden only matches on the capture host.
+
 ### 4.1 What is captured, and from where
 
 | Fixture class | Source | Anonymised? |
 | --- | --- | --- |
-| Backend output (progress, list, errors, version) | real runs of `legacy/` against a small set of public URLs and against local test servers | titles replaced where they identify a person; no cookies, no tokens |
-| argv golden files | `--dry-run` equivalent, plus a debug log line of the executed command in `legacy/` | cookies replaced by a placeholder path |
+| Backend output (progress, list, errors, version) | real backend runs against a local deterministic HTTP server, merged stdout+stderr, unedited bytes | URL classes recorded instead of URLs; no cookies, no tokens |
+| argv golden files | a wrapper backend recording `sys.argv[1:]`, `program`, `cwd` and proxy environment as JSONL; the golden is copied mechanically from the first record | capture-host paths and the Node path replaced by placeholders |
 | Extension JSON | copies of `extensions/*.json` plus deliberate mutations | — |
 | Data directory | a real Media Downloader data directory with paths and names replaced | yes, and reviewed before commit |
 | HTTP responses | recorded GitHub API bodies | URLs kept; hashes are real values from a real release |
 
 ### 4.2 Storage rules
 
-- fixtures live in `tests/fixtures/`, one directory per class, with a `README.md` naming the backend version and
-  the capture date;
+- fixtures live in `fixtures/`, one directory per class, with a `README.md` naming each backend version and the
+  capture date; `fixtures/.gitattributes` disables EOL normalisation and whitespace checks for
+  `fixtures/streams/**` because those bytes are evidence, not source;
 - a fixture over 256 KiB is not committed; large captures are trimmed to the lines that matter, and the trimming
   script is committed instead;
 - **no fixture may contain a credential, a session cookie, a private URL or personal data.** Review rejects it,

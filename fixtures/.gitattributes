@@ -1,0 +1,3 @@
+# Raw backend output must not undergo end-of-line normalization. Its trailing
+# spaces and final blank lines are captured bytes, not source-style defects.
+streams/** -text whitespace=-trailing-space

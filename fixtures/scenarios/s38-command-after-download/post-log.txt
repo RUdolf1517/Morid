@@ -1,0 +1,1 @@
+{"argv": ["yt-dlp", "--label", "two words", "/home/user/.cache/morid-capture/runtime/s38-command-after-download/downloads/fixture-output.bin"], "cwd": "/home/user/.cache/morid-capture/runtime/s38-command-after-download", "env": {}, "program": "/home/user/Morid/tools/capture/backend_wrapper.py"}

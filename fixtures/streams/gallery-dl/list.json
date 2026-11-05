@@ -1,0 +1,29 @@
+[
+  [
+    2,
+    {
+      "category": "directlink",
+      "domain": "127.0.0.1:18080",
+      "extension": "jpg",
+      "filename": "image",
+      "fragment": null,
+      "path": "",
+      "query": null,
+      "subcategory": "0.1:18080"
+    }
+  ],
+  [
+    3,
+    "http://127.0.0.1:18080/image.jpg",
+    {
+      "category": "directlink",
+      "domain": "127.0.0.1:18080",
+      "extension": "jpg",
+      "filename": "image",
+      "fragment": null,
+      "path": "",
+      "query": null,
+      "subcategory": "0.1:18080"
+    }
+  ]
+]

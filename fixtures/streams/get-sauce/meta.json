@@ -1,0 +1,104 @@
+{
+  "backend": "get-sauce",
+  "version": "1.10.0",
+  "capture_date": "2026-11-04",
+  "platform": "Linux x86_64",
+  "source": "real subprocess stdout and stderr merged directly to each file; local deterministic HTTP input",
+  "captures": [
+    {
+      "file": "version.txt",
+      "url_class": "no URL",
+      "command": [
+        "/home/user/.cache/morid-capture/bin/get-sauce",
+        "-v"
+      ],
+      "exit_code": 0,
+      "bytes": 29,
+      "sha256": "864c5a918589cfab872db6d04a8202a67aae53f2a4cbf7ca5a9e17eeafb51d7a"
+    },
+    {
+      "file": "progress.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/bin/get-sauce",
+        "-m",
+        "none",
+        "-t",
+        "-O",
+        "./",
+        "-o",
+        "fixture",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 23352,
+      "sha256": "7d8f2c87e674ddf0e7bea5006efd6a55da99db8a05eaee83fb3fc0bc07734f4e"
+    },
+    {
+      "file": "destination.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/bin/get-sauce",
+        "-m",
+        "none",
+        "-t",
+        "-O",
+        "./",
+        "-o",
+        "fixture",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 23352,
+      "sha256": "ef07d303cde4a9e8e7116f4791be9815e9ddc9e1eef69b2c0716efde16c0832f"
+    },
+    {
+      "file": "complete.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/bin/get-sauce",
+        "-m",
+        "none",
+        "-t",
+        "-O",
+        "./",
+        "-o",
+        "fixture",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 23352,
+      "sha256": "c8bba616c4abe263d0310b63e3a166957629b4f19bdb41e6eedfa18c9be34fdb"
+    },
+    {
+      "file": "failure.txt",
+      "url_class": "local HTTP object returning 404",
+      "command": [
+        "/home/user/.cache/morid-capture/bin/get-sauce",
+        "-m",
+        "none",
+        "-t",
+        "-O",
+        "./",
+        "-o",
+        "fixture",
+        "<local-url>"
+      ],
+      "exit_code": 1,
+      "bytes": 321,
+      "sha256": "b8542e16100a973ac9dccea1151f1ea43b9d28dee3a4c3feb5a01889a4d3c2c0"
+    },
+    {
+      "file": "list.json",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/bin/get-sauce",
+        "-j",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 649,
+      "sha256": "28c65c65fea15b5a6c967b6f93e24c8dbdab5514af852637377bdf2414dc8b5e"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "case_id": "s26-cmd-other-architecture",
+  "backend": "custom",
+  "backend_version": "not applicable (argv recording wrapper)",
+  "app_version": "5.6.8",
+  "qt_version": "5.15.16",
+  "os": "Linux",
+  "arch": "x86_64",
+  "capture_date": "2026-11-05",
+  "method": "wrapper",
+  "reference_commit": "17c0104b8824bdad7620b2e5127484ca42dde98e",
+  "backend_invocations": 1,
+  "status": "captured",
+  "observation": "x86_64 has no matching Cmd; no engine is selected manually, so the wrapper records the original's actual fallback"
+}

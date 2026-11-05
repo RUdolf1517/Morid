@@ -1,0 +1,11 @@
+[
+  "--no-download",
+  "--print",
+  "{\"title\":%(title)j,\"automatic_captions\":%(automatic_captions)j,\"subtitles\":%(subtitles)j}",
+  "--output-na-placeholder",
+  "\"NA\"",
+  "--no-js-runtimes",
+  "--js-runtimes",
+  "node:/usr/local/bin/node",
+  "https://example.com/v/fixture-01"
+]

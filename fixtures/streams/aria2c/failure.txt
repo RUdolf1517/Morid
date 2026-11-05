@@ -1,0 +1,19 @@
+
+11/04 20:53:56 [[1;32mNOTICE[0m] Downloading 1 item(s)
+
+11/04 20:53:56 [[1;31mERROR[0m] CUID#7 - Download aborted. URI=http://127.0.0.1:18080/missing
+Exception: [AbstractCommand.cc:351] errorCode=3 URI=http://127.0.0.1:18080/missing
+  -> [HttpSkipResponseCommand.cc:218] errorCode=3 Resource not found
+
+11/04 20:53:56 [[1;32mNOTICE[0m] Download GID#08a5a966a4ff8a77 not complete: ./fixture.bin
+
+Download Results:
+gid   |stat|avg speed  |path/URI
+======+====+===========+=======================================================
+08a5a9|ERR |        n/a|./fixture.bin
+
+Status Legend:
+(ERR):error occurred.
+
+aria2 will resume download if the transfer is restarted.
+If there are any errors, then see the log file. See '-l' option in help/man page for details.

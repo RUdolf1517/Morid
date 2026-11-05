@@ -1,0 +1,15 @@
+{
+  "case_id": "s35-unknown-extension",
+  "backend": "custom",
+  "backend_version": "not applicable (argv recording wrapper)",
+  "app_version": "5.6.8",
+  "qt_version": "5.15.16",
+  "os": "Linux",
+  "arch": "x86_64",
+  "capture_date": "2026-11-05",
+  "method": "wrapper",
+  "reference_commit": "17c0104b8824bdad7620b2e5127484ca42dde98e",
+  "backend_invocations": 1,
+  "status": "not-captured",
+  "reason": "the original did not produce the task's expected empty argv; it logged the extension error and fell back to another engine (observed argv is preserved)"
+}

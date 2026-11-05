@@ -1,0 +1,15 @@
+[
+  "--newline",
+  "--print",
+  "{\"http_headers\":%(http_headers)j,\"uploader\":%(uploader)j,\"id\":%(id)j,\"thumbnail\":%(thumbnail)j,\"duration\":%(duration)j,\"title\":%(title)j,\"upload_date\":%(upload_date)j,\"webpage_url\":%(webpage_url)j,\"playlist_id\":%(playlist_id)j,\"playlist_title\":%(playlist_title)j,\"playlist\":%(playlist)j,\"playlist_uploader\":%(playlist_uploader)j,\"playlist_uploader_id\":%(playlist_uploader_id)j}0xdeadbeef>>MediaDownloaderEndMarker<<0xdeadbeef",
+  "--playlist-items",
+  "2-3",
+  "--lazy-playlist",
+  "--output-na-placeholder",
+  "{}",
+  "-v",
+  "--no-js-runtimes",
+  "--js-runtimes",
+  "node:/usr/local/bin/node",
+  "https://example.com/playlist/fixture"
+]

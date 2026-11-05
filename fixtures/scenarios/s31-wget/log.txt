@@ -1,0 +1,1 @@
+{"argv": ["--progress=bar:force", "https://example.com/v/fixture-01"], "cwd": "/home/user/.cache/morid-capture/runtime/s31-wget/downloads", "env": {}, "program": "/home/user/.cache/morid-capture/runtime/s31-wget/appdata/bin/wget"}

@@ -1,0 +1,573 @@
+{
+  "schema_version": 1,
+  "streams": {
+    "yt-dlp": {
+      "status": "captured",
+      "version": "2026.10.26",
+      "files": [
+        "fixtures/streams/yt-dlp/version.txt",
+        "fixtures/streams/yt-dlp/progress.txt",
+        "fixtures/streams/yt-dlp/destination.txt",
+        "fixtures/streams/yt-dlp/complete.txt",
+        "fixtures/streams/yt-dlp/failure.txt",
+        "fixtures/streams/yt-dlp/list.json",
+        "fixtures/streams/yt-dlp/meta.json"
+      ]
+    },
+    "gallery-dl": {
+      "status": "captured",
+      "version": "1.32.19",
+      "files": [
+        "fixtures/streams/gallery-dl/version.txt",
+        "fixtures/streams/gallery-dl/progress.txt",
+        "fixtures/streams/gallery-dl/destination.txt",
+        "fixtures/streams/gallery-dl/complete.txt",
+        "fixtures/streams/gallery-dl/failure.txt",
+        "fixtures/streams/gallery-dl/list.json",
+        "fixtures/streams/gallery-dl/meta.json"
+      ]
+    },
+    "wget": {
+      "status": "captured",
+      "version": "1.21.3",
+      "files": [
+        "fixtures/streams/wget/version.txt",
+        "fixtures/streams/wget/progress.txt",
+        "fixtures/streams/wget/destination.txt",
+        "fixtures/streams/wget/complete.txt",
+        "fixtures/streams/wget/failure.txt",
+        "fixtures/streams/wget/list.json",
+        "fixtures/streams/wget/meta.json"
+      ]
+    },
+    "aria2c": {
+      "status": "captured",
+      "version": "1.37.0",
+      "files": [
+        "fixtures/streams/aria2c/version.txt",
+        "fixtures/streams/aria2c/progress.txt",
+        "fixtures/streams/aria2c/destination.txt",
+        "fixtures/streams/aria2c/complete.txt",
+        "fixtures/streams/aria2c/failure.txt",
+        "fixtures/streams/aria2c/list.json",
+        "fixtures/streams/aria2c/meta.json"
+      ]
+    },
+    "you-get": {
+      "status": "captured",
+      "version": "0.4.1743",
+      "files": [
+        "fixtures/streams/you-get/version.txt",
+        "fixtures/streams/you-get/progress.txt",
+        "fixtures/streams/you-get/destination.txt",
+        "fixtures/streams/you-get/complete.txt",
+        "fixtures/streams/you-get/failure.txt",
+        "fixtures/streams/you-get/list.json",
+        "fixtures/streams/you-get/meta.json"
+      ]
+    },
+    "svtplay-dl": {
+      "status": "captured",
+      "version": "4.211",
+      "files": [
+        "fixtures/streams/svtplay-dl/version.txt",
+        "fixtures/streams/svtplay-dl/progress.txt",
+        "fixtures/streams/svtplay-dl/destination.txt",
+        "fixtures/streams/svtplay-dl/complete.txt",
+        "fixtures/streams/svtplay-dl/failure.txt",
+        "fixtures/streams/svtplay-dl/list.json",
+        "fixtures/streams/svtplay-dl/meta.json"
+      ]
+    },
+    "get-sauce": {
+      "status": "captured",
+      "version": "1.10.0",
+      "files": [
+        "fixtures/streams/get-sauce/version.txt",
+        "fixtures/streams/get-sauce/progress.txt",
+        "fixtures/streams/get-sauce/destination.txt",
+        "fixtures/streams/get-sauce/complete.txt",
+        "fixtures/streams/get-sauce/failure.txt",
+        "fixtures/streams/get-sauce/list.json",
+        "fixtures/streams/get-sauce/meta.json"
+      ]
+    }
+  },
+  "reference": {
+    "app_version": "5.6.8",
+    "qt_version": "5.15.16",
+    "commit": "17c0104b8824bdad7620b2e5127484ca42dde98e"
+  },
+  "cases": [
+    {
+      "id": "s01-plain-yt-dlp",
+      "feature": "F-03",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s01-plain-yt-dlp/argv.json",
+        "fixtures/scenarios/s01-plain-yt-dlp/log.txt",
+        "fixtures/scenarios/s01-plain-yt-dlp/meta.json"
+      ]
+    },
+    {
+      "id": "s02-bundled-preset",
+      "feature": "F-06",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s02-bundled-preset/argv.json",
+        "fixtures/scenarios/s02-bundled-preset/log.txt",
+        "fixtures/scenarios/s02-bundled-preset/meta.json"
+      ]
+    },
+    {
+      "id": "s03-user-format-22",
+      "feature": "F-02",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s03-user-format-22/argv.json",
+        "fixtures/scenarios/s03-user-format-22/log.txt",
+        "fixtures/scenarios/s03-user-format-22/meta.json"
+      ]
+    },
+    {
+      "id": "s04-conflicting-user-options",
+      "feature": "F-02",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s04-conflicting-user-options/argv.json",
+        "fixtures/scenarios/s04-conflicting-user-options/log.txt",
+        "fixtures/scenarios/s04-conflicting-user-options/meta.json"
+      ]
+    },
+    {
+      "id": "s05-format-list",
+      "feature": "F-01",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s05-format-list/argv.json",
+        "fixtures/scenarios/s05-format-list/log.txt",
+        "fixtures/scenarios/s05-format-list/meta.json"
+      ]
+    },
+    {
+      "id": "s06-playlist-whole",
+      "feature": "F-20",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s06-playlist-whole/argv.json",
+        "fixtures/scenarios/s06-playlist-whole/log.txt",
+        "fixtures/scenarios/s06-playlist-whole/meta.json"
+      ]
+    },
+    {
+      "id": "s07-playlist-item-range",
+      "feature": "F-21",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s07-playlist-item-range/argv.json",
+        "fixtures/scenarios/s07-playlist-item-range/log.txt",
+        "fixtures/scenarios/s07-playlist-item-range/meta.json"
+      ]
+    },
+    {
+      "id": "s08-playlist-no-playlist-last",
+      "feature": "F-21",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s08-playlist-no-playlist-last/argv.json",
+        "fixtures/scenarios/s08-playlist-no-playlist-last/log.txt",
+        "fixtures/scenarios/s08-playlist-no-playlist-last/meta.json"
+      ]
+    },
+    {
+      "id": "s09-download-archive",
+      "feature": "F-23",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s09-download-archive/argv.json",
+        "fixtures/scenarios/s09-download-archive/log.txt",
+        "fixtures/scenarios/s09-download-archive/meta.json"
+      ]
+    },
+    {
+      "id": "s10-batch-two-urls",
+      "feature": "F-10",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s10-batch-two-urls/argv-2.json",
+        "fixtures/scenarios/s10-batch-two-urls/argv.json",
+        "fixtures/scenarios/s10-batch-two-urls/invocations.json",
+        "fixtures/scenarios/s10-batch-two-urls/log.txt",
+        "fixtures/scenarios/s10-batch-two-urls/meta.json"
+      ]
+    },
+    {
+      "id": "s11-cookies-browser",
+      "feature": "F-55",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s11-cookies-browser/argv.json",
+        "fixtures/scenarios/s11-cookies-browser/log.txt",
+        "fixtures/scenarios/s11-cookies-browser/meta.json"
+      ]
+    },
+    {
+      "id": "s12-cookies-file",
+      "feature": "F-55",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s12-cookies-file/argv.json",
+        "fixtures/scenarios/s12-cookies-file/log.txt",
+        "fixtures/scenarios/s12-cookies-file/meta.json"
+      ]
+    },
+    {
+      "id": "s13-proxy-none",
+      "feature": "F-54",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s13-proxy-none/argv.json",
+        "fixtures/scenarios/s13-proxy-none/env.json",
+        "fixtures/scenarios/s13-proxy-none/log.txt",
+        "fixtures/scenarios/s13-proxy-none/meta.json"
+      ]
+    },
+    {
+      "id": "s14-proxy-manual",
+      "feature": "F-54",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s14-proxy-manual/argv.json",
+        "fixtures/scenarios/s14-proxy-manual/env.json",
+        "fixtures/scenarios/s14-proxy-manual/log.txt",
+        "fixtures/scenarios/s14-proxy-manual/meta.json"
+      ]
+    },
+    {
+      "id": "s15-proxy-env",
+      "feature": "F-54",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s15-proxy-env/argv.json",
+        "fixtures/scenarios/s15-proxy-env/env.json",
+        "fixtures/scenarios/s15-proxy-env/log.txt",
+        "fixtures/scenarios/s15-proxy-env/meta.json"
+      ]
+    },
+    {
+      "id": "s16-subtitles-list",
+      "feature": "F-08",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s16-subtitles-list/argv.json",
+        "fixtures/scenarios/s16-subtitles-list/log.txt",
+        "fixtures/scenarios/s16-subtitles-list/meta.json"
+      ]
+    },
+    {
+      "id": "s17-subtitle-languages",
+      "feature": "F-08",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s17-subtitle-languages/argv.json",
+        "fixtures/scenarios/s17-subtitle-languages/log.txt",
+        "fixtures/scenarios/s17-subtitle-languages/meta.json"
+      ]
+    },
+    {
+      "id": "s18-comments",
+      "feature": "F-09",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s18-comments/argv.json",
+        "fixtures/scenarios/s18-comments/log.txt",
+        "fixtures/scenarios/s18-comments/meta.json"
+      ]
+    },
+    {
+      "id": "s19-split-chapters",
+      "feature": "F-15",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s19-split-chapters/argv.json",
+        "fixtures/scenarios/s19-split-chapters/log.txt",
+        "fixtures/scenarios/s19-split-chapters/meta.json"
+      ]
+    },
+    {
+      "id": "s20-output-dir-space-unicode",
+      "feature": "F-50",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s20-output-dir-space-unicode/argv.json",
+        "fixtures/scenarios/s20-output-dir-space-unicode/log.txt",
+        "fixtures/scenarios/s20-output-dir-space-unicode/meta.json"
+      ]
+    },
+    {
+      "id": "s21-user-output-template",
+      "feature": "F-50",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s21-user-output-template/argv.json",
+        "fixtures/scenarios/s21-user-output-template/log.txt",
+        "fixtures/scenarios/s21-user-output-template/meta.json"
+      ]
+    },
+    {
+      "id": "s22-url-metacharacters",
+      "feature": "F-50",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s22-url-metacharacters/argv.json",
+        "fixtures/scenarios/s22-url-metacharacters/log.txt",
+        "fixtures/scenarios/s22-url-metacharacters/meta.json"
+      ]
+    },
+    {
+      "id": "s23-url-manager",
+      "feature": "F-52",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s23-url-manager/argv.json",
+        "fixtures/scenarios/s23-url-manager/log.txt",
+        "fixtures/scenarios/s23-url-manager/meta.json"
+      ]
+    },
+    {
+      "id": "s24-custom-extension-substitution",
+      "feature": "F-39",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s24-custom-extension-substitution/argv.json",
+        "fixtures/scenarios/s24-custom-extension-substitution/log.txt",
+        "fixtures/scenarios/s24-custom-extension-substitution/meta.json"
+      ]
+    },
+    {
+      "id": "s25-cmd-current-os",
+      "feature": "F-31",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s25-cmd-current-os/argv.json",
+        "fixtures/scenarios/s25-cmd-current-os/log.txt",
+        "fixtures/scenarios/s25-cmd-current-os/meta.json"
+      ]
+    },
+    {
+      "id": "s26-cmd-other-architecture",
+      "feature": "F-31",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s26-cmd-other-architecture/argv.json",
+        "fixtures/scenarios/s26-cmd-other-architecture/log.txt",
+        "fixtures/scenarios/s26-cmd-other-architecture/meta.json"
+      ]
+    },
+    {
+      "id": "s27-extra-options",
+      "feature": "F-30",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s27-extra-options/argv.json",
+        "fixtures/scenarios/s27-extra-options/log.txt",
+        "fixtures/scenarios/s27-extra-options/meta.json"
+      ]
+    },
+    {
+      "id": "s28-auto-update-false",
+      "feature": "F-34",
+      "status": "not-captured",
+      "method": "log",
+      "files": [
+        "fixtures/scenarios/s28-auto-update-false/app.log",
+        "fixtures/scenarios/s28-auto-update-false/meta.json"
+      ],
+      "reason": "AutoUpdate is handled by QNetworkAccess/versionInfo, not by spawning a backend update command; there is no external update argv for the wrapper to capture"
+    },
+    {
+      "id": "s29-gallery-dl-default",
+      "feature": "F-31",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s29-gallery-dl-default/argv.json",
+        "fixtures/scenarios/s29-gallery-dl-default/log.txt",
+        "fixtures/scenarios/s29-gallery-dl-default/meta.json"
+      ]
+    },
+    {
+      "id": "s30-gallery-dl-engine-default",
+      "feature": "F-02",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s30-gallery-dl-engine-default/argv.json",
+        "fixtures/scenarios/s30-gallery-dl-engine-default/log.txt",
+        "fixtures/scenarios/s30-gallery-dl-engine-default/meta.json"
+      ]
+    },
+    {
+      "id": "s31-wget",
+      "feature": "F-31",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s31-wget/argv.json",
+        "fixtures/scenarios/s31-wget/log.txt",
+        "fixtures/scenarios/s31-wget/meta.json"
+      ]
+    },
+    {
+      "id": "s32-aria2c",
+      "feature": "F-31",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s32-aria2c/argv.json",
+        "fixtures/scenarios/s32-aria2c/log.txt",
+        "fixtures/scenarios/s32-aria2c/meta.json"
+      ]
+    },
+    {
+      "id": "s33-you-get",
+      "feature": "F-31",
+      "status": "not-captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s33-you-get/app.log",
+        "fixtures/scenarios/s33-you-get/log.txt",
+        "fixtures/scenarios/s33-you-get/meta.json",
+        "fixtures/scenarios/s33-you-get/observed-argv.json"
+      ],
+      "reason": "the shipped Linux Generic Cmd invokes you-get directly; the interpreter invocation exists only in the Windows Cmd branch, unavailable on this Linux x86_64 capture host"
+    },
+    {
+      "id": "s34-svtplay-dl",
+      "feature": "F-31",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s34-svtplay-dl/argv.json",
+        "fixtures/scenarios/s34-svtplay-dl/log.txt",
+        "fixtures/scenarios/s34-svtplay-dl/meta.json"
+      ]
+    },
+    {
+      "id": "s35-unknown-extension",
+      "feature": "F-30",
+      "status": "not-captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s35-unknown-extension/app.log",
+        "fixtures/scenarios/s35-unknown-extension/log.txt",
+        "fixtures/scenarios/s35-unknown-extension/meta.json",
+        "fixtures/scenarios/s35-unknown-extension/observed-argv.json"
+      ],
+      "reason": "the original did not produce the task's expected empty argv; it logged the extension error and fell back to another engine (observed argv is preserved)"
+    },
+    {
+      "id": "s36-missing-required-key",
+      "feature": "F-30",
+      "status": "not-captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s36-missing-required-key/app.log",
+        "fixtures/scenarios/s36-missing-required-key/log.txt",
+        "fixtures/scenarios/s36-missing-required-key/meta.json",
+        "fixtures/scenarios/s36-missing-required-key/observed-argv.json"
+      ],
+      "reason": "the original did not produce the task's expected empty argv; it logged the extension error and fell back to another engine (observed argv is preserved)"
+    },
+    {
+      "id": "s37-audio-extraction",
+      "feature": "F-02",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s37-audio-extraction/argv.json",
+        "fixtures/scenarios/s37-audio-extraction/log.txt",
+        "fixtures/scenarios/s37-audio-extraction/meta.json"
+      ]
+    },
+    {
+      "id": "s38-command-after-download",
+      "feature": "F-60",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s38-command-after-download/argv.json",
+        "fixtures/scenarios/s38-command-after-download/log.txt",
+        "fixtures/scenarios/s38-command-after-download/meta.json",
+        "fixtures/scenarios/s38-command-after-download/post-argv.json",
+        "fixtures/scenarios/s38-command-after-download/post-log.txt"
+      ]
+    },
+    {
+      "id": "s39-non-utf8-encoding",
+      "feature": "F-56",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s39-non-utf8-encoding/argv.json",
+        "fixtures/scenarios/s39-non-utf8-encoding/log.txt",
+        "fixtures/scenarios/s39-non-utf8-encoding/meta.json"
+      ]
+    },
+    {
+      "id": "s40-flatpak-appimage-extra",
+      "feature": "F-30",
+      "status": "captured",
+      "method": "wrapper",
+      "files": [
+        "fixtures/scenarios/s40-flatpak-appimage-extra/argv.json",
+        "fixtures/scenarios/s40-flatpak-appimage-extra/log.txt",
+        "fixtures/scenarios/s40-flatpak-appimage-extra/meta.json"
+      ]
+    }
+  ],
+  "userdata": {
+    "status": "captured",
+    "method": "original-ui-and-backend-writes",
+    "files": [
+      "fixtures/userdata/meta.json",
+      "fixtures/userdata/media-downloader/data/archiveFile-yt-dlp.txt",
+      "fixtures/userdata/media-downloader/data/autoSavedList.json",
+      "fixtures/userdata/media-downloader/data/downloadDefaultOptions.json",
+      "fixtures/userdata/media-downloader/data/downloadEngineDefaultOptions.json",
+      "fixtures/userdata/media-downloader/data/downloadHistory.json",
+      "fixtures/userdata/media-downloader/data/presetOptions.json",
+      "fixtures/userdata/media-downloader/data/subscriptions.json",
+      "fixtures/userdata/media-downloader/data/themes/Dark.json",
+      "fixtures/userdata/media-downloader/data/themes/Pure Dark.json",
+      "fixtures/userdata/media-downloader/settings/settings.ini"
+    ]
+  }
+}

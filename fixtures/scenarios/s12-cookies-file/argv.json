@@ -1,0 +1,21 @@
+[
+  "--newline",
+  "--ignore-config",
+  "--no-playlist",
+  "-o",
+  "%(title).200s-%(id)s.%(ext)s",
+  "--output-na-placeholder",
+  "NA",
+  "--no-js-runtimes",
+  "--js-runtimes",
+  "node:/usr/local/bin/node",
+  "-f",
+  "bestvideo[ext=mp4][vcodec^=av]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best",
+  "--progress-template",
+  "download:[download] downloaded_bytes:%(progress.downloaded_bytes)s ETA:%(progress.eta)s total_bytes_estimate:%(progress.total_bytes_estimate)s total_bytes:%(progress.total_bytes)s progress.speed:%(progress.speed)s filename:%(progress.filename)s",
+  "--cookies",
+  "/home/user/.cache/morid-capture/runtime/cookie files/fixture-cookies.txt",
+  "--download-archive",
+  "/home/user/.cache/morid-capture/runtime/s12-cookies-file/appdata/data/archiveFile-yt-dlp.txt",
+  "https://example.com/v/fixture-01"
+]

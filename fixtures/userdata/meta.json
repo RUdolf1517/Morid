@@ -1,0 +1,25 @@
+{
+  "status": "captured",
+  "app_version": "5.6.8",
+  "qt_version": "5.15.16",
+  "platform": "Linux x86_64",
+  "capture_date": "2026-11-05",
+  "method": "original C++ UI and backend writes, disposable-path anonymization, original C++ reload",
+  "verification": {
+    "exit_code": 0,
+    "settings_keys": 94,
+    "history_entries": 20
+  },
+  "files": [
+    "media-downloader/data/archiveFile-yt-dlp.txt",
+    "media-downloader/data/autoSavedList.json",
+    "media-downloader/data/downloadDefaultOptions.json",
+    "media-downloader/data/downloadEngineDefaultOptions.json",
+    "media-downloader/data/downloadHistory.json",
+    "media-downloader/data/presetOptions.json",
+    "media-downloader/data/subscriptions.json",
+    "media-downloader/data/themes/Dark.json",
+    "media-downloader/data/themes/Pure Dark.json",
+    "media-downloader/settings/settings.ini"
+  ]
+}

@@ -1,0 +1,4 @@
+[
+  "--progress=bar:force",
+  "https://example.com/v/fixture-01"
+]

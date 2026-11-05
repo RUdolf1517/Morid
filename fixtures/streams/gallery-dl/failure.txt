@@ -1,0 +1,2 @@
+[downloader.http][warning] '404 Not Found' for 'http://127.0.0.1:18080/missing.jpg'
+[download][error] Failed to download 127.0.0.1:18080__missing.jpg

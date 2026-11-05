@@ -1,0 +1,13 @@
+[
+  "--get-comments",
+  "--no-download",
+  "--print",
+  "{\"title\":%(title)j,\"comments\":%(comments)j}",
+  "--verbose",
+  "--output-na-placeholder",
+  "\"NA\"",
+  "--no-js-runtimes",
+  "--js-runtimes",
+  "node:/usr/local/bin/node",
+  "https://example.com/v/fixture-01"
+]

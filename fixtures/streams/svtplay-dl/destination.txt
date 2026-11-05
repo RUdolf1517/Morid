@@ -1,0 +1,4 @@
+INFO: Outfile: fixture.ts.ts
+INFO: Selected to download hls, bitrate: 0 format: h264
+[1/8][==..................] ETA: 0:00:00[2/8][=====...............] ETA: 0:00:00 | 2.7 MB/s[3/8][=======.............] ETA: 0:00:00 | 2.3 MB/s[4/8][==========..........] ETA: 0:00:00 | 2.9 MB/s[5/8][============........] ETA: 0:00:00 | 3.2 MB/s[6/8][===============.....] ETA: 0:00:00 | 3.4 MB/s[7/8][=================...] ETA: 0:00:00 | 3.6 MB/s[8/8][====================] ETA: 0:00:00 | 3.7 MB/s
+INFO: All done. Not postprocessing files, leaving them completely untouched.

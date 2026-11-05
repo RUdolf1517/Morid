@@ -1,0 +1,5 @@
+[
+  "-d",
+  "/home/user/.cache/morid-capture/runtime/s32-aria2c/downloads",
+  "https://example.com/v/fixture-01"
+]

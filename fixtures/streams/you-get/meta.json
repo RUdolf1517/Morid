@@ -1,0 +1,100 @@
+{
+  "backend": "you-get",
+  "version": "0.4.1743",
+  "capture_date": "2026-11-04",
+  "platform": "Linux x86_64",
+  "source": "real subprocess stdout and stderr merged directly to each file; local deterministic HTTP input",
+  "captures": [
+    {
+      "file": "version.txt",
+      "url_class": "no URL",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/you-get",
+        "--version"
+      ],
+      "exit_code": 0,
+      "bytes": 67,
+      "sha256": "8f0f3b23a1e17e7abc48f54432a24822b098627b7fadf62ed303642a85336e42"
+    },
+    {
+      "file": "progress.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/you-get",
+        "--no-merge",
+        "--force",
+        "-O",
+        "fixture",
+        "-o",
+        ".",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 1613,
+      "sha256": "d63e42692b5b847da656016d02adb38868805fa21c609a9bb0c1d5533a445545"
+    },
+    {
+      "file": "destination.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/you-get",
+        "--no-merge",
+        "--force",
+        "-O",
+        "fixture",
+        "-o",
+        ".",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 1613,
+      "sha256": "74aff4a6c56e2cb8db73ceaa05f12e156e173bf9f88077f7cac3b4b4eb9d70b6"
+    },
+    {
+      "file": "complete.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/you-get",
+        "--no-merge",
+        "--force",
+        "-O",
+        "fixture",
+        "-o",
+        ".",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 1613,
+      "sha256": "d63e42692b5b847da656016d02adb38868805fa21c609a9bb0c1d5533a445545"
+    },
+    {
+      "file": "failure.txt",
+      "url_class": "local HTTP object returning 404",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/you-get",
+        "--no-merge",
+        "--force",
+        "-O",
+        "fixture",
+        "-o",
+        ".",
+        "<local-url>"
+      ],
+      "exit_code": 1,
+      "bytes": 501,
+      "sha256": "04c5fe42558f7e859f07914324be14103ff2e04d8a7bb36cce0b430a95600460"
+    },
+    {
+      "file": "list.json",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/you-get",
+        "--json",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 319,
+      "sha256": "2264d4f44be87595655e13140be14ab1336abea4e57e1e0c26522e7777aa190c"
+    }
+  ]
+}

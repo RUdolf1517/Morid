@@ -1,0 +1,1 @@
+  ./directlink/fixture.jpg 81% 426.00KB 141.93KB/s  87% 458.76KB 141.13KB/s  93% 491.53KB 140.40KB/s 100% 524.28KB 139.78KB/s ✔ ./directlink/fixture.jpg

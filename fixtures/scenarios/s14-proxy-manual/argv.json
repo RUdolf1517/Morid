@@ -1,0 +1,12 @@
+[
+  "-e",
+  "use_proxy=yes",
+  "-e",
+  "http_proxy=host:8080",
+  "-e",
+  "https_proxy=host:8080",
+  "--proxy-user=user",
+  "--proxy-password=pass",
+  "--progress=bar:force",
+  "https://example.com/v/fixture-01"
+]

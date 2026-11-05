@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Compare a captured Phase 0 argv with a candidate, preserving order.
+
+Examples:
+  tools/compare-argv s01-plain-yt-dlp --candidate candidate.json
+  tools/compare-argv s01-plain-yt-dlp -- morid download URL --dry-run
+
+A candidate may be a JSON array, an object with an "argv" member, wrapper
+JSONL, or a single shell-like dry-run line.  Shell tokenisation removes shell
+quotes; comparison itself is always between argument strings, never command
+line text.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parent.parent
+SCENARIOS = ROOT / "fixtures" / "scenarios"
+
+
+def vectors(value: Any) -> list[str]:
+    if isinstance(value, dict) and "argv" in value:
+        value = value["argv"]
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError("argv must be a JSON array of strings")
+    return value
+
+
+def parse_candidate(text: str) -> list[str]:
+    stripped = text.strip()
+    if not stripped:
+        return []
+
+    try:
+        return vectors(json.loads(stripped))
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    records = []
+    for line in stripped.splitlines():
+        try:
+            records.append(vectors(json.loads(line)))
+        except (json.JSONDecodeError, ValueError):
+            records = []
+            break
+    if records:
+        return records[-1]
+
+    lines = stripped.splitlines()
+    if len(lines) > 1:
+        # Also accept a wrapper's one-argument-per-line form.  A leading
+        # "argv:" marker can be used by a future dry-run implementation.
+        if lines[0].strip() == "argv:":
+            return lines[1:]
+        if all(line and not line[0].isspace() for line in lines):
+            return lines
+
+    return shlex.split(stripped, posix=True)
+
+
+def load_candidate(path: Path) -> list[str]:
+    return parse_candidate(path.read_text(encoding="utf-8"))
+
+
+def print_side_by_side(golden: list[str], candidate: list[str]) -> None:
+    print(f"{'index':>5}  {'golden':<58}  candidate")
+    print(f"{'-' * 5}  {'-' * 58}  {'-' * 40}")
+    for index in range(max(len(golden), len(candidate))):
+        left = json.dumps(golden[index], ensure_ascii=False) if index < len(golden) else "<missing>"
+        right = json.dumps(candidate[index], ensure_ascii=False) if index < len(candidate) else "<missing>"
+        marker = " " if left == right else "!"
+        print(f"{index:>5} {marker} {left:<58}  {right}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("case_id", help="scenario directory name, for example s01-plain-yt-dlp")
+    parser.add_argument("--candidate", type=Path, help="candidate argv JSON/JSONL/text file")
+    parser.add_argument("command", nargs="*", help="after --, a dry-run command to execute")
+    args = parser.parse_args()
+
+    if args.candidate and args.command:
+        parser.error("use either --candidate or a command after --, not both")
+    if not args.candidate and not args.command:
+        parser.error("provide --candidate FILE or a dry-run command after --")
+
+    supplied_path = Path(args.case_id)
+    golden_path = supplied_path if supplied_path.is_file() else SCENARIOS / args.case_id / "argv.json"
+    try:
+        golden = vectors(json.loads(golden_path.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError, ValueError) as error:
+        print(f"cannot read golden {golden_path}: {error}", file=sys.stderr)
+        return 2
+
+    try:
+        if args.candidate:
+            candidate = load_candidate(args.candidate)
+        else:
+            command = args.command
+            if command and command[0] == "--":
+                command = command[1:]
+            if not command:
+                parser.error("empty dry-run command")
+            result = subprocess.run(command, text=True, capture_output=True, check=False)
+            if result.returncode:
+                sys.stderr.write(result.stderr)
+                print(f"candidate command exited {result.returncode}", file=sys.stderr)
+                return 3
+            candidate = parse_candidate(result.stdout)
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"cannot read candidate argv: {error}", file=sys.stderr)
+        return 2
+
+    print(f"case: {args.case_id}")
+    print_side_by_side(golden, candidate)
+    if candidate != golden:
+        print(f"DIFFERENT: golden has {len(golden)} arguments, candidate has {len(candidate)}")
+        return 1
+
+    print(f"MATCH: {len(golden)} arguments, order and boundaries identical")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

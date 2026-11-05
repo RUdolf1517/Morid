@@ -1,0 +1,100 @@
+{
+  "backend": "svtplay-dl",
+  "version": "4.211",
+  "capture_date": "2026-11-04",
+  "platform": "Linux x86_64",
+  "source": "real subprocess stdout and stderr merged directly to each file; local deterministic HTTP input",
+  "captures": [
+    {
+      "file": "version.txt",
+      "url_class": "no URL",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/svtplay-dl",
+        "--version"
+      ],
+      "exit_code": 0,
+      "bytes": 17,
+      "sha256": "ec952ad97fdcfc91b348adbd1b967daf8e9f831e21da6269080db09edd5d55ae"
+    },
+    {
+      "file": "progress.txt",
+      "url_class": "local deterministic HLS playlist with eight finite segments",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/svtplay-dl",
+        "--no-remux",
+        "--no-merge",
+        "--no-postprocess",
+        "-f",
+        "-o",
+        "fixture.ts",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 568,
+      "sha256": "d5f7780f19498e1af58c97b0ef5126b268f2e657d7ba5dd6b2af088153fb6f71"
+    },
+    {
+      "file": "destination.txt",
+      "url_class": "local deterministic HLS playlist with eight finite segments",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/svtplay-dl",
+        "--no-remux",
+        "--no-merge",
+        "--no-postprocess",
+        "-f",
+        "-o",
+        "fixture.ts",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 568,
+      "sha256": "2d1948f4f5f5413d843d0977bb62c7a5013d9926ccd485b31dfab7421f3e8ad6"
+    },
+    {
+      "file": "complete.txt",
+      "url_class": "local deterministic HLS playlist with eight finite segments",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/svtplay-dl",
+        "--no-remux",
+        "--no-merge",
+        "--no-postprocess",
+        "-f",
+        "-o",
+        "fixture.ts",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 568,
+      "sha256": "ee15be890f26f69f0915231548a3cd06642f14b84562ed56d7b4564bcd1d36ad"
+    },
+    {
+      "file": "failure.txt",
+      "url_class": "local HTTP object returning 404",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/svtplay-dl",
+        "--no-remux",
+        "--no-merge",
+        "--no-postprocess",
+        "-f",
+        "-o",
+        "fixture.ts",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 24,
+      "sha256": "c1869fa8c37077dbed3cc775f10b0dabae1ced7b353767a7da6a12d90a9c1296"
+    },
+    {
+      "file": "list.json",
+      "url_class": "local deterministic HLS playlist with eight finite segments",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/svtplay-dl",
+        "--list-quality",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 126,
+      "sha256": "e09035d3cbb6559073a28e9f48a326bd2920c3919bb8dbd89696f0a01be49354"
+    }
+  ]
+}

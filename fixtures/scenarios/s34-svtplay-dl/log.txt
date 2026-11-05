@@ -1,0 +1,1 @@
+{"argv": ["--verbose", "https://example.com/v/fixture-01"], "cwd": "/home/user/.cache/morid-capture/runtime/s34-svtplay-dl/downloads", "env": {}, "program": "/home/user/.cache/morid-capture/runtime/s34-svtplay-dl/appdata/bin/svtplay-dl"}

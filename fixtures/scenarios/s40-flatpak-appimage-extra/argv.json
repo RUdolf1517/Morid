@@ -1,0 +1,6 @@
+[
+  "--engine-default",
+  "--packaging-extra",
+  "flatpak appimage",
+  "https://example.com/v/fixture-01"
+]

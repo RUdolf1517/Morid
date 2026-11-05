@@ -1,0 +1,110 @@
+{
+  "backend": "gallery-dl",
+  "version": "1.32.19",
+  "capture_date": "2026-11-04",
+  "platform": "Linux x86_64",
+  "source": "real subprocess stdout and stderr merged directly to each file; local deterministic HTTP input",
+  "captures": [
+    {
+      "file": "version.txt",
+      "url_class": "no URL",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/gallery-dl",
+        "--version"
+      ],
+      "exit_code": 0,
+      "bytes": 8,
+      "sha256": "54be8a99ace987006a4402fe701f06751099c009490fdae179a0a0af53e4d186"
+    },
+    {
+      "file": "progress.txt",
+      "url_class": "local deterministic HTTP object with an image file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/gallery-dl",
+        "--no-colors",
+        "--no-input",
+        "-R",
+        "0",
+        "-d",
+        ".",
+        "-r",
+        "128k",
+        "-f",
+        "fixture.{extension}",
+        "<local-url>"
+      ],
+      "transport": "pty",
+      "exit_code": 0,
+      "bytes": 161,
+      "sha256": "3d4b94015c7cff1c3e3490473e0cee198ab0d1e362526d9d00b9f636c995f7e8"
+    },
+    {
+      "file": "destination.txt",
+      "url_class": "local deterministic HTTP object with an image file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/gallery-dl",
+        "--no-colors",
+        "--no-input",
+        "-R",
+        "0",
+        "-d",
+        ".",
+        "-f",
+        "fixture.{extension}",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 25,
+      "sha256": "411c92c26eba4fa2df506c5182dbb421c1ba9cef117cb7efb70631b28bbc8744"
+    },
+    {
+      "file": "complete.txt",
+      "url_class": "local deterministic HTTP object with an image file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/gallery-dl",
+        "--no-colors",
+        "--no-input",
+        "-R",
+        "0",
+        "-d",
+        ".",
+        "-f",
+        "fixture.{extension}",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 25,
+      "sha256": "411c92c26eba4fa2df506c5182dbb421c1ba9cef117cb7efb70631b28bbc8744"
+    },
+    {
+      "file": "failure.txt",
+      "url_class": "local HTTP object returning 404",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/gallery-dl",
+        "--no-colors",
+        "--no-input",
+        "-R",
+        "0",
+        "-d",
+        ".",
+        "<local-url>"
+      ],
+      "exit_code": 4,
+      "bytes": 150,
+      "sha256": "b74d42e7ba03252875ea7e526a7e4be0d06dda622fd01af0c5d2aee7b0330b6d"
+    },
+    {
+      "file": "list.json",
+      "url_class": "local deterministic HTTP object with an image file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/gallery-dl",
+        "--no-colors",
+        "--dump-json",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 531,
+      "sha256": "1f3c767dc9dacd59be007103c6b9f97f0c80e83e57a85d91ec620a9a681e6be5"
+    }
+  ]
+}

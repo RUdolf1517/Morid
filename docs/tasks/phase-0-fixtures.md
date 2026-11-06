@@ -21,7 +21,7 @@ media, no cookie or credential residue in the fixtures.
 | G1 | 22 of the 36 goldens in the committed fixtures contain absolute capture-host paths — `/home/user/.cache/morid-capture/runtime/...` — and `fixtures/README.md` claims that only disposable **workspace** paths were replaced. The claim is true for `userdata/`, not for the scenario goldens. | The fixture is not reproducible, so `candidate == golden` is unsatisfiable on any other machine; this is the core artefact of Phase 0. Fixed as T1 below. |
 | G2 | 23 goldens contain the capture host's `node:/usr/local/bin/node`. | The application derives this path at run time; the golden must not depend on it. Same fix as T1. |
 | G3 | `env.json` exists for s13/s14/s15 but nothing verifies it, and s14 (manual proxy) records `{}` while s15 records the proxy string. | The V of "proxy credentials are passed, not interpolated" is only partly evidenced; an unverified file that looks like evidence is worse than no file. Fixed as T3. |
-| G4 | `s28-auto-update-false` is `not-captured` with `backend: wget` and no app.log content beyond `completed 0 steps`; `s36` reports `backend: capture-custom` for what is a fallback-to-another-engine observation. | Metadata that names a backend for a case that spawns nothing is misleading. Fixed as T4. |
+| G4 | `s28-auto-update-false` is `not-captured` with `backend: wget` while nothing is spawned, and `s35-unknown-extension` reports `backend: custom` while its transcript shows `yt-dlp` running with a full argument vector. | Metadata that names a backend that did not run misleads whoever reads the fixture next. Fixed as T4. **Corrected 5 November:** an earlier draft of this row also accused `s36` of the same thing. That was wrong — `s36` really does run `capture-custom`; its actual defect is the written reason, not the backend field. |
 
 Two smaller things, accepted as they are: `tools/capture/capture_userdata.py` keeps an existing
 `fixtures/userdata` unless `--force` is given, so re-running it is a no-op rather than a re-capture — this is
@@ -30,9 +30,10 @@ stated in `fixtures/README.md` and is the right trade (regenerating timestamps w
 is correctly scoped to `fixtures/`.
 
 The four `not-captured` cases are accepted as real observations, not as gaps in effort. s33 (interpreter
-invocation exists only in the Windows branch), s28 (no external update argv exists) and s35/s36 (the original
-falls back to another engine instead of producing an empty argv) are all things the migration plan must now
-record — see [../migration.md](../migration.md) §6.
+invocation exists only in the Windows branch) and s28 (no external update argv exists) are real observations.
+s35 and s36 are *not* one observation: s35 falls back to the default engine after rejecting an unknown name,
+while s36 executes an extension whose `Name` is missing. They are recorded separately in
+[../migration.md](../migration.md) §6.1 as O1 and O1b.
 
 ---
 
@@ -341,21 +342,37 @@ count of files hashed.
 Acceptance: either the strengthened check passes with the explanation written down, or the files are gone
 and the manifest is consistent; `verify_fixtures.py` output shows the new check by name.
 
-### T4 — correct the metadata of the two misleading cases (G4)
+### T4 — correct the metadata, and one wrong reason (G4)
 
-1. `s28-auto-update-false`: `backend` must not name an engine that is never spawned. Use `null` (or omit the
-   field) and put the subject in `subject: "AutoUpdate / versionInfo"`. `backend_version` likewise. Keep
-   `backend_invocations: 0`.
-2. `s36-missing-required-key`: the observation is a fallback, so record `backend` as the engine that actually
-   ran (`yt-dlp`) and add `requested_extension: "capture-custom"` plus
-   `observed_behaviour: "extension rejected, fell back to yt-dlp"`. `s35-unknown-extension` gets the same
-   treatment. Do not change their `status`.
-3. Whichever field names you choose, update `verify_fixtures.py` so `PROGRAMS[...]` lookups can never be
-   fed a `null` backend, and so a `not-captured` case with `backend_invocations == 0` must not name a
-   spawned backend.
+Corrected on 5 November after the coder questioned this section. The first version told you to record
+`backend: yt-dlp` for **both** s35 and s36. That was wrong for s36. The transcripts are the authority:
 
-Acceptance: the verifier passes; the two meta files read correctly to somebody who has not seen this task;
-the manifest is unchanged apart from file lists if any changed.
+| Case | Program actually executed (from `log.txt`) | First argument vector |
+| --- | --- | --- |
+| s35 | `yt-dlp` | full yt-dlp vector with `-o`, `--download-archive`, URL |
+| s36 | `capture-custom` | `["https://example.com/v/fixture-01"]` — the URL alone |
+
+1. `s35-unknown-extension`: `backend` becomes `yt-dlp`; add
+   `requested_extension: "extension-does-not-exist"` and
+   `observed_behaviour: "unknown extension name rejected; fell back to the default engine"`. `status` stays
+   `not-captured`, because the expected empty argv did not occur.
+2. `s36-missing-required-key`: `backend` becomes `capture-custom`; add `requested_extension: null` (no usable
+   identifier exists — a file name is not a `Name`) and `extension_file: "missing-name.json"`. **Rewrite the
+   reason.** The current text claims a fallback to another engine; nothing fell back. The original loaded the
+   extension with `Name` removed and executed it. Use:
+   `"the extension with Name removed was still loaded and executed; the captured argv is the URL alone and no
+   fallback occurred, so the task's expected empty argv is not the reference behaviour"`.
+3. `s28-auto-update-false`: `backend` must not name an engine that is never spawned. Use `null` (or omit it),
+   add `subject: "AutoUpdate / versionInfo"`, set `backend_version: null`, keep `backend_invocations: 0`.
+4. `verify_fixtures.py`: a `null` backend must never reach a `PROGRAMS[...]` lookup, and a `not-captured` case
+   with `backend_invocations == 0` must not name a spawned backend.
+
+Acceptance: the verifier passes; the three `meta.json` files read correctly to somebody who has not seen this
+task; the s36 reason matches what its own `log.txt` and `app.log` show; the manifest is unchanged apart from
+file lists, if any changed.
+
+**Do not "fix" s36 by putting `Name` back into the extension.** The case exists to record what the original
+does with an invalid extension; making the input valid would delete the observation.
 
 ### T5 — write down what Phase 0 taught, in the fixtures README
 

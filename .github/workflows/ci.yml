@@ -39,18 +39,15 @@ jobs:
         with:
           shared-key: ${{ matrix.os }}
 
-      - name: Format (workspace)
+      - name: Format
         shell: bash
         run: |
           set -euo pipefail
-          cargo fmt --version 2>&1 | tee format-workspace.log
-          cargo fmt --all -- --check 2>&1 | tee -a format-workspace.log
-
-      - name: Format (xtask)
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo fmt --manifest-path xtask/Cargo.toml -- --check 2>&1 | tee format-xtask.log
+          # rustfmt directly, not `cargo fmt`: the wrapper in this toolchain
+          # rejects its own documented flags, and `git ls-files` is the whole
+          # truth about which files are ours (xtask included).
+          rustfmt --version | tee format.log
+          git ls-files -z '*.rs' | xargs -0 rustfmt --edition 2021 --check 2>&1 | tee -a format.log
 
       - name: Lint
         shell: bash

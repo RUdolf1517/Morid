@@ -28,10 +28,13 @@ by Francis Banyikwa. The original C++/Qt program is the functional reference; it
 **Pre-alpha. The workspace builds, and does nothing.**
 
 Phase 1 is a skeleton: eight crates that compile, an empty library in each, a console binary whose only
-feature is `morid --version`, and a Slint window that shows "Morid 0.1.0" and closes. `cargo build --release`,
-`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`, `cargo deny check` and `cargo audit` run in CI on
-Linux, macOS and Windows, and the release binaries are measured rather than gated. There is no download
-functionality yet: the crates are shapes, not behaviour, and Phase 2 starts filling them. What exists today:
+feature is `morid --version`, and a Slint window that shows "Morid 0.1.0" and closes. One workflow runs on
+Linux, macOS and Windows: `rustfmt --edition 2021 --check` over the tracked files (not `cargo fmt`, whose
+wrapper rejects its own flags on the pinned toolchain), `cargo clippy -D warnings`, `cargo test`,
+`cargo build --release`, an offline rebuild, a smoke run of both binaries, the size report — measured and
+published, never gated — `cargo deny check`, `cargo audit`, and the Phase 0 fixture checks on one platform.
+There is no download functionality yet: the crates are shapes, not behaviour, and Phase 2 starts filling them.
+What exists today:
 
 | Area | State |
 | --- | --- |

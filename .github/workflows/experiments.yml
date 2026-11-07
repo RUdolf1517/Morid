@@ -56,15 +56,14 @@ jobs:
       - name: Does anything in the graph compile C
         shell: bash
         run: |
-          {
-            echo "--- crates with build scripts:"
-            cargo tree --workspace --edges build --prefix none 2>&1 | head -20
-            if cargo tree --workspace -i cc > /dev/null 2>&1; then
-              echo "the cc crate IS in the graph"
-            else
-              echo "the cc crate is not in the graph"
-            fi
-          } | tee c-code.log
+          set +e
+          cargo tree --workspace --prefix none --edges build > tree-build.log 2>&1
+          echo "tree exit code: $?" | tee -a tree-build.log
+          cargo tree --workspace -i cc > tree-cc.log 2>&1
+          echo "tree -i cc exit code: $?" | tee -a tree-cc.log
+          for crates in cc cc-1.2 gcc; do :; done
+          head -n 12 tree-build.log
+          head -n 5 tree-cc.log
 
       - name: Build the GNU target with no C compiler
         shell: bash
@@ -86,7 +85,7 @@ jobs:
           echo "musl build exit code: $status" | tee -a build-musl.log
           tail -n 12 build-musl.log
           if [ "$status" = "0" ]; then
-            file target/x86_64-unknown-linux-musl/release/morid | tee -a build-musl.log
+            ls -l target/x86_64-unknown-linux-musl/release/morid | tee -a build-musl.log
             ./target/x86_64-unknown-linux-musl/release/morid --version | tee -a build-musl.log
           fi
 
@@ -94,7 +93,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          for log in before.log after.log c-code.log build-gnu.log build-musl.log; do
+          for log in after.log tree-build.log build-gnu.log build-musl.log; do
             if [ -f "$log" ]; then
               message=$(tail -n 12 "$log" | tr '\n' ' ' | sed 's/%/%25/g' | cut -c1-900)
               echo "::warning title=${log}::${message}"

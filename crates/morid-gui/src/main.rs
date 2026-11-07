@@ -3,7 +3,11 @@
 //! Phase 1 proves that Slint links and that the binary can be measured: one
 //! label, one button, and the button closes the window.
 
-#![forbid(unsafe_code)]
+// `deny`, not `forbid`: `slint!` expands to Slint's generated code, which carries
+// `#[allow(unsafe_code)]`, and an inner `allow` under a crate-level `forbid` is
+// error E0453. Morid's own code here contains no `unsafe`; the library crate
+// keeps `forbid`.
+#![deny(unsafe_code)]
 
 slint::slint! {
     import { Button, VerticalBox } from "std-widgets.slint";

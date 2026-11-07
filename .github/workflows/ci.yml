@@ -105,6 +105,48 @@ jobs:
           fi
           echo "morid-cli depends on neither slint nor morid-gui"
 
+      - name: GUI smoke (Linux, Xvfb)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb x11-utils imagemagick libgl1-mesa-dri mesa-utils
+          export MORID_GUI_SMOKE_MS=8000
+          export LIBGL_ALWAYS_SOFTWARE=1
+          xvfb-run -a -n 99 --server-args="-screen 0 1024x768x24" ./target/release/morid-gui &
+          gui=$!
+          sleep 5
+          DISPLAY=:99 import -window root gui-linux.png || echo "screenshot unavailable"
+          ls -l gui-linux.png || true
+          wait "$gui"
+          echo "morid-gui exited 0 after opening its window"
+
+      - name: GUI smoke (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          MORID_GUI_SMOKE_MS=4000 ./target/release/morid-gui
+          echo "morid-gui exited 0 after opening its window"
+
+      - name: GUI smoke (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:MORID_GUI_SMOKE_MS = "4000"
+          $process = Start-Process -FilePath ".\target\release\morid-gui.exe" -PassThru -Wait
+          Write-Output "morid-gui exit code $($process.ExitCode)"
+          if ($process.ExitCode -ne 0) { exit 1 }
+
+      - name: Upload the window screenshot
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-window-${{ matrix.os }}
+          path: gui-linux.png
+          if-no-files-found: ignore
+
       - name: Size report
         shell: bash
         run: |
@@ -174,6 +216,16 @@ jobs:
           name: cargo-lock-${{ matrix.os }}
           path: Cargo.lock
           if-no-files-found: ignore
+
+      - name: Emit the lock file, part 1 (temporary)
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: python3 .github/emit-chunks.py Cargo.lock 0 9
+
+      - name: Emit the lock file, part 2 (temporary)
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: python3 .github/emit-chunks.py Cargo.lock 10 19
 
       - name: Evidence, dependency tree (temporary)
         if: always()

@@ -64,7 +64,7 @@ wrapper transcripts, seven backends of raw output, an anonymised data directory 
 program, and a comparator. Goldens were then made independent of the capture host (`b344cdc`), the verifier was
 given teeth (`f187923`), and both late findings of round 2 were closed. **Not yet accepted, and only one reason left:** round 5 made the
 `settings.ini` writer correct and its proof runnable (`python3 -m unittest`, 16 tests, seeded fuzz), and reduced
-the file to one writer. What remains is T13, small. Nothing in this
+the file to one writer. What remains is T14 — the reader handles values but not keys, found in round 6. Nothing in this
 repository runs automatically, and that is now a decision rather than a gap: D-017 defers both checks to the
 Phase 1 workflow, which is required by Phase 1's exit criteria to run them and to report the test count. The four uncaptured cases are real observations,
 not omissions: see [migration](migration.md) §6.

@@ -663,8 +663,46 @@ settings file can contain one, and the coder says so rather than asserting safet
 
 Acceptance: both covered by the existing test file, `python3 -m unittest` still green, no fixture changes.
 
+### Round 6 — verdict on `f43e61c` (5 November 2026)
+
+Re-checked on a fresh archive. `VERIFY_OK`, `Ran 21 tests … OK`, and without `fixtures/` `OK (skipped=1)` with the
+skip named. I reproduced the negative control myself — wrote `DownloadFolder=/tmp/Загрузки` as UTF-8 into the
+userdata file and watched both the test and the verifier fail with the mojibake in the message.
+
+**Accepted.** T13 is done, and the coder is right that my condition was wrong.
+
+| Coder's point | Verdict |
+| --- | --- |
+| T13.1's trigger "when it is non-ASCII" never fires on a file with zero non-ASCII bytes, so the defect G10 is about stays invisible | correct, and sharper than I had it: the right test is **decode with the port, re-encode with the helper, compare bytes**, not "inspect the non-ASCII ones". Verified — the injected UTF-8 file is caught with no special branch. |
+| "keep `configparser` for the ASCII case" is not neutral — it was the source of `settings_keys=94`, so keeping two parsers would keep two definitions of a key | correct. I confirmed the count is unchanged at 94 with the Qt reader, and that the two parsers genuinely disagree: on the injected file `configparser` reports a clean `/tmp/Загрузки` (94 keys, no complaint) while the Qt reader reports the mojibake and the mismatch. The old check could not have seen it. |
+| T13.2's "document as impossible-by-construction" describes an accident; reject explicitly instead | correct. `ValueError: … lone surrogate (U+d800) …` now, and a valid astral pair still writes as `\xd83e\xddea` — the companion test that stops "reject surrogates" from decaying into "reject non-BMP". |
+| §8's `### Reporting` block still asks for four outputs while the round asked for two | correct, and my error: the block is generic. Fixed below. |
+
+**Open — one finding (G11), not caused by this round but exposed by it:**
+
+| # | Finding | Why it matters |
+| --- | --- | --- |
+| **G11** | **The Qt INI reader port understands values but not keys.** `iniUnescapedKey` escapes a key's non-alphanumerics as `%XX` (Latin-1 range) or `%UXXXX` (above), and writes `/` as `\\`. The port reads `%U417%U430=value` as the literal key `%U417%U430`, and `My\\Group\\Key` keeps its backslashes. Nothing in `fixtures/` has a non-ASCII or nested key — I checked — so no fixture is wrong today. | This is a **Morid** requirement, not only a fixture one: real `settings.ini` files from Windows users will contain `%UXXXX` keys (any extension or engine whose name is non-ASCII lands in a key), and [data-compat](../data-compat.md) §3.1 tells the implementation to read them. Right now the port would pass its own tests and be wrong on exactly those files. Task **T14**, and it belongs to the same helper — one place to be right. |
+
+**Also recorded:** the reporting block below is corrected to ask for what is actually needed, rather than the four
+fixed outputs inherited from round 2.
+
+### T14 — teach the reader keys, not only values (G11)
+
+1. Port `iniUnescapedKey`: `%XX` → the Latin-1 code point of that byte, `%UXXXX` → that UTF-16 code unit (case
+   insensitive, as Qt is), `\\` → `/`, and for keys Qt also lowercases a key that consists only of lowercase
+   characters in its escaped form — read `iniUnescapedKey`'s `lowercaseOnly` handling and match it, or say why the
+   fixture set does not need it.
+2. Tests, in the existing file: a `%UXXXX` key, a `%XX` key, a nested key with `\\`, a key with a literal `%` that
+   is not an escape, and one full `settings.ini` containing all of them re-encoded with the writer and compared
+   byte for byte. If the writer does not have a key-escaping helper, add it — the round trip is the point.
+3. Confirm nothing in `fixtures/` changes; if something does, stop and report it rather than re-capturing.
+
+Acceptance: `python3 -m unittest` green with the new tests, `VERIFY_OK`, no fixture changes, and the reader refuses
+a malformed `%` escape rather than passing it through.
+
 ### Reporting
 
-For this follow-up, report only: the files changed, the four acceptance outputs (T1 grep, T1 comparator,
-T2 idempotency, T3/T4 verifier), the canonicalisation vocabulary you settled on, and anything in these
-instructions that turned out to be wrong. No summary of the previous delivery.
+Report only: the files changed, the commands you ran with their output, which acceptance criteria you could not
+check in this environment and why, and anything in these instructions that turned out to be wrong. No summary of
+the previous delivery, and no fixed list of outputs — report what this round's acceptance actually needs.

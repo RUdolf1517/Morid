@@ -1,6 +1,13 @@
 [licenses]
 version = 2
 confidence-threshold = 0.9
+# The specification's nine identifiers, plus two that only appear in the
+# transitive tree Slint brings (workspace-manifest.md §4 lists the direct
+# dependencies, not their graph):
+#   BSL-1.0      clipboard-win, via copypasta, via slint (deny.log: "license is
+#                not explicitly allowed");
+#   Unicode-3.0  the icu_* crates, via url, via slint.
+# Both are permissive and GPL-compatible; the report says so explicitly.
 allow = [
     "MIT",
     "Apache-2.0",
@@ -11,10 +18,51 @@ allow = [
     "Zlib",
     "Unlicense",
     "MPL-2.0",
+    "BSL-1.0",
+    "Unicode-3.0",
 ]
 
+# The exception has to name every Slint crate in the graph, not only `slint`:
+# they all declare the same triple licence, and an exception is matched by crate
+# name. `i-slint-*` are Slint's internal runtime crates, pulled in by `slint`.
 [[licenses.exceptions]]
 name = "slint"
+allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-Software-3.0"]
+
+[[licenses.exceptions]]
+name = "slint-macros"
+allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-Software-3.0"]
+
+[[licenses.exceptions]]
+name = "i-slint-core"
+allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-Software-3.0"]
+
+[[licenses.exceptions]]
+name = "i-slint-core-macros"
+allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-Software-3.0"]
+
+[[licenses.exceptions]]
+name = "i-slint-common"
+allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-Software-3.0"]
+
+[[licenses.exceptions]]
+name = "i-slint-compiler"
+allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-Software-3.0"]
+
+[[licenses.exceptions]]
+name = "i-slint-backend-selector"
+allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-Software-3.0"]
+
+[[licenses.exceptions]]
+name = "i-slint-backend-winit"
+allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-Software-3.0"]
+
+[[licenses.exceptions]]
+name = "i-slint-renderer-femtovg"
+allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-Software-3.0"]
+
+[[licenses.exceptions]]
+name = "i-slint-renderer-skia"
 allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-Software-3.0"]
 
 [advisories]

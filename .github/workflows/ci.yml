@@ -242,6 +242,16 @@ jobs:
           path: Cargo.lock
           if-no-files-found: ignore
 
+      - name: Licence inventory (temporary)
+        if: always()
+        shell: bash
+        run: |
+          cargo deny list > deny-list.log 2>&1 || true
+          awk -F': ' 'NF > 1 { print $2 }' deny-list.log | sort | uniq -c | sort -rn > deny-licences.log || true
+          head -n 25 deny-licences.log | cut -c1-900 | while IFS= read -r line; do
+            echo "::warning title=licences::${line}"
+          done
+
       - name: Evidence, dependency tree (temporary)
         if: always()
         shell: bash

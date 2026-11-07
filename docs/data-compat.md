@@ -60,25 +60,47 @@ Two entries deserve emphasis:
 
 ## 3. Settings
 
-### 3.0 Encoding — established empirically in Phase 0
+### 3.0 Encoding of `settings.ini` — how the original actually writes it
 
-The original reads `settings.ini` through `QSettings` with **no `setIniCodec` call anywhere in the source**, so
-Qt uses the locale codec, not UTF-8. Observed during Phase 0: a `DownloadFolder` containing Cyrillic did not
-survive the round trip under a `POSIX` locale, the original treated the path as non-existent and reset the
-folder to `QStandardPaths::DownloadLocation` (`legacy/src/settings.cpp:688-728`), logging "Resetting download
-folder to default".
+This section replaces an earlier version of itself that was **wrong**. The correction matters, because the
+first reading produced a wrong conclusion about what "compatibility" means here.
 
-What Morid does, and why it is a decision rather than a detail:
+**The original never calls `QSettings::setIniCodec`** (`grep -r setIniCodec legacy/src` finds nothing), and it
+constructs `QSettings(m, QSettings::IniFormat)` on every platform (`legacy/src/settings.cpp:374-380`). Under
+**Qt 5.15** that has a specific consequence, taken from the Qt documentation:
 
-- **Read as UTF-8, unconditionally.** A user whose settings file contains a non-ASCII path should not lose it.
-  This is a deliberate difference from the original ([migration](migration.md) §5, M11).
-- **Write as UTF-8.** Writing in the locale codec would make the output unreadable on another machine and to
-  the original on a third.
-- **The difference is invisible for pure-ASCII settings**, which is why it went unnoticed for the original's
-  whole life.
-- **Import is affected.** [§4](#4-the-import-procedure) must not assume the file was written by a UTF-8
-  program. A file written by the original under a non-UTF-8 locale may contain bytes that are not valid UTF-8;
-  the importer decodes strictly and reports rather than substituting replacement characters.
+> By default, no codec is used, and non-ASCII characters are encoded using standard INI escape sequences.
+> [...] QSettings will accept Latin-1 encoded INI files, but generate pure ASCII files, where non-ASCII values
+> are encoded using standard INI escape sequences.
+
+So a `DownloadFolder` of `/x/Загрузки` is **written** by the original as `/x/\x417\x430...` — ASCII on disk,
+every UTF-16 code unit as `\xHHHH`. The file is not UTF-8, not locale-encoded, and not something a byte-oriented
+reader can interpret: it is an INI dialect with its own escaping. This is the fact that matters for Morid, and
+it is unrelated to the machine's locale.
+
+(The locale theory in the first version of this section was wrong. What actually happened during the Phase 0
+capture is recorded in `fixtures/README.md` (appears with PR #2) under s20 and is still an open question
+for the capture — see [tasks/phase-0-fixtures.md](tasks/phase-0-fixtures.md) T7. The Qt behaviour above does not
+depend on how that turns out: it is a property of the writer, not of the capture host.)
+
+**Under Qt 6 the writer changed.** Qt 6 assumes INI values are UTF-8 and writes them as UTF-8; the Qt 6
+documentation says INI files written by Qt 5 remain readable by Qt 6 only "unless an ini codec different from
+utf8 had been set". A `settings.ini` produced by our Qt 5 reference build therefore does **not** round-trip
+through a Qt 6 build of the original. That matters if a user ever runs a Qt 6 build of Media Downloader: the two
+builds of *their own program* disagree about the same file.
+
+**What this means for Morid — decided by D-016 (compatibility first):**
+
+- **Read both dialects.** A value is decoded as a Qt-escaped INI string when it contains `\x` escapes; otherwise
+  it is read as UTF-8. Nothing else is guessed, and the rule is stated in the importer's report.
+- **Write the original's dialect.** When Morid writes a value that the original may read, non-ASCII characters
+  are emitted as `\xHHHH`, exactly as Qt 5 does. This is ugly on purpose: it is the only form the reference
+  program can read back.
+- **ASCII files are byte-identical** under either rule, which is why none of this was visible for years.
+- **Import decodes strictly and reports.** A file containing bytes that are neither valid UTF-8 nor valid Qt
+  escapes is reported as a finding, not silently repaired.
+- **Round trip is the acceptance test**, not "it looks right": write with Morid → read with the original →
+  value intact ([§6](#6-export-and-going-back)).
 
 The JSON data files are UTF-8 by construction. `archiveFile-<engine>.txt` is written by the backend, not by the
 original, and is passed through byte for byte.

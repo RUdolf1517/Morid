@@ -210,7 +210,29 @@ is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-
 
 ## Open questions
 
-**None.** All fifteen questions of the audit were decided on 4 November 2026.
+### D-016 — `settings.ini` is read and written the way the original does it
+
+- **Date:** 5 November 2026 · **Question:** raised by the Phase 0 review, not by the audit
+- **Decision:** **compatibility wins over correctness of encoding.** Morid reads the Qt-escaped INI dialect the
+  reference program writes, and writes that dialect back. It does not "improve" the file to UTF-8.
+- **Reasoning:** the owner's position is compatibility first, and here it is also the only choice that keeps the
+  promise in D-003. A `settings.ini` containing a non-ASCII value is written by the original as ASCII with
+  `\xHHHH` escapes (Qt 5 with no `setIniCodec`); a UTF-8 file written by Morid would be misread by the original
+  as a different path, and the original would then reset the user's download folder. Writing UTF-8 would be a
+  deliberate break dressed up as an improvement.
+- **What it does not mean:** Morid does not reproduce *defects*. The Qt 5 → Qt 6 divergence is recorded so that a
+  user who switches builds understands what happened, not imitated.
+- **Consequences:**
+  - the INI reader and writer are specified in [data-compat](data-compat.md) §3.0, including the `\xHHHH` rule;
+  - this is an *architecture* consequence, not a local one: `morid-store` cannot use a general-purpose INI
+    crate for this file. It needs a reader/writer for Qt's dialect, written and tested in this repository
+    ([dependencies](dependencies.md) §2 gains a rejection entry with this reason);
+  - the round trip "Morid writes → the original reads → value intact" is an acceptance test, not a manual check;
+  - a non-ASCII value must appear in the fixture set, so the rule is exercised rather than assumed.
+
+
+**None.** All fifteen questions of the audit were decided on 4 November 2026. D-016 was raised afterwards, by
+the Phase 0 review, and is decided.
 
 | Question | Decision | Question | Decision |
 | --- | --- | --- | --- |
@@ -223,9 +245,10 @@ is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-
 | Q7 Windows | D-005 10/11 only | Q15 network endpoints | D-014 split |
 | Q8 self-update | D-013 notice only | | |
 
-Engineering choices that are not product decisions — thread model, HTTP client, INI parsing, translation format
-— are listed in [architecture](architecture.md) §10 and [roadmap](roadmap.md) §5, and are settled in the phase
-that needs them.
+Engineering choices that are not product decisions — thread model, HTTP client, translation format — are listed
+in [architecture](architecture.md) §10 and [roadmap](roadmap.md) §5, and are settled in the phase that needs
+them. **INI parsing is no longer in that list**: D-016 settled it, because the answer is dictated by
+compatibility rather than by preference.
 
 New questions are added to the table above with what they block and by when an answer is needed. An open
 question stops only the work that depends on it, never the whole project.

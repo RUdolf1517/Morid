@@ -57,7 +57,7 @@ The follow-up commit `b344cdc` was re-checked independently, not by reading the 
 | # | Finding | Why it matters |
 | --- | --- | --- |
 | **G5** | **The verifier does not check goldens for host paths at all.** I injected `/home/user/.cache/...` back into `s01`'s `argv.json` *and* its `log.txt` in a copy of the tree; the verifier still printed `VERIFY_OK`. | T1 is enforced only by a `grep` that runs in nobody's CI, so the exact regression it was written against can return unnoticed. The check belongs in `verify_fixtures.py`. Task **T6**. |
-| **G6** | **s20's `cwd` is the capture host's real Downloads directory, and the reason given in the report is wrong.** The report says the original "ignores `DownloadFolder` and takes `QStandardPaths::DownloadLocation`" when `-P` is given. The code disagrees: `-P` is never consulted for the working directory (`utility::context::whenCreated` uses `m_events.downloadFolder()` → `settings::downloadFolder()`), and that falls back to `downloadLocation()` **only when the configured path does not exist** (`legacy/src/settings.cpp:688-728`). The harness writes `settings.ini` as UTF-8 with a Cyrillic `DownloadFolder`; `QSettings` reads it with `codecForLocale`, which under the capture's `POSIX`/`minimal` locale is not UTF-8, so the value does not round-trip, the path "does not exist", and the original resets the folder — which is what its own "Resetting download folder to default" line describes. | Two consequences. (a) The case does not reproduce what it is named for: s20 exists to prove a non-ASCII download path works and instead proves the reset path. (b) It exposes a compatibility fact nobody recorded: **a non-ASCII value in `settings.ini` is not readable by the original under a non-UTF-8 locale.** Tasks **T7**, **T8**. |
+| **G6** | **s20's `cwd` is the capture host's real Downloads directory, and the explanation in the report (and in my first version of this row) is wrong.** The report said the original "ignores `DownloadFolder` and takes `QStandardPaths::DownloadLocation`" when `-P` is given; I then said the cause was the locale codec. Both are wrong. `-P` is never consulted for the working directory (`utility::context::whenCreated` uses `m_events.downloadFolder()` → `settings::downloadFolder()`), and that function falls back to `downloadLocation()` **only when the configured path does not exist** (`legacy/src/settings.cpp:688-728`). The real mechanism is in [data-compat](../data-compat.md) §3.0: the original writes non-ASCII values as Qt `\xHHHH` escapes and reads them back through Qt's unescaper — so a `settings.ini` written by our harness as **literal UTF-8** is decoded by the original into a path that does not exist, and the folder is reset. The harness, not the original, is what is wrong here. | The case does not reproduce what it is named for: s20 exists to prove a non-ASCII download path works, and instead proves the reset path, because the harness wrote the file in a dialect the original cannot read. Task **T7** fixes the harness; the compatibility rule that produced this finding is D-016. |
 
 **Recorded so it is not raised again:** `fixtures/streams/**/meta.json` keeps the capture host's backend paths inside `command` arrays. T1 excluded them deliberately — those arrays are provenance, not goldens, and rewriting them would make the record of the capture untrue.
 
@@ -423,35 +423,42 @@ the manager will fold it in, you do not edit those files.
 
 Acceptance: the injection fails loudly, the clean tree prints `VERIFY_OK`, the check is visible by name.
 
-### T7 — s20 does not reproduce what it claims (G6)
+### T7 — s20: write `settings.ini` in the dialect the original reads (G6)
 
-1. Establish the cause before changing anything. Re-run the case with `LANG`/`LC_ALL` set to a UTF-8 locale
-   (`C.UTF-8` suffices) and report whether `cwd` becomes the configured directory and whether the original
-   still logs "Resetting download folder to default". If the locale is not the cause, say what is, with
-   evidence.
-2. Make the case capture the behaviour it is named for: the child's working directory must be the configured
-   directory with the space and the Cyrillic name, and the golden must show `<case-dir>/output dir/Загрузки`.
-   Pin the environment that makes this deterministic in `capture.py` and write down why.
-3. Only if the reset happens even under a correct locale, keep the observation but change the claim: the
-   reason must say the original resets a non-ASCII download folder under a non-UTF-8 locale, and the case
-   must stop being presented as proof that such a path works.
-4. Either way, `fixtures/README.md` gains a paragraph on the capture's locale requirement and s20's
-   `meta.json` records the locale used.
+The cause is established and is not the locale. The harness writes `settings.ini` as literal UTF-8
+(`capture.py`, `settings_path.open("w", encoding="utf-8")`). The original reads that file through `QSettings`
+with no `setIniCodec`, so under Qt 5 it expects Qt-escaped ASCII — `\xHHHH` per non-ASCII UTF-16 code unit — and
+a literal UTF-8 byte sequence decodes into a different string. The path then does not exist, and the original
+resets the download folder to the platform default, which is exactly what s20's `cwd` shows.
 
-Acceptance: s20's `log.txt` `cwd` is `<case-dir>/output dir/Загрузки`, or a written, evidenced explanation of
-why it cannot be; the verifier passes; the README states the locale requirement.
+1. Establish it, do not assume it: write the harness's `settings.ini` with a path containing Cyrillic escaped
+   the Qt 5 way, re-run s20, and report whether `cwd` becomes the configured directory and whether the original
+   stops logging "Resetting download folder to default". If the folder is still reset, report the evidence and
+   the new cause — do not paper over it.
+2. Make the escaping a helper, because more than one case needs it: a single function that converts a Python
+   string into a Qt 5 INI value (`\xHHHH` for non-ASCII, `\\` for backslash, `"` quoted when the value has
+   leading/trailing spaces or is empty). Put it next to `canonicalise.py` and use it for every value the harness
+   writes into `settings.ini`. Pure-ASCII values must come out byte-identical to today's output, so no other
+   case changes.
+3. Re-capture s20. The golden must show `<case-dir>/output dir/Загрузки` as the `cwd`, and the argv must keep
+   the `-P` argument it already records.
+4. Add one line to `fixtures/README.md` saying the harness writes `settings.ini` in the Qt 5 escape dialect and
+   why; `meta.json` for s20 records that the folder was not reset.
 
-### T8 — report the settings-encoding behaviour, do not fix it here
+Acceptance: s20's `log.txt` `cwd` is `<case-dir>/output dir/Загрузки`; the original's log contains no
+"Resetting download folder to default"; every other case is byte-identical to `b344cdc`; the verifier passes.
+
+### T8 — report the dialect, do not "fix" the original
 
 Do **not** change `legacy/` and do not change the userdata fixture. Add to `fixtures/README.md`, under
 "Behaviour discovered, not specified":
 
-> **settings.ini and non-ASCII values** — the original read the capture's `settings.ini` with the locale codec,
-> not UTF-8, so a value containing Cyrillic did not survive the round trip and the download folder was reset to
-> the default. Evidence: s20. Consequence for Morid: reading that file as UTF-8 is a deliberate difference from
-> the original and is recorded as one.
+> **settings.ini is Qt-escaped ASCII, not UTF-8** — the original never calls `QSettings::setIniCodec`, so on Qt 5
+> a non-ASCII value is written as `\xHHHH` per code unit and the file stays pure ASCII (Qt documentation, "Format
+> enum"). A UTF-8 file placed there by anything else is decoded into a different string. Evidence: s20 before
+> T7. Consequence for Morid: it reads and writes this dialect deliberately — D-016 in `docs/decisions.md`.
 
-Also add one line about it to the top of that section so it is not buried. The manager folds it into
+Also add one line about it to the top of that section. The manager folds it into
 [../data-compat.md](../data-compat.md) §3.0; do not edit that file.
 
 ### Reporting

@@ -39,12 +39,18 @@ jobs:
         with:
           shared-key: ${{ matrix.os }}
 
-      - name: Format
+      - name: Format (workspace)
         shell: bash
         run: |
           set -euo pipefail
-          cargo fmt --all --check 2>&1 | tee format.log
-          cargo fmt --manifest-path xtask/Cargo.toml --check 2>&1 | tee -a format.log
+          cargo fmt --version 2>&1 | tee format-workspace.log
+          cargo fmt --all -- --check 2>&1 | tee -a format-workspace.log
+
+      - name: Format (xtask)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path xtask/Cargo.toml -- --check 2>&1 | tee format-xtask.log
 
       - name: Lint
         shell: bash

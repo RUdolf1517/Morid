@@ -227,41 +227,6 @@ jobs:
           path: Cargo.lock
           if-no-files-found: ignore
 
-      - name: Emit the lock file, part 1 (temporary)
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: python3 .github/emit-chunks.py Cargo.lock 0 9
-
-      - name: Emit the lock file, part 2 (temporary)
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: python3 .github/emit-chunks.py Cargo.lock 10 19
-
-      - name: Emit the lock file, part 3 (temporary)
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: python3 .github/emit-chunks.py Cargo.lock 20 29
-
-      - name: Emit the lock file, part 4 (temporary)
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: python3 .github/emit-chunks.py Cargo.lock 30 39
-
-      - name: Emit the lock file, part 5 (temporary)
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: python3 .github/emit-chunks.py Cargo.lock 40 49
-
-      - name: Emit the lock file, part 6 (temporary)
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: python3 .github/emit-chunks.py Cargo.lock 50 59
-
-      - name: Emit the lock file, part 7 (temporary)
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: python3 .github/emit-chunks.py Cargo.lock 60 69
-
       - name: Evidence, dependency tree (temporary)
         if: always()
         shell: bash
@@ -278,7 +243,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          for log in size-report.txt phase0-unittest.log phase0-verify.log; do
+          for log in size-report.txt phase0-unittest.log phase0-verify.log gui-smoke.log; do
             [ -f "$log" ] || continue
             tail -n 4 "$log" | cut -c1-900 | while IFS= read -r line; do
               echo "::warning title=${log}::${line}"
@@ -290,7 +255,18 @@ jobs:
         shell: bash
         run: |
           shopt -s nullglob
-          for log in *.log; do
+          for log in deny.log audit.log clippy.log build.log offline.log test.log lockgen.log; do
+            [ -f "$log" ] || continue
             message=$(tail -n 25 "$log" | tr '\n' ' ' | cut -c1-900)
             echo "::error title=${log}::${message}"
           done
+
+      - name: Emit the lock file, part 1 (temporary)
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: python3 .github/emit-chunks.py Cargo.lock 0 9 gzip
+
+      - name: Emit the lock file, part 2 (temporary)
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: python3 .github/emit-chunks.py Cargo.lock 10 19 gzip

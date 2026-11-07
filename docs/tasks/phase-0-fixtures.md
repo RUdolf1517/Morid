@@ -6,7 +6,7 @@ person-days · **Delivered:** PR #2, commit `8fba615`
 
 ---
 
-## 0. Review verdict (5 November 2026)
+## 0. Review verdict (round 2, 5 November 2026)
 
 Checked by running the verifier and by independent inspection, not by reading the report.
 
@@ -34,6 +34,32 @@ invocation exists only in the Windows branch) and s28 (no external update argv e
 s35 and s36 are *not* one observation: s35 falls back to the default engine after rejecting an unknown name,
 while s36 executes an extension whose `Name` is missing. They are recorded separately in
 [../migration.md](../migration.md) §6.1 as O1 and O1b.
+
+### Round 2 — what changed, and what is still open
+
+The follow-up commit `b344cdc` was re-checked independently, not by reading the report.
+
+**Verified fixed, reproduced by hand:**
+
+| Check | Result |
+| --- | --- |
+| G1 host paths in goldens | `grep -r /home/user/.cache fixtures/scenarios` returns nothing (exit 1); no `argv*.json` contains an absolute path |
+| G2 Node path | all 23 occurrences are `node:<node>` |
+| Placeholder discipline | only `<case-dir>` (39 files) and `<node>` (24 files) appear; the one remaining literal is `/home/user/Downloads` in s20's `cwd`, a documented token |
+| G3 `env.json` | the three files are gone; proxy evidence is verified from the transcript `env` objects, and s14/s15 behave as described |
+| G4 metadata | s28 `backend: null` + `subject`; s35 `yt-dlp` + `requested_extension`; s36 `capture-custom` + `null` + rewritten reason |
+| Comparator | positive 36/36; a foreign candidate (`/home/ci/...`, `node:/opt/node/bin/node`) matches with `--canonicalise`; a changed path tail, a split case root or a path outside the case dir each exit 1 or 2 correctly |
+| Regeneration honesty | I diffed the old goldens against the new ones with my own canonicaliser: exactly three arguments changed, all because the harness path moved inside the case directory (s09, s12, s20). No golden was edited by hand. |
+| Idempotency | now backed by `check-idempotency.sh`. I did **not** re-run it — it needs a Qt build this environment does not have — so that single result rests on the coder's output. Said plainly rather than implied. |
+
+**Still open — two findings, both missed in round 1:**
+
+| # | Finding | Why it matters |
+| --- | --- | --- |
+| **G5** | **The verifier does not check goldens for host paths at all.** I injected `/home/user/.cache/...` back into `s01`'s `argv.json` *and* its `log.txt` in a copy of the tree; the verifier still printed `VERIFY_OK`. | T1 is enforced only by a `grep` that runs in nobody's CI, so the exact regression it was written against can return unnoticed. The check belongs in `verify_fixtures.py`. Task **T6**. |
+| **G6** | **s20's `cwd` is the capture host's real Downloads directory, and the reason given in the report is wrong.** The report says the original "ignores `DownloadFolder` and takes `QStandardPaths::DownloadLocation`" when `-P` is given. The code disagrees: `-P` is never consulted for the working directory (`utility::context::whenCreated` uses `m_events.downloadFolder()` → `settings::downloadFolder()`), and that falls back to `downloadLocation()` **only when the configured path does not exist** (`legacy/src/settings.cpp:688-728`). The harness writes `settings.ini` as UTF-8 with a Cyrillic `DownloadFolder`; `QSettings` reads it with `codecForLocale`, which under the capture's `POSIX`/`minimal` locale is not UTF-8, so the value does not round-trip, the path "does not exist", and the original resets the folder — which is what its own "Resetting download folder to default" line describes. | Two consequences. (a) The case does not reproduce what it is named for: s20 exists to prove a non-ASCII download path works and instead proves the reset path. (b) It exposes a compatibility fact nobody recorded: **a non-ASCII value in `settings.ini` is not readable by the original under a non-UTF-8 locale.** Tasks **T7**, **T8**. |
+
+**Recorded so it is not raised again:** `fixtures/streams/**/meta.json` keeps the capture host's backend paths inside `command` arrays. T1 excluded them deliberately — those arrays are provenance, not goldens, and rewriting them would make the record of the capture untrue.
 
 ---
 
@@ -382,6 +408,51 @@ s35/s36 fallback instead of empty argv; s26 fallback by architecture; s10's two 
 Windows interpreter difference; s28's update path having no argv. One line each, each pointing at the case
 id. This is the raw material for [../migration.md](../migration.md) §6 and [../features.md](../features.md);
 the manager will fold it in, you do not edit those files.
+
+### T6 — make the verifier enforce the placeholder rule (G5)
+
+1. In `verify_fixtures.py`, add a check over every file under `fixtures/scenarios/**`: reject any absolute
+   path outside the documented vocabulary — in particular any occurrence of `/home/user/.cache`, of
+   `/morid-capture/`, of the capture runtime root, and any absolute path whose prefix is neither `/home/user`
+   nor `<case-dir>`.
+2. Prove it works: temporarily inject `/home/user/.cache/morid-capture/runtime/s01/...` into `s01`'s
+   `argv.json` **and** `log.txt`, show the verifier failing with the file and the value named, then revert.
+   Paste both outputs. Editing both files matters: it leaves transcript equality intact, so only a path
+   check can catch the regression.
+3. The new check prints its name in the verifier's output, so a reviewer can see it ran.
+
+Acceptance: the injection fails loudly, the clean tree prints `VERIFY_OK`, the check is visible by name.
+
+### T7 — s20 does not reproduce what it claims (G6)
+
+1. Establish the cause before changing anything. Re-run the case with `LANG`/`LC_ALL` set to a UTF-8 locale
+   (`C.UTF-8` suffices) and report whether `cwd` becomes the configured directory and whether the original
+   still logs "Resetting download folder to default". If the locale is not the cause, say what is, with
+   evidence.
+2. Make the case capture the behaviour it is named for: the child's working directory must be the configured
+   directory with the space and the Cyrillic name, and the golden must show `<case-dir>/output dir/Загрузки`.
+   Pin the environment that makes this deterministic in `capture.py` and write down why.
+3. Only if the reset happens even under a correct locale, keep the observation but change the claim: the
+   reason must say the original resets a non-ASCII download folder under a non-UTF-8 locale, and the case
+   must stop being presented as proof that such a path works.
+4. Either way, `fixtures/README.md` gains a paragraph on the capture's locale requirement and s20's
+   `meta.json` records the locale used.
+
+Acceptance: s20's `log.txt` `cwd` is `<case-dir>/output dir/Загрузки`, or a written, evidenced explanation of
+why it cannot be; the verifier passes; the README states the locale requirement.
+
+### T8 — report the settings-encoding behaviour, do not fix it here
+
+Do **not** change `legacy/` and do not change the userdata fixture. Add to `fixtures/README.md`, under
+"Behaviour discovered, not specified":
+
+> **settings.ini and non-ASCII values** — the original read the capture's `settings.ini` with the locale codec,
+> not UTF-8, so a value containing Cyrillic did not survive the round trip and the download folder was reset to
+> the default. Evidence: s20. Consequence for Morid: reading that file as UTF-8 is a deliberate difference from
+> the original and is recorded as one.
+
+Also add one line about it to the top of that section so it is not buried. The manager folds it into
+[../data-compat.md](../data-compat.md) §3.0; do not edit that file.
 
 ### Reporting
 

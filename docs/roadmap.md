@@ -61,8 +61,9 @@ Estimates are for the work, not for the waiting.
 
 **Status 5 November 2026:** delivered as `fixtures/` (PR #2, commit `8fba615`) — 36 of 40 cases captured with
 wrapper transcripts, seven backends of raw output, an anonymised data directory reloaded by the original
-program, and a comparator. Accepted with five follow-up items, chiefly making the goldens independent of the
-capture host ([tasks/phase-0-fixtures.md](tasks/phase-0-fixtures.md) §0 and §8). The four uncaptured cases are
+program, and a comparator. Goldens were then made independent of the capture host (`b344cdc`). Two findings remain open in round 2 —
+the verifier does not enforce the placeholder rule, and one case does not reproduce what it claims — see
+[tasks/phase-0-fixtures.md](tasks/phase-0-fixtures.md) §0 and §8 (T6–T8). The four uncaptured cases are
 real observations, not omissions: see [migration](migration.md) §6.
 
 **Exit criteria:** a reviewer can take any scenario and see both argument vectors; every backend that Morid will

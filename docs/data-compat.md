@@ -60,6 +60,33 @@ Two entries deserve emphasis:
 
 ## 3. Settings
 
+### 3.0 Encoding — established empirically in Phase 0
+
+The original reads `settings.ini` through `QSettings` with **no `setIniCodec` call anywhere in the source**, so
+Qt uses the locale codec, not UTF-8. Observed during Phase 0: a `DownloadFolder` containing Cyrillic did not
+survive the round trip under a `POSIX` locale, the original treated the path as non-existent and reset the
+folder to `QStandardPaths::DownloadLocation` (`legacy/src/settings.cpp:688-728`), logging "Resetting download
+folder to default".
+
+What Morid does, and why it is a decision rather than a detail:
+
+- **Read as UTF-8, unconditionally.** A user whose settings file contains a non-ASCII path should not lose it.
+  This is a deliberate difference from the original ([migration](migration.md) §5, M11).
+- **Write as UTF-8.** Writing in the locale codec would make the output unreadable on another machine and to
+  the original on a third.
+- **The difference is invisible for pure-ASCII settings**, which is why it went unnoticed for the original's
+  whole life.
+- **Import is affected.** [§4](#4-the-import-procedure) must not assume the file was written by a UTF-8
+  program. A file written by the original under a non-UTF-8 locale may contain bytes that are not valid UTF-8;
+  the importer decodes strictly and reports rather than substituting replacement characters.
+
+The JSON data files are UTF-8 by construction. `archiveFile-<engine>.txt` is written by the backend, not by the
+original, and is passed through byte for byte.
+
+---
+
+### 3.1 Keys
+
 `settings.ini` holds ~51 distinct keys plus dynamically named families
 (`CookieBrowser_<engine>`, `CookieTextFilePath_<engine>`, `LastUsedOption<tab>_<engine>`,
 `TextEncoding_<engine>`, `WindowDimensions_<tab>`). The full list extracted from `legacy/src/settings.cpp` is:

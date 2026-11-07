@@ -171,6 +171,7 @@ is listed in `CHANGELOG.md` when it ships. Any *other* difference is a defect un
 | M8 | RTL layout not mirrored | D-002 | Arabic renders correctly but the layout stays LTR |
 | M9 | `downloadHistory.json` is written as valid JSON in Morid's own directory; the original's file is left untouched | data-compat §5.1 | two files exist with different shapes; the original's remains usable |
 | M10 | Automatic subscription checking exists (F-26) | features §3 | new feature, not parity — must not be presented as "was always there" |
+| M11 | `settings.ini` is read and written as **UTF-8**; the original uses the locale codec | [data-compat](data-compat.md) §3.0, established in Phase 0 | a non-ASCII path survives in Morid and is silently lost by the original; identical for pure-ASCII settings |
 
 ---
 
@@ -206,6 +207,7 @@ assumed to be the opposite, and because the fixture records the real thing.
 | O4 | On Linux the shipped `Generic` branch of the you-get extension invokes `you-get` directly; the interpreter invocation exists only in the Windows branch. | s33 | The per-OS command tables are not interchangeable and cannot be reduced to one. Not captured as a golden; the observed command is kept. |
 | O5 | `AutoUpdate` produces no external process at all — updating a backend is done in-process through the network layer. | s28 | There is no argv to reproduce for updates; the equivalent behaviour is "fetch release metadata, verify, replace the binary" ([F-34](features.md)). |
 | O6 | Subtitles and comments are fetched with `--print`/`--get-comments` and `--no-download`, not by a separate list command. | s16, s18 | The metadata reader is the same code path as the download planner; it must not be modelled as a separate "probe" subsystem. |
+| O7 | `settings.ini` is read with the **locale** codec, not UTF-8: under a `POSIX` locale a non-ASCII `DownloadFolder` does not round-trip and the folder is reset to the platform default. | s20 | Morid reads UTF-8 deliberately (M11). The importer decodes strictly and reports. A fixture built on the old behaviour would have hidden this. |
 
 The distinction between §5 and §6: §5 changes something users see; §6 fixes something that was broken. Both are
 documented, because "we silently improved it" is how a replacement becomes untrustworthy.

@@ -135,8 +135,18 @@ jobs:
         shell: pwsh
         run: |
           $env:MORID_GUI_SMOKE_MS = "4000"
-          $process = Start-Process -FilePath ".\target\release\morid-gui.exe" -PassThru -Wait
-          Write-Output "morid-gui exit code $($process.ExitCode)"
+          $process = Start-Process -FilePath ".\target\release\morid-gui.exe" -PassThru `
+            -RedirectStandardOutput gui-stdout.txt -RedirectStandardError gui-stderr.txt
+          $exited = $process.WaitForExit(60000)
+          if (-not $exited) {
+            $process.Kill()
+            "did not exit within 60 s" | Tee-Object -FilePath gui-smoke.log
+            exit 1
+          }
+          $stdout = Get-Content gui-stdout.txt -Raw -ErrorAction SilentlyContinue
+          $stderr = Get-Content gui-stderr.txt -Raw -ErrorAction SilentlyContinue
+          "exit code $($process.ExitCode)" + "`n" + "stdout: $stdout" + "`n" + "stderr: $stderr" |
+            Tee-Object -FilePath gui-smoke.log
           if ($process.ExitCode -ne 0) { exit 1 }
 
       - name: Upload the window screenshot
@@ -226,6 +236,31 @@ jobs:
         if: always() && runner.os == 'Linux'
         shell: bash
         run: python3 .github/emit-chunks.py Cargo.lock 10 19
+
+      - name: Emit the lock file, part 3 (temporary)
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: python3 .github/emit-chunks.py Cargo.lock 20 29
+
+      - name: Emit the lock file, part 4 (temporary)
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: python3 .github/emit-chunks.py Cargo.lock 30 39
+
+      - name: Emit the lock file, part 5 (temporary)
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: python3 .github/emit-chunks.py Cargo.lock 40 49
+
+      - name: Emit the lock file, part 6 (temporary)
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: python3 .github/emit-chunks.py Cargo.lock 50 59
+
+      - name: Emit the lock file, part 7 (temporary)
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: python3 .github/emit-chunks.py Cargo.lock 60 69
 
       - name: Evidence, dependency tree (temporary)
         if: always()

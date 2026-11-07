@@ -20,12 +20,17 @@ allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-
 [advisories]
 # Missing from the specification (workspace-manifest.md §4). With no
 # `[advisories]` section `cargo deny check` denies every advisory, unmaintained
-# ones included, and Slint 1.13 carries one it cannot drop: RUSTSEC-2026-0372,
-# `zvariant_derive` unmaintained, arriving as
-# slint → i-slint-backend-winit → zbus 5. "No safe upgrade is available": the
-# fix is zbus 6, which this Slint does not use. Named rather than blanket
-# ignored so it is revisited when Slint moves; vulnerabilities still fail.
-ignore = ["RUSTSEC-2026-0372"]
+# ones included, and Slint 1.13 carries three it cannot drop:
+#   RUSTSEC-2026-0370  zvariant          unmaintained
+#   RUSTSEC-2026-0371  zbus_names        unmaintained
+#   RUSTSEC-2026-0372  zvariant_derive   unmaintained
+# all arriving as slint → i-slint-backend-winit → zbus 5. Every one says "No
+# safe upgrade is available": the fix is zbus 6, which this Slint does not use.
+# Named rather than blanket ignored so they are revisited when Slint moves;
+# vulnerabilities still fail the check. The advisory database has no other
+# entry for zbus, zbus_names, zbus_macros, zvariant, zvariant_derive or
+# zvariant_utils (api.github.com/repos/rustsec/advisory-db/contents/crates/…).
+ignore = ["RUSTSEC-2026-0370", "RUSTSEC-2026-0371", "RUSTSEC-2026-0372"]
 
 [bans]
 multiple-versions = "warn"

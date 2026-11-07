@@ -515,8 +515,8 @@ swallow it. The reader is greedy in exactly this way (`iniUnescapedString`, `StH
 is written by Qt as `...\x438\x35`; our helper writes `...\x4385`, and Qt reads that as `Загрузк䎅`.
 
 1. Fix `escape_qt_ini_value` to track that flag: after emitting a `\x` escape, if the next character is an ASCII
-   digit or one of `a-f`/`A-F`, emit it as `\x<lowercase hex, unpadded>` as well. Keep two-space, lowercase and
-   unpadded; keep `\\` for backslash.
+   digit or one of `a-f`/`A-F`, emit it as `\x<lowercase hex, unpadded>` as well. Keep lowercase and unpadded;
+   keep `\\` for backslash.
 2. Prove it with a round trip in the verifier, not in the commit message: implement Qt's unescape (greedy hex scan,
    `\x` any number of hex digits, `\\`/`\"`/`\,`/`\=` single-character escapes) as a test helper, and assert
    `unescape(escape(x)) == x` for at least: `Загрузки`, `Загрузки5`, `Папка1`, `тестa`, `é5`, `Отпуск2024`,
@@ -536,7 +536,7 @@ Qt 5 wraps a value in `"` when it contains `;`, `,` or `=`, or when it starts or
 (`iniEscapedString`, `needsQuotes`). Our writer does none of this, so it produces values the original reads back
 with quote characters in them.
 
-1. Add quoting to `escape_qt_ini_value` for exactly those five conditions, matching Qt's own test. Nothing else:
+1. Add quoting to `escape_qt_ini_value` for exactly those conditions. Nothing else:
    no escaping of newlines, tabs or other control characters, because no fixture needs them and each addition is
    a claim we would have to test.
 2. **A wrong decision here is worse than an incomplete one.** If implementing the five conditions raises a

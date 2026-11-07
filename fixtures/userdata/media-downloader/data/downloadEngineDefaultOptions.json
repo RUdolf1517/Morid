@@ -1,0 +1,12 @@
+[
+    {
+        "default": "no",
+        "engineName": "yt-dlp",
+        "options": "--newline --ignore-config --no-playlist -o %(title).200s-%(id)s.%(ext)s"
+    },
+    {
+        "default": "yes",
+        "engineName": "yt-dlp",
+        "options": "--engine-default \"two words\""
+    }
+]

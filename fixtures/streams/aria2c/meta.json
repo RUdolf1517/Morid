@@ -1,0 +1,87 @@
+{
+  "backend": "aria2c",
+  "version": "1.37.0",
+  "capture_date": "2026-11-04",
+  "platform": "Linux x86_64",
+  "source": "real subprocess stdout and stderr merged directly to each file; local deterministic HTTP input",
+  "captures": [
+    {
+      "file": "version.txt",
+      "url_class": "no URL",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/aria2c",
+        "--version"
+      ],
+      "exit_code": 0,
+      "bytes": 1145,
+      "sha256": "71a58c8b495db478324bb17b4eed1719c39910ee3c7c52dd185a6b3215434c3f"
+    },
+    {
+      "file": "progress.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/aria2c",
+        "--dir=.",
+        "--out=fixture.bin",
+        "--allow-overwrite=true",
+        "--auto-file-renaming=false",
+        "--summary-interval=1",
+        "--max-download-limit=128K",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 6278,
+      "sha256": "a6f6f6d9663ed57b6dcc1bc086f21cc0d7ef96f8231f5950ef455b09a1b22fa8"
+    },
+    {
+      "file": "destination.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/aria2c",
+        "--dir=.",
+        "--out=fixture.bin",
+        "--allow-overwrite=true",
+        "--auto-file-renaming=false",
+        "--summary-interval=1",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 338,
+      "sha256": "9278a7c6b1758d059b1dedc789d741d20404f200281daa03302f56bd83df4953"
+    },
+    {
+      "file": "complete.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/aria2c",
+        "--dir=.",
+        "--out=fixture.bin",
+        "--allow-overwrite=true",
+        "--auto-file-renaming=false",
+        "--summary-interval=1",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 338,
+      "sha256": "7311586389520a8a3354808e3ee37c6c9788f0e3f11e9f0ac70f08acfc65e04a"
+    },
+    {
+      "file": "failure.txt",
+      "url_class": "local HTTP object returning 404",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/aria2c",
+        "--dir=.",
+        "--out=fixture.bin",
+        "--allow-overwrite=true",
+        "--auto-file-renaming=false",
+        "--summary-interval=1",
+        "--max-tries=1",
+        "--retry-wait=0",
+        "<local-url>"
+      ],
+      "exit_code": 3,
+      "bytes": 761,
+      "sha256": "732bbe0e97388e48de758cb24e6fdc35236c0ed5e16c2bbc8cea422c70900f8a"
+    }
+  ]
+}

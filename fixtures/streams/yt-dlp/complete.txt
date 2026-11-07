@@ -1,0 +1,17 @@
+[generic] Extracting URL: http://127.0.0.1:18080/video.mp4
+[generic] video: Downloading webpage
+[info] video: Downloading 1 format(s): mp4
+[download] Destination: fixture.mp4
+[download]   0.0% of    2.00MiB at  Unknown B/s ETA Unknown
+[download]   0.1% of    2.00MiB at  Unknown B/s ETA Unknown
+[download]   0.3% of    2.00MiB at  Unknown B/s ETA Unknown
+[download]   0.7% of    2.00MiB at   12.04MiB/s ETA 00:00
+[download]   1.5% of    2.00MiB at    6.40MiB/s ETA 00:00
+[download]   3.1% of    2.00MiB at    5.22MiB/s ETA 00:00
+[download]   6.2% of    2.00MiB at    5.04MiB/s ETA 00:00
+[download]  12.5% of    2.00MiB at    4.94MiB/s ETA 00:00
+[download]  25.0% of    2.00MiB at    4.91MiB/s ETA 00:00
+[download]  50.0% of    2.00MiB at    4.88MiB/s ETA 00:00
+[download] 100.0% of    2.00MiB at    4.85MiB/s ETA 00:00
+[download] 100.0% of    2.00MiB at    4.85MiB/s ETA 00:00
+[download] 100% of    2.00MiB in 00:00:00 at 4.77MiB/s

@@ -1,0 +1,12 @@
+
+ Site:      127.0.0.1:18080
+ Title:     fixture
+ Type:      video
+ Stream:   
+
+     [0]  -------------------
+     Type:            video
+     Size:            19 B
+     # download with: get-sauce -s 0 ...
+
+2026/11/04 20:54:05 downloading URL: 'http://127.0.0.1:18080/missing.mp4' returned status 404 even after retrying

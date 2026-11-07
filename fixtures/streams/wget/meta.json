@@ -1,0 +1,76 @@
+{
+  "backend": "wget",
+  "version": "1.21.3",
+  "capture_date": "2026-11-04",
+  "platform": "Linux x86_64",
+  "source": "real subprocess stdout and stderr merged directly to each file; local deterministic HTTP input",
+  "captures": [
+    {
+      "file": "version.txt",
+      "url_class": "no URL",
+      "command": [
+        "/usr/bin/wget",
+        "--version"
+      ],
+      "exit_code": 0,
+      "bytes": 1333,
+      "sha256": "3cf9fae9c740cb4a2ec16460a6167e753cf19ddd74b5dc99b664a22cbd91613e"
+    },
+    {
+      "file": "progress.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/usr/bin/wget",
+        "--progress=bar:force",
+        "--limit-rate=128k",
+        "-O",
+        "fixture.bin",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 5564,
+      "sha256": "9ce2d46f825630faec00da88e647dc0d55c7a224b695b9f39cfa7c399d1c05ba"
+    },
+    {
+      "file": "destination.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/usr/bin/wget",
+        "-O",
+        "fixture.bin",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 3402,
+      "sha256": "cad3aacdc5a8890e8497460bfc5fa2c210e50c24e34dca74a204e080218e7aaa"
+    },
+    {
+      "file": "complete.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/usr/bin/wget",
+        "-O",
+        "fixture.bin",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 3402,
+      "sha256": "3e2a3d3806547f2f0fd96081afe094f71cbdccd8fa7f8d706a0be8b73c3dc3e9"
+    },
+    {
+      "file": "failure.txt",
+      "url_class": "local HTTP object returning 404",
+      "command": [
+        "/usr/bin/wget",
+        "--tries=1",
+        "--timeout=2",
+        "-O",
+        "fixture.bin",
+        "<local-url>"
+      ],
+      "exit_code": 8,
+      "bytes": 197,
+      "sha256": "19e1fd516c3f9d3478be4b59420bde85b7e36b96a75458fb16040bac3496cd46"
+    }
+  ]
+}

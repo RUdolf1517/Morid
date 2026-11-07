@@ -1,0 +1,190 @@
+{
+  "backend": "yt-dlp",
+  "version": "2026.10.26",
+  "capture_date": "2026-11-04",
+  "platform": "Linux x86_64",
+  "source": "real subprocess stdout and stderr merged directly to each file; local deterministic HTTP input",
+  "captures": [
+    {
+      "file": "version.txt",
+      "url_class": "no URL",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/yt-dlp",
+        "--version"
+      ],
+      "exit_code": 0,
+      "bytes": 11,
+      "sha256": "d9f5b0a3f3651fe19feb868926871b2fe75e05af43bfc2db5f0b1754c4689584"
+    },
+    {
+      "file": "progress.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/yt-dlp",
+        "--no-config",
+        "--no-cache-dir",
+        "--no-colors",
+        "--no-warnings",
+        "--progress",
+        "--progress-delta",
+        "0.1",
+        "-o",
+        "fixture.%(ext)s",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 542,
+      "sha256": "4547cc518a97d86e56ae563109b415468e4ea51f1c8a707f9436fd8e58bb9e41"
+    },
+    {
+      "file": "destination.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/yt-dlp",
+        "--no-config",
+        "--no-cache-dir",
+        "--no-colors",
+        "--no-warnings",
+        "--newline",
+        "-o",
+        "fixture.%(ext)s",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 930,
+      "sha256": "f2bde31467248f7760a3426299810eae8db58bef69809dad487aa3aa3cada8fe"
+    },
+    {
+      "file": "complete.txt",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/yt-dlp",
+        "--no-config",
+        "--no-cache-dir",
+        "--no-colors",
+        "--no-warnings",
+        "--newline",
+        "-o",
+        "fixture.%(ext)s",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 932,
+      "sha256": "ddf5fb356b52e280ee9788d064c40dc14019b708b6afcaf334caf2e3adb498b0"
+    },
+    {
+      "file": "failure.txt",
+      "url_class": "local HTTP object returning 404",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/yt-dlp",
+        "--no-config",
+        "--no-cache-dir",
+        "--no-colors",
+        "--no-warnings",
+        "--retries",
+        "0",
+        "--socket-timeout",
+        "2",
+        "<local-url>"
+      ],
+      "transport": "pipe",
+      "exit_code": 1,
+      "bytes": 215,
+      "sha256": "71a48ef62fb54691d79bbedabdb75dac4b649e944d69cc3e503ddca073c1dd91"
+    },
+    {
+      "file": "interrupted.txt",
+      "url_class": "local deterministic HTTP object interrupted during transfer",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/yt-dlp",
+        "--no-config",
+        "--no-cache-dir",
+        "--no-colors",
+        "--no-warnings",
+        "--progress",
+        "-o",
+        "fixture.%(ext)s",
+        "<local-url>"
+      ],
+      "exit_code": -9,
+      "bytes": 603,
+      "sha256": "5e65dafbef4ca3cfddf6bc1ad21378019c85f76452f0459a2e99e9a0c21f1dec"
+    },
+    {
+      "file": "list.json",
+      "url_class": "local deterministic HTTP object with a video file extension, small",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/yt-dlp",
+        "--no-config",
+        "--no-cache-dir",
+        "--no-colors",
+        "--no-warnings",
+        "--dump-single-json",
+        "--skip-download",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 2519,
+      "sha256": "2ef16957824ee75b53f5def342c334e6823cc828221a61f811cbe92270ea9cec"
+    },
+    {
+      "file": "cr.bin",
+      "url_class": "local deterministic HTTP object with a video file extension, small; CR progress",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/yt-dlp",
+        "--no-config",
+        "--no-cache-dir",
+        "--no-colors",
+        "--no-warnings",
+        "--progress",
+        "--progress-delta",
+        "0",
+        "-o",
+        "fixture.%(ext)s",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 971,
+      "sha256": "6bfaf1997603232a3e49a12920bdf65e5bed832e39051504d26a51bf4ff25b89"
+    },
+    {
+      "file": "partial-line.bin",
+      "url_class": "local deterministic HTTP object interrupted during transfer; final partial line",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/yt-dlp",
+        "--no-config",
+        "--no-cache-dir",
+        "--no-colors",
+        "--no-warnings",
+        "--progress",
+        "--progress-delta",
+        "0",
+        "-o",
+        "fixture.%(ext)s",
+        "<local-url>"
+      ],
+      "transport": "pipe",
+      "exit_code": -9,
+      "bytes": 481,
+      "sha256": "520f14f5498e7fa89ccf9a5cebc91f0210440ea2f5fff627dec3040a40126a40"
+    },
+    {
+      "file": "non-utf8.bin",
+      "url_class": "local deterministic HTTP object with a video file extension, small; Latin-1 process output",
+      "command": [
+        "/home/user/.cache/morid-capture/venv/bin/yt-dlp",
+        "--no-config",
+        "--no-cache-dir",
+        "--no-colors",
+        "--no-warnings",
+        "--newline",
+        "-o",
+        "%(title)s.%(ext)s",
+        "<local-url>"
+      ],
+      "exit_code": 0,
+      "bytes": 755,
+      "sha256": "e1613db53af7e387a47f75bebf56f2fc46b99750fd5ea7c4042d9daa3546ac61"
+    }
+  ]
+}

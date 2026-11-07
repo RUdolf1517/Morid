@@ -1,0 +1,5 @@
+[generic] Extracting URL: http://127.0.0.1:18080/slow.mp4
+[generic] slow: Downloading webpage
+[info] slow: Downloading 1 format(s): mp4
+[download] Destination: fixture.mp4
+[K[download]   0.0% of    8.00MiB at  Unknown B/s ETA Unknown[K[download]   0.0% of    8.00MiB at  Unknown B/s ETA Unknown[K[download]   0.1% of    8.00MiB at    6.44MiB/s ETA 00:01[K[download]   0.2% of    8.00MiB at   10.61MiB/s ETA 00:00[K[download]   0.4% of    8.00MiB at  763.33KiB/s ETA 00:10[K[download]   0.8% of    8.00MiB at  520.03KiB/s ETA 00:15[K[download]   1.6% of    8.00MiB at  450.00KiB/s ETA 00:17

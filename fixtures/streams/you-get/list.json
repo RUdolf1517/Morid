@@ -1,0 +1,15 @@
+{
+    "url": null,
+    "title": "video",
+    "site": "0.0.1:18080",
+    "streams": {
+        "__default__": {
+            "container": "mp4",
+            "size": 2097152,
+            "src": [
+                "http://127.0.0.1:18080/video.mp4"
+            ],
+            "video_profile": "__default__"
+        }
+    }
+}

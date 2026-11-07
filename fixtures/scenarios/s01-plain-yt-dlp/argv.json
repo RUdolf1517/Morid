@@ -1,0 +1,19 @@
+[
+  "--newline",
+  "--ignore-config",
+  "--no-playlist",
+  "-o",
+  "%(title).200s-%(id)s.%(ext)s",
+  "--output-na-placeholder",
+  "NA",
+  "--no-js-runtimes",
+  "--js-runtimes",
+  "node:<node>",
+  "-f",
+  "bestvideo[ext=mp4][vcodec^=av]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best",
+  "--progress-template",
+  "download:[download] downloaded_bytes:%(progress.downloaded_bytes)s ETA:%(progress.eta)s total_bytes_estimate:%(progress.total_bytes_estimate)s total_bytes:%(progress.total_bytes)s progress.speed:%(progress.speed)s filename:%(progress.filename)s",
+  "--download-archive",
+  "<case-dir>/appdata/data/archiveFile-yt-dlp.txt",
+  "https://example.com/v/fixture-01"
+]

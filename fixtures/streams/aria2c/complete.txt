@@ -1,0 +1,12 @@
+
+11/04 20:53:56 [[1;32mNOTICE[0m] Downloading 1 item(s)
+
+11/04 20:53:56 [[1;32mNOTICE[0m] Download complete: ./fixture.bin
+
+Download Results:
+gid   |stat|avg speed  |path/URI
+======+====+===========+=======================================================
+c1a784|OK  |   4.8MiB/s|./fixture.bin
+
+Status Legend:
+(OK):download completed.

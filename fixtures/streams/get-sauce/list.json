@@ -1,0 +1,25 @@
+2026/11/04 20:54:06 No merging possible, because ffmpeg is not installed or not found in PATH
+{
+    "site": "127.0.0.1:18080",
+    "title": "video",
+    "type": "video",
+    "streams": {
+        "0": {
+            "type": "video",
+            "urls": [
+                {
+                    "url": "http://127.0.0.1:18080/video.mp4",
+                    "ext": "mp4"
+                }
+            ],
+            "quality": "",
+            "size": 2097152,
+            "info": "",
+            "ext": "",
+            "key": null,
+            "headers": null
+        }
+    },
+    "captions": null,
+    "sourceUrl": "http://127.0.0.1:18080/video.mp4"
+}

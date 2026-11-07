@@ -1,0 +1,1 @@
+{"argv": ["-d", "<case-dir>/downloads", "https://example.com/v/fixture-01"], "cwd": "<case-dir>/downloads", "env": {}, "program": "<case-dir>/appdata/bin/aria2c"}

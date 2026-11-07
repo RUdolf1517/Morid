@@ -1,0 +1,1 @@
+{"argv": ["<case-dir>/appdata/bin/capture-custom", "--data-path", "<case-dir>/appdata/data/result.json", "--download-path", "<case-dir>/downloads/result.bin", "--cwd", "<case-dir>/working", "https://example.com/v/fixture-01"], "cwd": "<case-dir>/downloads", "env": {}, "program": "<case-dir>/appdata/bin/capture-custom"}

@@ -69,12 +69,18 @@ directory. The mirror `/home/user` used by the anonymised userdata is unchanged.
 
 `tools/capture/capture.py` creates an isolated appdata directory for each scenario, installs the
 shipped extension JSON files, writes scenario-specific QSettings and drives the original widgets. The
-`settings.ini` it writes is escaped the way Qt 5 itself writes an INI file it owns — non-ASCII as a `\x`
-escape per UTF-16 code unit, lowercase hexadecimal and unpadded (`\x417`, not `\x0417`), literal backslash
-as `\\` — because the original never calls
-`QSettings::setIniCodec` and reads a raw UTF-8 value back as Latin-1, which silently changes it (s20 was
-captured in the wrong folder until this was fixed). ASCII values are written unchanged; nothing in this
-fixture set needs Qt's quoting rules, so the helper does not invent any.
+`settings.ini` it writes is escaped the way Qt 5.15 itself writes an INI file it owns — non-ASCII as a
+`\x` escape per UTF-16 code unit, lowercase hexadecimal and unpadded (`\x417`, not `\x0417`), literal
+backslash as `\\`, a double quote as `\"`, a hexadecimal digit that follows an escape escaped in turn
+(the reader's hex scan is greedy: `\x4385` is one code point, not `и` followed by `5`), and a value that
+contains `;`, `,` or `=` — or that starts or ends with a space — wrapped in double quotes — because the
+original never calls `QSettings::setIniCodec` and reads a raw UTF-8 value back as Latin-1, which silently
+changes it (s20 was captured in the wrong folder until this was fixed). `verify_fixtures.py` proves those
+rules the only way they can be proved, by reading the helper's output back with a port of Qt's own
+`iniUnescapedStringList` and asserting the value survives. The helper's limit is narrower than "the Qt
+dialect": it covers non-ASCII escaping, backslash, quotes and the five quoting conditions, and it
+deliberately says nothing about control characters, `@ByteArray(...)`/`@Variant(...)` value prefixes or
+QStringList comma splitting.
 `tools/capture/qt_driver.cpp` is built as an external `LD_PRELOAD` helper; it interposes only
 `QCoreApplication::exec()` to schedule UI actions. Nothing in `legacy/` is changed or linked into the
 helper.

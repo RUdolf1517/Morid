@@ -154,29 +154,57 @@ class Canonicaliser:
         return "".join(lines)
 
 
-def escape_qt_ini_value(value: str) -> str:
-    """Encode a settings.ini value the way Qt 5 writes an INI file it owns.
+HEX_DIGITS = "0123456789abcdefABCDEF"
 
-    Qt 5 without QSettings::setIniCodec escapes everything outside printable
-    ASCII as a \\x escape per UTF-16 code unit, in lowercase hexadecimal with
-    no padding (Qt writes \\x417 for U+0417, not \\x0417), and a literal
-    backslash as \\\\.  The file therefore stays pure ASCII.  A file written as raw UTF-8
-    is not rejected on read: Qt 5 "accepts Latin-1 encoded INI files" and the
-    value silently decodes to different text, which is exactly how s20 lost its
+
+def escape_qt_ini_value(value: str) -> str:
+    """Encode a settings.ini value the way Qt 5.15's writer does (QSettings).
+
+    Mirrors QSettingsPrivate::iniEscapedString (qtbase/src/corelib/io/
+    qsettings.cpp, v5.15.16-lts-lgpl):
+
+    * everything outside printable ASCII becomes a \\x escape per UTF-16 code
+      unit, in lowercase hexadecimal with no padding (Qt writes \\x417 for
+      U+0417, not \\x0417);
+    * a literal backslash becomes \\\\ and a double quote becomes \\" ;
+    * after ANY escape, a character that is itself a hexadecimal digit is
+      escaped as well (\\x35 for '5'), because the reader's hex scan is greedy
+      -- "\\x4385" decodes to U+4385, not to U+0438 followed by '5';
+    * the value is wrapped in double quotes when it contains ';', ',' or '=',
+      or when it starts or ends with a space (Qt's needsQuotes).
+
+    The file therefore stays pure ASCII.  A file written as raw UTF-8 is not
+    rejected on read: Qt 5 "accepts Latin-1 encoded INI files" and the value
+    silently decodes to different text, which is exactly how s20 lost its
     download folder before this helper existed.
 
-    ASCII values, which are all the other scenarios write, come back unchanged;
-    quoting, commas and empty values are deliberately not handled here because
-    nothing in the fixture set exercises them.
+    This is Qt's *default* INI dialect, not all of Qt: control characters are
+    not written the way Qt writes them, and values starting with @ByteArray(,
+    @Variant( or @DateTime( and QStringList values are out of scope -- see
+    fixtures/README.md.
     """
+    needs_quotes = any(char in value for char in ";,=") or value.startswith(" ") or value.endswith(" ")
     units = value.encode("utf-16-be")
     escaped = []
+    escape_next_if_digit = False
     for index in range(0, len(units), 2):
         unit = (units[index] << 8) | units[index + 1]
+        if escape_next_if_digit and 0x20 <= unit <= 0x7E and chr(unit) in HEX_DIGITS:
+            # Qt keeps the flag set here, so a run of digits is escaped digit
+            # by digit instead of ending the previous hex escape.
+            escaped.append("\\x%x" % unit)
+            continue
+        escape_next_if_digit = False
         if unit == 0x5C:
             escaped.append("\\\\")
+        elif unit == 0x22:
+            escaped.append('\\"')
         elif 0x20 <= unit <= 0x7E:
             escaped.append(chr(unit))
         else:
             escaped.append("\\x%x" % unit)
-    return "".join(escaped)
+            escape_next_if_digit = True
+    result = "".join(escaped)
+    if needs_quotes:
+        result = '"%s"' % result
+    return result

@@ -78,6 +78,12 @@ every UTF-16 code unit as `\xHHHH`. The file is not UTF-8, not locale-encoded, a
 reader can interpret: it is an INI dialect with its own escaping. This is the fact that matters for Morid, and
 it is unrelated to the machine's locale.
 
+The read side of the same documentation matters just as much: Qt 5 "will accept **Latin-1** encoded INI files".
+A file written by something else — our capture harness, for instance — as literal UTF-8 is therefore not
+rejected; it is decoded as Latin-1 and silently becomes different text. Cyrillic `/x/Загрузки` turns into
+`/x/Ð—Ð°Ð³Ñ€ÑƒÐ·ÐºÐ¸`, which does not exist, which is why the original then resets the folder. Silent mojibake,
+not an error, is the failure mode to design against.
+
 (The locale theory in the first version of this section was wrong. What actually happened during the Phase 0
 capture is recorded in `fixtures/README.md` (appears with PR #2) under s20 and is still an open question
 for the capture — see [tasks/phase-0-fixtures.md](tasks/phase-0-fixtures.md) T7. The Qt behaviour above does not

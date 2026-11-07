@@ -22,6 +22,25 @@ anything not done.
 A discrepancy between a document and reality is reported, not silently resolved. Prose documents in `docs/` are
 updated by the manager after review; the coder updates only the documents a task names explicitly.
 
+## Branch situation, 7 November 2026
+
+PR #2 was merged (`6407823`), which closed `arena/17dce945-morid` for writing. The Phase 1 work that had started on
+that branch — eight commits, `e1192eb` … `fe0f6a0` — is still on the remote and is **not** in `main`, and its tip is
+red: the job stops on a manifest error before anything is built. The remote said so plainly, and the report says so
+too; neither is a reason to redo the work.
+
+To continue: the coder gets a fresh branch from `main`, takes the existing commits from the old branch rather than
+rewriting them, and finishes there. See [phase-1-skeleton.md](phase-1-skeleton.md) §3.1a for what those commits
+prove and what they do not.
+
+**Ordering decision (owner, 7 November):** the documentation branch `arena/8b9410cd-morid` (PR #3) is merged **after**
+Phase 1, not before. Its four spec corrections are needed by Phase 1 while it is being written, so the coder must
+read them from that branch (`git show origin/arena/8b9410cd-morid:docs/...`) and make the corresponding corrections
+in their own branch. Expect a conflict in `docs/roadmap.md` and `docs/workspace-manifest.md` when PR #3 lands; the
+manager resolves it, and the correction is the same text on both sides, so it is mechanical.
+
+---
+
 ## Rule for the manager: verify before specifying
 
 Every technical claim written into a task must come from the artefact — source, output of a run, or a documented

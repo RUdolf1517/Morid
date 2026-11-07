@@ -32,11 +32,15 @@ fn main() -> ExitCode {
 }
 
 fn size() -> ExitCode {
-    let target = PathBuf::from(std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| "target".into()));
+    let mut target = PathBuf::from("target");
+    if let Some(directory) = std::env::var_os("CARGO_TARGET_DIR") {
+        target = PathBuf::from(directory);
+    }
     let mut failed = false;
 
     for name in BINARIES {
-        let path = target.join("release").join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
+        let file_name = format!("{name}{}", std::env::consts::EXE_SUFFIX);
+        let path = target.join("release").join(file_name);
         match std::fs::metadata(&path) {
             Ok(metadata) => {
                 let bytes = metadata.len();

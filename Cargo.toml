@@ -18,6 +18,11 @@ rust-version = "1.85"
 license = "GPL-2.0-or-later"
 authors = ["Rudolf Zinovev"]
 repository = "https://github.com/RUdolf1517/Morid"
+# Morid is an application, not a library: nothing here is published to a
+# registry. Saying so is also what lets `cargo deny` accept the path-only
+# workspace dependencies below as the only kind of "wildcard" it permits
+# (`[bans] allow-wildcard-paths`, which does not apply to publishable crates).
+publish = false
 
 [workspace.dependencies]
 morid-core = { path = "crates/morid-core" }

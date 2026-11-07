@@ -435,14 +435,21 @@ resets the download folder to the platform default, which is exactly what s20's 
    the Qt 5 way, re-run s20, and report whether `cwd` becomes the configured directory and whether the original
    stops logging "Resetting download folder to default". If the folder is still reset, report the evidence and
    the new cause — do not paper over it.
-2. Make the escaping a helper, because more than one case needs it: a single function that converts a Python
-   string into a Qt 5 INI value (`\xHHHH` for non-ASCII, `\\` for backslash, `"` quoted when the value has
-   leading/trailing spaces or is empty). Put it next to `canonicalise.py` and use it for every value the harness
-   writes into `settings.ini`. Pure-ASCII values must come out byte-identical to today's output, so no other
-   case changes.
-3. Re-capture s20. The golden must show `<case-dir>/output dir/Загрузки` as the `cwd`, and the argv must keep
+2. Make the escaping a single helper next to `canonicalise.py`, used for every value the harness writes into
+   `settings.ini`. Scope it to what we can *verify*, not to everything Qt's writer can do:
+   - non-ASCII character → `\xHHHH` of its UTF-16 code unit (a non-BMP character becomes two escapes);
+   - backslash → `\\`;
+   - pure-ASCII values → byte-identical to today's output, so no other case changes.
+   Do **not** invent quoting rules (when Qt wraps a value in `"`, how it handles commas, spaces or empty values)
+   from memory or from this text: none of it is exercised by s20. If a case ever needs it, derive it from the
+   reference program's own output. If you find that Qt 5 does something here that our helper gets wrong, say so
+   in the report.
+3. A point worth stating because it looks inconsistent and is not: the argv fixture for s20 already contains
+   `<case-dir>/output dir/Загрузки` as literal UTF-8, and that is correct — argv is passed as real bytes on Linux.
+   Only the `settings.ini` file is subject to Qt's escaping. Do not "fix" the argv.
+4. Re-capture s20. The golden must show `<case-dir>/output dir/Загрузки` as the `cwd`, and the argv must keep
    the `-P` argument it already records.
-4. Add one line to `fixtures/README.md` saying the harness writes `settings.ini` in the Qt 5 escape dialect and
+5. Add one line to `fixtures/README.md` saying the harness writes `settings.ini` in the Qt 5 escape dialect and
    why; `meta.json` for s20 records that the folder was not reset.
 
 Acceptance: s20's `log.txt` `cwd` is `<case-dir>/output dir/Загрузки`; the original's log contains no

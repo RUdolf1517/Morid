@@ -27,9 +27,12 @@ jobs:
       - name: Toolchain from rust-toolchain.toml
         shell: bash
         run: |
-          rustup show
-          cargo --version
-          rustc --version
+          set -euo pipefail
+          rustup show 2>&1 | tee toolchain.log
+          rustup component add rustfmt clippy 2>&1 | tee -a toolchain.log || true
+          cargo --version | tee -a toolchain.log
+          rustc --version | tee -a toolchain.log
+          rustfmt --version | tee -a toolchain.log
 
       - name: Cache cargo and target
         uses: Swatinem/rust-cache@v2
@@ -39,33 +42,41 @@ jobs:
       - name: Format
         shell: bash
         run: |
-          cargo fmt --all -- --check
-          cargo fmt --manifest-path xtask/Cargo.toml -- --check
+          set -euo pipefail
+          cargo fmt --all -- --check 2>&1 | tee format.log
+          cargo fmt --manifest-path xtask/Cargo.toml -- --check 2>&1 | tee -a format.log
 
       - name: Lint
         shell: bash
         run: |
-          cargo clippy --workspace --all-targets --all-features -- -D warnings
-          cargo clippy --manifest-path xtask/Cargo.toml --all-targets -- -D warnings
+          set -euo pipefail
+          cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee clippy.log
+          cargo clippy --manifest-path xtask/Cargo.toml --all-targets -- -D warnings 2>&1 | tee -a clippy.log
 
       - name: Test
         shell: bash
-        run: cargo test --workspace --all-features
+        run: |
+          set -euo pipefail
+          cargo test --workspace --all-features 2>&1 | tee test.log
 
       - name: Build release
         shell: bash
-        run: cargo build --release --workspace
+        run: |
+          set -euo pipefail
+          cargo build --release --workspace 2>&1 | tee build.log
 
       - name: Build offline from the warm cache
         shell: bash
-        run: cargo build --release --workspace --offline
+        run: |
+          set -euo pipefail
+          cargo build --release --workspace --offline 2>&1 | tee offline.log
 
       - name: Version
         shell: bash
         run: |
           set -euo pipefail
           version=$(./target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} --version)
-          echo "$version"
+          echo "morid --version -> $version"
           test "$version" = "morid 0.1.0"
 
       - name: Size report
@@ -74,34 +85,50 @@ jobs:
           set -euo pipefail
           cargo run --offline --quiet --manifest-path xtask/Cargo.toml -- size | tee size-report.txt
           {
-            echo '### Size report (`${{ matrix.os }}`, release)'
+            echo '### Size report (${{ matrix.os }}, release)'
             echo '```'
             cat size-report.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Install cargo-deny and cargo-audit
-        uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2
         with:
           tool: cargo-deny
 
-      - name: Install cargo-audit
-        uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
 
       - name: Licences, sources and bans
         shell: bash
-        run: cargo deny check
+        run: |
+          set -euo pipefail
+          cargo deny check 2>&1 | tee deny.log
 
       - name: Advisories
         shell: bash
-        run: cargo audit
+        run: |
+          set -euo pipefail
+          cargo audit 2>&1 | tee audit.log
 
       - name: Print the lock file so it can be committed
         if: always()
         shell: bash
         run: |
-          echo '::group::Cargo.lock'
-          cat Cargo.lock
-          echo '::endgroup::'
+          if [ -f Cargo.lock ]; then
+            echo '::group::Cargo.lock'
+            cat Cargo.lock
+            echo '::endgroup::'
+          else
+            echo "no Cargo.lock in the checkout"
+          fi
+
+      - name: Annotate the failure
+        if: failure()
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for log in *.log; do
+            message=$(tail -n 25 "$log" | tr '\n' ' ' | cut -c1-900)
+            echo "::error title=${log}::${message}"
+          done

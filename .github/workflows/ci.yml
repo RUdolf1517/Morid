@@ -43,8 +43,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo fmt --all -- --check 2>&1 | tee format.log
-          cargo fmt --manifest-path xtask/Cargo.toml -- --check 2>&1 | tee -a format.log
+          cargo fmt --all --check 2>&1 | tee format.log
+          cargo fmt --manifest-path xtask/Cargo.toml --check 2>&1 | tee -a format.log
 
       - name: Lint
         shell: bash
@@ -122,6 +122,14 @@ jobs:
           else
             echo "no Cargo.lock in the checkout"
           fi
+
+      - name: Upload the lock file
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-lock-${{ matrix.os }}
+          path: Cargo.lock
+          if-no-files-found: ignore
 
       - name: Annotate the failure
         if: failure()

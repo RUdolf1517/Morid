@@ -607,16 +607,16 @@ quoting conditions match Qt's `needsQuotes`, and every round-trip value in the t
 
 ### T12 — make the round trip something that runs without being remembered (G9)
 
-1. Move the Qt-reader port and the round-trip table out of `verify_fixtures.py` into a form CI can run with no
-   arguments and no fixtures: `python3 -m unittest` or `pytest` (state which, and why — precedent matters for
+1. Move the Qt-reader port and the round-trip table out of `verify_fixtures.py` into a test that runs with no
+   arguments and no fixtures — and **make sure discovery actually finds it**, which a bare test file does not
+   reliably do: `python3 -m unittest` or `pytest` (state which, and why — precedent matters for
    the Rust workspace later). It must fail if `escape_qt_ini_value` regresses, and it must not require anything
    installed beyond the standard library.
 2. Put the fuzz into the test, not just the table: a seeded fixed corpus (seed and iteration count in the file, so
    results are reproducible), covering ASCII, `; , =`, `"`, `\`, edge spaces, tab, newline, control characters,
    Cyrillic and a non-BMP character. Control characters and the `@ByteArray(`/`@Variant(`/`@DateTime(` prefixes
    are asserted to be **out of scope**, by a test that says so, so the limit is executable rather than prose.
-3. Replace `capture.py:343`'s hand-written line with the helper, so there is exactly one writer for
-   `settings.ini`. If the helper's output for that value differs from the current hand-written line, say so and
+3. Replace the hand-written line for s38 with the helper, so there is exactly one writer for `settings.ini`. If the helper's output for that value differs from the current hand-written line, say so and
    show both — the fixture must be re-captured only if the value the original reads changes.
 4. `verify_fixtures.py` calls the same test module rather than keeping a second copy, so a reviewer sees one
    implementation and two callers.
@@ -625,6 +625,43 @@ quoting conditions match Qt's `needsQuotes`, and every round-trip value in the t
 
 Acceptance: `python3 -m unittest discover` (or the chosen equivalent) passes from a clean checkout with only the
 standard library; deliberately breaking the digit flag makes it fail; one writer for `settings.ini`.
+
+### Round 5 — verdict on `2919964` (5 November 2026)
+
+Re-checked on a fresh archive. `VERIFY_OK`, `settings_ini_roundtrip values=31 fuzz=500`, output identical to the
+report. I then broke the helper four ways myself and confirmed each one fails: digit flag removed (4 failures),
+quoting condition narrowed (6), `"` written raw (4), and the tree restored to `OK` afterwards.
+
+**Accepted.** T12 is done and the coder found the defect that would have made it worthless.
+
+| Coder's point | Verdict |
+| --- | --- |
+| **Bare discovery silently runs zero tests.** Without `__init__.py` markers, `python3 -m unittest discover` prints `Ran 0 tests … OK`, exit 0 — so the test file alone would have reproduced exactly the G5/G9 failure it was written to fix | correct. I reproduced it: same two files, no `__init__.py`, `Ran 0 tests`, exit 0. The two empty package markers are the load-bearing part of this delivery, not a formality. |
+| **My round-4 note on trailing tabs was wrong.** `\x9` is read as an ordinary tab, not as a hex-coded control character; the loss comes from `iniChopTrailingSpaces` running from the length the value had before its last escape, and `needsQuotes` not firing for a tab | correct, and I verified it against the source: `chopLimit = stringResult.length()` is set after an escape, `needsQuotes` is only set for `; , =` (`qsettings.cpp:633`). Reproduced: `a\t` → `a\x9` → `a`; `"a\t"` → survives. It is Qt losing the character in its own writer/reader pair, and the helper deliberately matches Qt instead of diverging. Pinned by `test_a_trailing_tab_is_chopped_by_qt_itself`. |
+| **T12.1 assumed the file was the work** — it is not, discovery is | correct. |
+| **s38's line: bytes change, the decoded value does not** | correct. I decoded both forms with the ported reader myself: identical value, and `post-argv.json` follows from the value, so no re-capture is needed. There is now exactly one writer (`capture.py:329`). |
+| **T12.5: there is no CI on this branch** — `.github/` is absent, the ten workflows were removed, new CI is Rust in Phase 1 | correct, and the README says so plainly rather than implying otherwise. |
+
+**Open — one question for the owner, one small gap:**
+
+| # | Item | Why it matters |
+| --- | --- | --- |
+| **Q-owner** | **Should Phase 0's checks run in CI now, or stay manual until Phase 1?** The coder asks and is right that this is not their call. Today nothing in this repository runs automatically: `verify_fixtures.py` and the new test both exist and both must be remembered. The cost of a one-job workflow now is one file plus a runner definition; the cost of waiting is that the checks can rot silently until Phase 1 CI lands, and Phase 3 will trust them. | This is the G5/G9 failure mode one more time, at the level of the pipeline rather than the code. My recommendation: one job now, `ubuntu-latest`, running `python3 -m unittest` and `verify_fixtures.py`. It does not contradict the Phase 1 decision — Phase 1 is about the *Rust* CI matrix — but it does add a workflow before Phase 1, so it is the owner's call. |
+| **G10** | `fixtures/userdata/media-downloader/settings/settings.ini` is a third Qt-dialect file and is validated with `configparser`, not with the ported Qt reader. Harmless today — I confirmed it has **zero** non-ASCII bytes — but it is outside this round's proof, and `configparser` would accept a value Qt reads differently. | Small, real, and named by the coder rather than hidden. Fold into T13, not urgent. |
+
+**Recorded, not claimed as fixed:** `escape_qt_ini_value` raises on a lone surrogate. No `QString` from a real
+settings file can contain one, and the coder says so rather than asserting safety.
+
+### T13 — close the last two loose ends (small, do with T12's follow-up)
+
+1. Validate `fixtures/userdata/media-downloader/settings/settings.ini` with the ported Qt reader when it is
+   non-ASCII, and keep `configparser` only for the ASCII case or drop it. If the reader finds a value that is not
+   valid Qt dialect, report it; do not repair it silently (G10).
+2. Decide and record the lone-surrogate behaviour: either reject it with a clear message, or document it as
+   impossible-by-construction in the test. One line either way; the point is that the behaviour is chosen rather
+   than accidental.
+
+Acceptance: both covered by the existing test file, `python3 -m unittest` still green, no fixture changes.
 
 ### Reporting
 

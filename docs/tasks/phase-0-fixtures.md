@@ -676,7 +676,35 @@ userdata file and watched both the test and the verifier fail with the mojibake 
 | T13.1's trigger "when it is non-ASCII" never fires on a file with zero non-ASCII bytes, so the defect G10 is about stays invisible | correct, and sharper than I had it: the right test is **decode with the port, re-encode with the helper, compare bytes**, not "inspect the non-ASCII ones". Verified — the injected UTF-8 file is caught with no special branch. |
 | "keep `configparser` for the ASCII case" is not neutral — it was the source of `settings_keys=94`, so keeping two parsers would keep two definitions of a key | correct. I confirmed the count is unchanged at 94 with the Qt reader, and that the two parsers genuinely disagree: on the injected file `configparser` reports a clean `/tmp/Загрузки` (94 keys, no complaint) while the Qt reader reports the mojibake and the mismatch. The old check could not have seen it. |
 | T13.2's "document as impossible-by-construction" describes an accident; reject explicitly instead | correct. `ValueError: … lone surrogate (U+d800) …` now, and a valid astral pair still writes as `\xd83e\xddea` — the companion test that stops "reject surrogates" from decaying into "reject non-BMP". |
-| §8's `### Reporting` block still asks for four outputs while the round asked for two | correct, and my error: the block is generic. Fixed below. |
+| §8's `### Round 7 — verdict on `cc04893` (7 November 2026)
+
+Re-checked on a fresh archive: `Ran 30 tests … OK`, `VERIFY_OK`, `keys=8` in the round-trip line. Spot-checked the
+escaper against Qt's source by hand: `%U0417%U0430 ⇄ За`, `%E9 ⇄ é`, `My\Group\Key ⇄ My/Group/Key`, `50% ⇄ 50%25`,
+`😀 ⇄ %UD83D%UDE00` (two code units, not one code point), and the malformed forms `%zz`, `%U041`, `%u0417` rejected.
+
+**Accepted — Phase 0 is closed.** T14 is done and the coder corrected four of my statements, one of which would
+have gone into the Rust implementation as a specification:
+
+| My claim | Reality |
+| --- | --- |
+| "`iniUnescapedKey` lowercases a key whose escaped form is all lowercase" | **it lowercases nothing.** It *reports* `lowercaseOnly`, and the caller uses it only to pick `Qt::CaseSensitive` versus the platform's `IniCaseSensitivity` for lookups. On Linux that sensitivity is already case-sensitive, so on these fixtures the flag is inert; on Windows it is not. This was in §3.0a, which Phase 4 would have been written from. |
+| "case insensitive, as Qt is" | only the two hex digits of a `%XX` escape. `iniUnescapedKey` tests `ch == 'U'`, so **`%u0417` is not an escape in Qt**; the reader refusing it is faithful, and accepting it would have been a divergence dressed as fidelity. |
+| "`%XX` → the code point of that byte" | right, and I did not state how sharp the trap is: `%D0%BF` is `Ð¿`, not `п`. A reader that pairs the bytes produces plausible-looking nonsense on real Windows files. |
+| "the reader refuses a malformed `%` escape rather than passing it through" | **contradicts Qt**, which appends a literal `%` and continues (`result += QLatin1Char('%'); ++i;`). The coder implemented the refusal because the acceptance asked for it, and flagged it. Superseded below: the refusal is now a documented divergence, not a port. |
+
+Also noted, because it is the kind of detail a Rust rewrite gets wrong by default: the key writer iterates UTF-16
+**code units**, so a non-BMP key is `%UD83D%UDE00` while the same character in a value is `\xd83d\xde00`. A
+`escape_key` over `char` yields `%U1F600` and is wrong.
+
+§3.0a rewritten in [../data-compat.md](../data-compat.md) with all four corrections, plus the deliberate-divergence
+paragraph. The 853 keys / 0 changed measurement is the right substitute for T2 here: it shows this round cannot move
+the capture.
+
+**One small finding, recorded and not blocking (G12):** the refused `%u0417` divergence means our reader and Qt
+disagree on one input Qt can produce only by hand. Nothing needs doing in Phase 0; the Rust implementation must
+refuse it too, and the reason is now written down rather than implied.
+
+### Reporting` block still asks for four outputs while the round asked for two | correct, and my error: the block is generic. Fixed below. |
 
 **Open — one finding (G11), not caused by this round but exposed by it:**
 

@@ -136,17 +136,40 @@ original, and is passed through byte for byte.
 ### 3.0a Keys are escaped too — and it is a different escape
 
 The value escaping above does not apply to keys. `iniEscapedKey` keeps `a-z A-Z 0-9 _ - .`, writes `/` (the
-group separator) as `\\`, and escapes everything else as **`%XX`** for code points up to 0xFF or **`%UXXXX`** for
-anything above — with `iniUnescapedKey` reversing it, case-insensitively, and lowercasing a key whose escaped form
-is all lowercase.
+group separator) as `\\`, and escapes everything else as **`%XX`** for code units up to 0xFF or **`%UXXXX`** above
+— uppercase `U`, uppercase hex digits, zero-padded to four.
+
+Three details, each of which has already been written wrong once in this project's own notes:
+
+1. **`%XX` is a Latin-1 code point, not a UTF-8 byte.** `%D0%BF` is `Ð¿`, not `п`. A reader that pairs the bytes
+   decodes real Windows files into plausible-looking nonsense.
+2. **`%U` is uppercase only.** Qt tests `ch == 'U'`; `%u0417` is not an escape there. Lowercase is accepted only for
+   the two hex digits of a `%XX` escape (`%e9`). Treating `%u…` as an escape is a divergence dressed as fidelity.
+3. **The writer iterates UTF-16 code units, so a non-BMP character is two escapes** — `😀` is `%UD83D%UDE00` — while
+   the same character in a *value* is `\xd83d\xde00`. A Rust `escape_key` written over `char` instead of `u16`
+   produces `%U1F600` and is wrong.
+
+`iniUnescapedKey` also reports `lowercaseOnly`, and **it lowercases nothing**: the flag is used only by the caller to
+pick `Qt::CaseSensitive` versus the platform's `IniCaseSensitivity` when looking a key up. On Linux that sensitivity
+is already case-sensitive, so the flag changes nothing there; on Windows it does. The stored key text keeps its case.
+
+Malformed escapes: Qt appends a literal `%` and carries on, so `%zz` reads as the key `%zz`. **Morid refuses it
+instead** — deliberately, and this is a documented divergence rather than a port. A file Qt wrote never contains a
+malformed escape; one that does should fail loudly rather than resolve to a different key, which is the whole G11
+failure mode.
 
 This matters beyond the fixtures: an engine or extension whose name is not ASCII produces such a key in a real
 `settings.ini`, and Windows users have those files today. A reader that treats `%U417%U430` as a literal key name
 will not find the setting it is looking at, and will report a missing key rather than a decoding problem.
 
 **Morid must implement both escapes** — one helper for values, one for keys, in `morid-store`, with a round-trip
-test that re-encodes what it decoded and compares bytes. Deliberately *not* shared with the value escaper: the two
-look similar and share nothing, and a single "smart" function is how a `%U` sequence ends up inside a path.
+test that re-encodes what it decoded and compares bytes. They may share a UTF-16 code-unit splitter and nothing
+else: the two dialects look similar and share no rules, and a single "smart" function is how a `%U` sequence ends
+up inside a path.
+
+**Status, 7 November 2026:** both escapes exist and are proved against Qt's own reader and writer in
+`tools/capture/qt_ini.py` and `tools/capture/canonicalise.py`, by 30 stdlib tests and a seeded fuzz. That is the
+specification in executable form; the Rust implementation in Phase 4 has to reproduce it, not re-derive it.
 
 ### 3.1 Keys
 

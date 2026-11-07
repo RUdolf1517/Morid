@@ -6,8 +6,8 @@ project manager through the owner, and a task is not started before the previous
 
 | # | File | Phase | Estimate | State |
 | --- | --- | --- | --- | --- |
-| 1 | [phase-0-fixtures.md](phase-0-fixtures.md) | Phase 0 — reference behaviour and fixtures | 5–8 days | delivered; T1–T5 done in `b344cdc`, T6–T8 done in `f187923`; **round 6: T13 done in `f43e61c`; T14 open; CI deferred to Phase 1 by D-017** |
-| 2 | [phase-1-skeleton.md](phase-1-skeleton.md) | Phase 1 — workspace skeleton and CI | 5–7 days | not started |
+| 1 | [phase-0-fixtures.md](phase-0-fixtures.md) | Phase 0 — reference behaviour and fixtures | 5–8 days | **accepted 7 Nov 2026** in `cc04893`; CI of its checks deferred to Phase 1 by D-017 |
+| 2 | [phase-1-skeleton.md](phase-1-skeleton.md) | Phase 1 — workspace skeleton and CI | 5–7 days | **ready to issue** |
 
 Task 1 produces no Rust code and must not be skipped: without it there is no definition of "same behaviour" to
 test against. Task 2 produces no functionality: it produces the pipeline that later phases are checked by.

@@ -240,7 +240,6 @@
       "method": "wrapper",
       "files": [
         "fixtures/scenarios/s13-proxy-none/argv.json",
-        "fixtures/scenarios/s13-proxy-none/env.json",
         "fixtures/scenarios/s13-proxy-none/log.txt",
         "fixtures/scenarios/s13-proxy-none/meta.json"
       ]
@@ -252,7 +251,6 @@
       "method": "wrapper",
       "files": [
         "fixtures/scenarios/s14-proxy-manual/argv.json",
-        "fixtures/scenarios/s14-proxy-manual/env.json",
         "fixtures/scenarios/s14-proxy-manual/log.txt",
         "fixtures/scenarios/s14-proxy-manual/meta.json"
       ]
@@ -264,7 +262,6 @@
       "method": "wrapper",
       "files": [
         "fixtures/scenarios/s15-proxy-env/argv.json",
-        "fixtures/scenarios/s15-proxy-env/env.json",
         "fixtures/scenarios/s15-proxy-env/log.txt",
         "fixtures/scenarios/s15-proxy-env/meta.json"
       ]
@@ -504,7 +501,7 @@
         "fixtures/scenarios/s36-missing-required-key/meta.json",
         "fixtures/scenarios/s36-missing-required-key/observed-argv.json"
       ],
-      "reason": "the original did not produce the task's expected empty argv; it logged the extension error and fell back to another engine (observed argv is preserved)"
+      "reason": "the extension with Name removed was still loaded and executed; the captured argv is the URL alone and no fallback occurred, so the task's expected empty argv is not the reference behaviour"
     },
     {
       "id": "s37-audio-extraction",

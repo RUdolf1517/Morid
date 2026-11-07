@@ -24,6 +24,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 SCENARIOS = ROOT / "fixtures" / "scenarios"
+sys.path.insert(0, str(ROOT / "tools" / "capture"))
+
+from canonicalise import CASE_DIR, CanonicalisationError, Canonicaliser  # noqa: E402
 
 
 def vectors(value: Any) -> list[str]:
@@ -70,6 +73,31 @@ def load_candidate(path: Path) -> list[str]:
     return parse_candidate(path.read_text(encoding="utf-8"))
 
 
+def infer_case_dir(golden: list[str], candidate: list[str]) -> str:
+    """Read the candidate's case directory out of the <case-dir> slots.
+
+    A future dry-run prints real paths, so the comparator learns the candidate's
+    own runtime directory from the argument that corresponds to <case-dir>
+    instead of assuming the capture host's layout.
+    """
+    found = set()
+    for expected, actual in zip(golden, candidate):
+        if expected != CASE_DIR and not expected.startswith(CASE_DIR + "/"):
+            continue
+        tail = expected[len(CASE_DIR):]
+        if tail == "":
+            found.add(actual.rstrip("/"))
+        elif actual.endswith(tail):
+            found.add(actual[: -len(tail)].rstrip("/"))
+    if len(found) == 1:
+        return found.pop()
+    if not found:
+        raise CanonicalisationError(
+            "golden has no <case-dir> argument to learn the candidate's case directory from; pass --case-dir"
+        )
+    raise CanonicalisationError(f"candidate case directories disagree: {sorted(found)}; pass --case-dir")
+
+
 def print_side_by_side(golden: list[str], candidate: list[str]) -> None:
     print(f"{'index':>5}  {'golden':<58}  candidate")
     print(f"{'-' * 5}  {'-' * 58}  {'-' * 40}")
@@ -84,6 +112,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("case_id", help="scenario directory name, for example s01-plain-yt-dlp")
     parser.add_argument("--candidate", type=Path, help="candidate argv JSON/JSONL/text file")
+    parser.add_argument("--canonicalise", action="store_true",
+                        help="replace the candidate's own case directory, home and node path with the fixture placeholders")
+    parser.add_argument("--case-dir", type=Path, help="the candidate's case directory, when it cannot be inferred")
+    parser.add_argument("--home", help="the candidate's home directory (default: $HOME)")
     parser.add_argument("command", nargs="*", help="after --, a dry-run command to execute")
     args = parser.parse_args()
 
@@ -118,6 +150,16 @@ def main() -> int:
     except (OSError, UnicodeError, ValueError) as error:
         print(f"cannot read candidate argv: {error}", file=sys.stderr)
         return 2
+
+    if args.canonicalise:
+        try:
+            case_dir = str(args.case_dir) if args.case_dir else infer_case_dir(golden, candidate)
+            transform = Canonicaliser(case_dir, home=args.home)
+            candidate = transform.argv(candidate)
+        except CanonicalisationError as error:
+            print(f"cannot canonicalise candidate: {error}", file=sys.stderr)
+            return 2
+        print(f"canonicalise: case-dir={case_dir} home={transform.home}")
 
     print(f"case: {args.case_id}")
     print_side_by_side(golden, candidate)

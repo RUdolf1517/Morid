@@ -1,1 +1,1 @@
-{"argv": ["-d", "/home/user/.cache/morid-capture/runtime/s32-aria2c/downloads", "https://example.com/v/fixture-01"], "cwd": "/home/user/.cache/morid-capture/runtime/s32-aria2c/downloads", "env": {}, "program": "/home/user/.cache/morid-capture/runtime/s32-aria2c/appdata/bin/aria2c"}
+{"argv": ["-d", "<case-dir>/downloads", "https://example.com/v/fixture-01"], "cwd": "<case-dir>/downloads", "env": {}, "program": "<case-dir>/appdata/bin/aria2c"}

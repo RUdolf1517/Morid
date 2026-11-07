@@ -10,10 +10,10 @@
   "bestvideo[format_note*=144p][ext=mp4][vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[format_note*=144p]+bestaudio",
   "--no-js-runtimes",
   "--js-runtimes",
-  "node:/usr/local/bin/node",
+  "node:<node>",
   "--progress-template",
   "download:[download] downloaded_bytes:%(progress.downloaded_bytes)s ETA:%(progress.eta)s total_bytes_estimate:%(progress.total_bytes_estimate)s total_bytes:%(progress.total_bytes)s progress.speed:%(progress.speed)s filename:%(progress.filename)s",
   "--download-archive",
-  "/home/user/.cache/morid-capture/runtime/s02-bundled-preset/appdata/data/archiveFile-yt-dlp.txt",
+  "<case-dir>/appdata/data/archiveFile-yt-dlp.txt",
   "https://example.com/v/fixture-01"
 ]

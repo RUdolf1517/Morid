@@ -1,10 +1,10 @@
 [
-  "/home/user/.cache/morid-capture/runtime/s24-custom-extension-substitution/appdata/bin/capture-custom",
+  "<case-dir>/appdata/bin/capture-custom",
   "--data-path",
-  "/home/user/.cache/morid-capture/runtime/s24-custom-extension-substitution/appdata/data/result.json",
+  "<case-dir>/appdata/data/result.json",
   "--download-path",
-  "/home/user/.cache/morid-capture/runtime/s24-custom-extension-substitution/downloads/result.bin",
+  "<case-dir>/downloads/result.bin",
   "--cwd",
-  "/home/user/.cache/morid-capture/runtime/s24-custom-extension-substitution/working",
+  "<case-dir>/working",
   "https://example.com/v/fixture-01"
 ]

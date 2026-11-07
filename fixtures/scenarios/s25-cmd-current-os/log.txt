@@ -1,1 +1,1 @@
-{"argv": ["--current-os", "https://example.com/v/fixture-01"], "cwd": "/home/user/.cache/morid-capture/runtime/s25-cmd-current-os/downloads", "env": {}, "program": "/home/user/.cache/morid-capture/runtime/s25-cmd-current-os/appdata/bin/capture-custom"}
+{"argv": ["--current-os", "https://example.com/v/fixture-01"], "cwd": "<case-dir>/downloads", "env": {}, "program": "<case-dir>/appdata/bin/capture-custom"}

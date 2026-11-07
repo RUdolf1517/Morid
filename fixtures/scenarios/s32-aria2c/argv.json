@@ -1,5 +1,5 @@
 [
   "-d",
-  "/home/user/.cache/morid-capture/runtime/s32-aria2c/downloads",
+  "<case-dir>/downloads",
   "https://example.com/v/fixture-01"
 ]

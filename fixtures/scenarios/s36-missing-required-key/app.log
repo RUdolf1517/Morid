@@ -2,7 +2,7 @@ capture-driver: tab tabWidget
 capture-driver: text lineEditURL
 capture-driver: click pbDownload
 id: 45
-cmd: "/home/user/.cache/morid-capture/runtime/s36-missing-required-key/appdata/bin/capture-custom" "https://example.com/v/fixture-01"
+cmd: "<case-dir>/appdata/bin/capture-custom" "https://example.com/v/fixture-01"
 
 --------------------------------
 capture-driver: completed 3 steps

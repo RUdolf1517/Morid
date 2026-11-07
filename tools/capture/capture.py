@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from canonicalise import Canonicaliser, CanonicalisationError
+
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "fixtures"
@@ -30,9 +32,31 @@ VERSIONS = {
     "you-get": "0.4.1743",
     "svtplay-dl": "4.211",
     "custom": "not applicable (argv recording wrapper)",
+    "capture-custom": "1.0.0 (extension VersionArgument)",
 }
 URL = "https://example.com/v/fixture-01"
 URL_TWO = "https://example.com/v/fixture-02"
+
+
+def expand(value: Any, case_runtime: Path) -> Any:
+    """Expand the {case-dir} token in a scenario definition into its real directory.
+
+    Harness paths (a download folder, an archive or cookie file) belong to the
+    case, not to the shared runtime root, so the capture can turn them into
+    <case-dir>/... without inventing a second placeholder.
+    """
+    if isinstance(value, str):
+        return value.replace("{case-dir}", str(case_runtime))
+    if isinstance(value, list):
+        return [expand(item, case_runtime) for item in value]
+    if isinstance(value, dict):
+        return {key: expand(item, case_runtime) for key, item in value.items()}
+    return value
+
+
+def canonicaliser(case_runtime: Path) -> Canonicaliser:
+    """The substitutions this case's fixtures are written with."""
+    return Canonicaliser(case_runtime, home=os.environ.get("HOME"), forbidden=(ROOT,))
 
 
 def step(action: str, target: str = "", value: str = "", **extra: Any) -> dict[str, Any]:
@@ -162,10 +186,10 @@ def definitions() -> list[dict[str, Any]]:
         case("s06-playlist-whole", "F-20", "yt-dlp", playlist()),
         case("s07-playlist-item-range", "F-21", "yt-dlp", playlist(range_options="--playlist-items 2-3")),
         case("s08-playlist-no-playlist-last", "F-21", "yt-dlp", playlist(options="--yes-playlist --no-playlist")),
-        case("s09-download-archive", "F-23", "yt-dlp", basic(options="--download-archive \"/home/user/.cache/morid-capture/runtime/archive folder/archive.txt\""), settings={"UseInternalArchiveFile": False}),
+        case("s09-download-archive", "F-23", "yt-dlp", basic(options="--download-archive \"{case-dir}/archive folder/archive.txt\""), settings={"UseInternalArchiveFile": False}),
         case("s10-batch-two-urls", "F-10", "yt-dlp", batch(urls=[URL, URL_TWO]), expected=2, settings={"ConcurrentDownloading": False, "MaxConcurrentDownloads": 1, "ShowMetaDataInBatchDownloader": False}),
         case("s11-cookies-browser", "F-55", "yt-dlp", basic(), settings={"CookieSourceSetToBrowerName": True, "CookieBrowser_yt-dlp": "fixture-browser"}),
-        case("s12-cookies-file", "F-55", "yt-dlp", basic(), settings={"CookieSourceSetToBrowerName": False, "CookieTextFilePath_yt-dlp": "/home/user/.cache/morid-capture/runtime/cookie files/fixture-cookies.txt"}),
+        case("s12-cookies-file", "F-55", "yt-dlp", basic(), settings={"CookieSourceSetToBrowerName": False, "CookieTextFilePath_yt-dlp": "{case-dir}/cookie files/fixture-cookies.txt"}),
         case("s13-proxy-none", "F-54", "wget", basic(engine="wget"), settings={"ProxySettingsType": "None", "BasicDownloaderDefaultEngine": "wget"}),
         case("s14-proxy-manual", "F-54", "wget", basic(engine="wget"), settings={"ProxySettingsType": "Manual", "ProxySettingsCustomSource": "http://user:pass@host:8080", "BasicDownloaderDefaultEngine": "wget"}),
         case("s15-proxy-env", "F-54", "wget", basic(engine="wget"), settings={"ProxySettingsType": "Env", "BasicDownloaderDefaultEngine": "wget"}, environment={"http_proxy": "http://user:pass@host:8080", "https_proxy": "http://user:pass@host:8080"}),
@@ -179,7 +203,7 @@ def definitions() -> list[dict[str, Any]]:
             step("click", "pbSetTimeIntervals"),
             step("click", "pbBDDownload"),
         ], settings={"ShowMetaDataInBatchDownloader": False, "AutoSetDefaultEngineAndOptions": True}),
-        case("s20-output-dir-space-unicode", "F-50", "yt-dlp", basic(options="-P \"/home/user/.cache/morid-capture/runtime/output dir/Загрузки\""), download_dir="/home/user/.cache/morid-capture/runtime/output dir/Загрузки"),
+        case("s20-output-dir-space-unicode", "F-50", "yt-dlp", basic(options="-P \"{case-dir}/output dir/Загрузки\""), download_dir="{case-dir}/output dir/Загрузки"),
         case("s21-user-output-template", "F-50", "yt-dlp", basic(options="-o \"%(title)s from user.%(ext)s\"")),
         case("s22-url-metacharacters", "F-50", "yt-dlp", basic(url="https://example.com/watch?a=1&b=two#frag%20x")),
         case("s23-url-manager", "F-52", "gallery-dl", basic(url="https://route.example/v/fixture"), data_files={"downloadDefaultOptions.json": [{"url": "route.example", "engine": "gallery-dl", "downloadOption": "--route-option \"two words\""}]}),
@@ -187,15 +211,15 @@ def definitions() -> list[dict[str, Any]]:
         case("s25-cmd-current-os", "F-31", "custom", basic(engine="custom-current-os"), extensions={"custom-current-os.json": current_os}, settings={"BasicDownloaderDefaultEngine": "custom-current-os"}),
         case("s26-cmd-other-architecture", "F-31", "custom", [step("tab", "tabWidget", index=0), step("text", "lineEditURL", URL), step("text", "lineEditOptions", ""), step("click", "pbDownload")], extensions={"custom-other-arch.json": other_arch}, settings={"BasicDownloaderDefaultEngine": "custom-other-arch"}, observation="x86_64 has no matching Cmd; no engine is selected manually, so the wrapper records the original's actual fallback"),
         case("s27-extra-options", "F-30", "custom", basic(engine="custom-extra-options"), extensions={"custom-extra-options.json": extra}, settings={"BasicDownloaderDefaultEngine": "custom-extra-options"}),
-        case("s28-auto-update-false", "F-34", "wget", [], impossible="AutoUpdate is handled by QNetworkAccess/versionInfo, not by spawning a backend update command; there is no external update argv for the wrapper to capture"),
+        case("s28-auto-update-false", "F-34", None, [], subject="AutoUpdate / versionInfo", impossible="AutoUpdate is handled by QNetworkAccess/versionInfo, not by spawning a backend update command; there is no external update argv for the wrapper to capture"),
         case("s29-gallery-dl-default", "F-31", "gallery-dl", basic(engine="gallery-dl"), settings={"BasicDownloaderDefaultEngine": "gallery-dl"}),
         case("s30-gallery-dl-engine-default", "F-02", "gallery-dl", basic(engine="gallery-dl"), settings={"BasicDownloaderDefaultEngine": "gallery-dl"}, data_files={"downloadEngineDefaultOptions.json": [{"engineName": "gallery-dl", "options": "--per-engine-default \"two words\"", "default": "yes"}]}),
         case("s31-wget", "F-31", "wget", basic(engine="wget"), settings={"BasicDownloaderDefaultEngine": "wget"}),
         case("s32-aria2c", "F-31", "aria2c", basic(engine="aria2c"), settings={"BasicDownloaderDefaultEngine": "aria2c"}),
         case("s33-you-get", "F-31", "you-get", basic(engine="you-get"), settings={"BasicDownloaderDefaultEngine": "you-get"}, require_interpreter=True),
         case("s34-svtplay-dl", "F-31", "svtplay-dl", basic(engine="svtplay-dl"), settings={"BasicDownloaderDefaultEngine": "svtplay-dl"}),
-        case("s35-unknown-extension", "F-30", "custom", [step("tab", "tabWidget", index=0), step("text", "lineEditURL", URL), step("click", "pbDownload")], settings={"BasicDownloaderDefaultEngine": "extension-does-not-exist"}, expect_empty=True),
-        case("s36-missing-required-key", "F-30", "custom", [step("tab", "tabWidget", index=0), step("text", "lineEditURL", URL), step("click", "pbDownload")], extensions={"missing-name.json": custom_extension("temporary", ["capture-custom"])}, missing_name=True, settings={"BasicDownloaderDefaultEngine": ""}, expect_empty=True),
+        case("s35-unknown-extension", "F-30", "yt-dlp", [step("tab", "tabWidget", index=0), step("text", "lineEditURL", URL), step("click", "pbDownload")], settings={"BasicDownloaderDefaultEngine": "extension-does-not-exist"}, expect_empty=True, requested_extension="extension-does-not-exist", observed_behaviour="unknown extension name rejected; fell back to the default engine"),
+        case("s36-missing-required-key", "F-30", "capture-custom", [step("tab", "tabWidget", index=0), step("text", "lineEditURL", URL), step("click", "pbDownload")], extensions={"missing-name.json": custom_extension("temporary", ["capture-custom"])}, missing_name=True, settings={"BasicDownloaderDefaultEngine": ""}, expect_empty=True, requested_extension=None, extension_file="missing-name.json", observed_behaviour="extension with Name removed still loaded and executed; argv was the URL alone; no fallback", reason="the extension with Name removed was still loaded and executed; the captured argv is the URL alone and no fallback occurred, so the task's expected empty argv is not the reference behaviour"),
         case("s37-audio-extraction", "F-02", "yt-dlp", basic(options="-x --audio-format mp3 -f bestaudio")),
         case("s38-command-after-download", "F-60", "yt-dlp", basic(), post_command=True, fake_download="fixture-output.bin"),
         case("s39-non-utf8-encoding", "F-56", "yt-dlp", basic(), settings={"TextEncoding_yt-dlp": "ISO-8859-1"}),
@@ -206,6 +230,12 @@ def definitions() -> list[dict[str, Any]]:
 def json_write(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_records(path: Path, records: list[dict[str, Any]]) -> None:
+    """Write wrapper JSONL in the exact byte form backend_wrapper.py writes."""
+    text = "".join(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n" for record in records)
+    path.write_text(text, encoding="utf-8")
 
 
 def load_records(path: Path) -> list[dict[str, Any]]:
@@ -229,6 +259,7 @@ def prepare_case(definition: dict[str, Any], runtime: Path) -> dict[str, Any]:
     case_runtime = runtime / definition["id"]
     if case_runtime.exists():
         shutil.rmtree(case_runtime)
+    definition = expand(definition, case_runtime)
     app_data = case_runtime / "appdata"
     bin_dir = app_data / "bin"
     engines_dir = app_data / "engines.v1"
@@ -296,9 +327,12 @@ def prepare_case(definition: dict[str, Any], runtime: Path) -> dict[str, Any]:
     post_transcript = case_runtime / "post-transcript.jsonl"
     post_hook = bin_dir / "post-hook"
     if definition.get("post_command"):
+        # CAPTURE_PROGRAM records the program the original started (the hook)
+        # rather than the wrapper that replaces it, so post-log.txt does not
+        # depend on where this repository happens to live.
         post_hook.write_text(
             "#!/bin/sh\n"
-            f"CAPTURE_TRANSCRIPT='{post_transcript}' exec '{wrapper}' \"$@\"\n",
+            f"CAPTURE_TRANSCRIPT='{post_transcript}' CAPTURE_PROGRAM=\"$0\" exec '{wrapper}' \"$@\"\n",
             encoding="utf-8",
         )
         post_hook.chmod(0o755)
@@ -351,12 +385,16 @@ def run_case(definition: dict[str, Any], prepared: dict[str, Any], legacy: Path)
 
 def finalize_case(definition: dict[str, Any], prepared: dict[str, Any], returncode: int, driver_error: str) -> dict[str, Any]:
     case_id = definition["id"]
+    # Canonicalise first: a path that cannot be expressed with the documented
+    # placeholders must abort the capture, not leave a half-written fixture.
+    transform = canonicaliser(prepared["runtime"])
+    records = [transform.record(record) for record in load_records(prepared["transcript"])]
+    post_records = [transform.record(record) for record in load_records(prepared["post_transcript"])]
+
     destination = SCENARIOS / case_id
     if destination.exists():
         shutil.rmtree(destination)
     destination.mkdir(parents=True, exist_ok=True)
-    records = load_records(prepared["transcript"])
-    post_records = load_records(prepared["post_transcript"])
     expected = definition["expected"]
     reason = ""
     status = "captured"
@@ -374,7 +412,10 @@ def finalize_case(definition: dict[str, Any], prepared: dict[str, Any], returnco
     elif definition.get("expect_empty"):
         if records:
             status = "not-captured"
-            reason = "the original did not produce the task's expected empty argv; it logged the extension error and fell back to another engine (observed argv is preserved)"
+            reason = definition.get("reason") or definition.get("expect_empty_reason") or (
+                "the original did not produce the task's expected empty argv; "
+                "it logged the extension error and fell back to another engine (observed argv is preserved)"
+            )
     elif len(records) != expected:
         status = "not-captured"
         reason = f"expected {expected} backend invocation(s), captured {len(records)}; see app.log"
@@ -388,11 +429,11 @@ def finalize_case(definition: dict[str, Any], prepared: dict[str, Any], returnco
     # scenario evidence. Keep the deterministic driver/command log for gaps.
     source = prepared["runtime"] / "app.log"
     if source.exists() and status != "captured":
-        shutil.copyfile(source, destination / "app.log")
+        (destination / "app.log").write_text(transform.text(source.read_text(encoding="utf-8")), encoding="utf-8")
         files.append("app.log")
 
     if records:
-        shutil.copyfile(prepared["transcript"], destination / "log.txt")
+        write_records(destination / "log.txt", records)
         files.append("log.txt")
         if status == "captured":
             json_write(destination / "argv.json", records[0]["argv"])
@@ -404,27 +445,26 @@ def finalize_case(definition: dict[str, Any], prepared: dict[str, Any], returnco
         else:
             json_write(destination / "observed-argv.json", [record["argv"] for record in records])
             files.append("observed-argv.json")
-        if definition["feature"] == "F-54":
-            json_write(destination / "env.json", records[0]["env"])
-            files.append("env.json")
     elif status == "captured" and definition.get("expect_empty"):
         json_write(destination / "argv.json", [])
         files.append("argv.json")
         source = prepared["runtime"] / "app.log"
         if source.exists():
-            shutil.copyfile(source, destination / "app.log")
+            (destination / "app.log").write_text(transform.text(source.read_text(encoding="utf-8")), encoding="utf-8")
             if "app.log" not in files:
                 files.append("app.log")
 
     if post_records:
-        shutil.copyfile(prepared["post_transcript"], destination / "post-log.txt")
+        write_records(destination / "post-log.txt", post_records)
         json_write(destination / "post-argv.json", post_records[0]["argv"])
         files.extend(["post-log.txt", "post-argv.json"])
 
+    backend = definition["backend"]
     meta = {
         "case_id": case_id,
-        "backend": definition["backend"],
-        "backend_version": VERSIONS[definition["backend"]],
+        "backend": backend,
+        # A case that spawns nothing (s28) names no engine and no version.
+        "backend_version": VERSIONS[backend] if backend else None,
         "app_version": APP_VERSION,
         "qt_version": QT_VERSION,
         "os": "Linux",
@@ -435,6 +475,11 @@ def finalize_case(definition: dict[str, Any], prepared: dict[str, Any], returnco
         "backend_invocations": len(records),
         "status": status,
     }
+    if definition.get("subject"):
+        meta["subject"] = definition["subject"]
+    for name in ("requested_extension", "extension_file", "observed_behaviour"):
+        if name in definition:
+            meta[name] = definition[name]
     if definition.get("observation"):
         meta["observation"] = definition["observation"]
     if reason:
@@ -480,7 +525,11 @@ def main() -> int:
             returncode, driver_error = run_case(definition, prepared, args.legacy)
         except subprocess.TimeoutExpired:
             returncode, driver_error = 124, "legacy exceeded the 45 second capture timeout"
-        entry = finalize_case(definition, prepared, returncode, driver_error)
+        try:
+            entry = finalize_case(definition, prepared, returncode, driver_error)
+        except CanonicalisationError as error:
+            print(f"CANONICALISATION_FAILED {definition['id']}: {error}", file=sys.stderr, flush=True)
+            return 1
         print(f"  {entry['status']}: {entry.get('reason', 'ok')}", flush=True)
         entries.append(entry)
 

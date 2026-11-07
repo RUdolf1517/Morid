@@ -10,6 +10,6 @@
   "-v",
   "--no-js-runtimes",
   "--js-runtimes",
-  "node:/usr/local/bin/node",
+  "node:<node>",
   "https://example.com/playlist/fixture"
 ]

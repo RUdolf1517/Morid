@@ -1,7 +1,7 @@
 {
   "case_id": "s36-missing-required-key",
-  "backend": "custom",
-  "backend_version": "not applicable (argv recording wrapper)",
+  "backend": "capture-custom",
+  "backend_version": "1.0.0 (extension VersionArgument)",
   "app_version": "5.6.8",
   "qt_version": "5.15.16",
   "os": "Linux",
@@ -11,5 +11,8 @@
   "reference_commit": "17c0104b8824bdad7620b2e5127484ca42dde98e",
   "backend_invocations": 1,
   "status": "not-captured",
-  "reason": "the original did not produce the task's expected empty argv; it logged the extension error and fell back to another engine (observed argv is preserved)"
+  "requested_extension": null,
+  "extension_file": "missing-name.json",
+  "observed_behaviour": "extension with Name removed still loaded and executed; argv was the URL alone; no fallback",
+  "reason": "the extension with Name removed was still loaded and executed; the captured argv is the URL alone and no fallback occurred, so the task's expected empty argv is not the reference behaviour"
 }

@@ -4,7 +4,7 @@ capture-driver: text lineEditURL
 capture-driver: text lineEditOptions
 capture-driver: click pbDownload
 id: 43
-cmd: "/home/user/.cache/morid-capture/runtime/s33-you-get/appdata/bin/you-get" "https://example.com/v/fixture-01"
+cmd: "<case-dir>/appdata/bin/you-get" "https://example.com/v/fixture-01"
 
 --------------------------------
 capture-driver: completed 5 steps

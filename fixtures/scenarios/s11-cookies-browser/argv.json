@@ -8,7 +8,7 @@
   "NA",
   "--no-js-runtimes",
   "--js-runtimes",
-  "node:/usr/local/bin/node",
+  "node:<node>",
   "-f",
   "bestvideo[ext=mp4][vcodec^=av]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best",
   "--progress-template",
@@ -16,6 +16,6 @@
   "--cookies-from-browser",
   "fixture-browser",
   "--download-archive",
-  "/home/user/.cache/morid-capture/runtime/s11-cookies-browser/appdata/data/archiveFile-yt-dlp.txt",
+  "<case-dir>/appdata/data/archiveFile-yt-dlp.txt",
   "https://example.com/v/fixture-01"
 ]

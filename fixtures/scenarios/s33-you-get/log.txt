@@ -1,1 +1,1 @@
-{"argv": ["https://example.com/v/fixture-01"], "cwd": "/home/user/.cache/morid-capture/runtime/s33-you-get/downloads", "env": {}, "program": "/home/user/.cache/morid-capture/runtime/s33-you-get/appdata/bin/you-get"}
+{"argv": ["https://example.com/v/fixture-01"], "cwd": "<case-dir>/downloads", "env": {}, "program": "<case-dir>/appdata/bin/you-get"}

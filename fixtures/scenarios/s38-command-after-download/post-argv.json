@@ -2,5 +2,5 @@
   "yt-dlp",
   "--label",
   "two words",
-  "/home/user/.cache/morid-capture/runtime/s38-command-after-download/downloads/fixture-output.bin"
+  "<case-dir>/downloads/fixture-output.bin"
 ]

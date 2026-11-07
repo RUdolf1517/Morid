@@ -46,7 +46,10 @@ VERSION_OUTPUT = {
 
 def record(transcript: str) -> None:
     value = {
-        "program": sys.argv[0],
+        # The original starts the configured program (a shell hook, for
+        # s38); CAPTURE_PROGRAM lets that hook tell the wrapper what it was
+        # called as, so the transcript does not name this repository's path.
+        "program": os.environ.get("CAPTURE_PROGRAM") or sys.argv[0],
         "argv": sys.argv[1:],
         "cwd": os.getcwd(),
         "env": {key: os.environ[key] for key in PROXY_VARIABLES if key in os.environ},

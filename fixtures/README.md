@@ -36,6 +36,35 @@ executables.
 The argv wrapper reports these versions only to satisfy the original application's startup probes.
 It is not the source of any raw stream fixture.
 
+## Placeholders
+
+A scenario golden never contains a path that belongs to the machine that captured it. Four tokens
+replace them, and nothing else is rewritten:
+
+| Token | Stands for |
+| --- | --- |
+| `<case-dir>` | The scenario's own disposable runtime directory, `<runtime>/<case-id>/`. Everything below it keeps its relative tail: `<case-dir>/appdata/data/archiveFile-yt-dlp.txt`, `<case-dir>/downloads`, `<case-dir>/working`. |
+| `<node>` | The host's JavaScript interpreter as the original passes it to yt-dlp, for example `--js-runtimes node:<node>`. |
+| `<local-url>` | A loopback stream URL; used only in `streams/**/meta.json`, whose `command` arrays record how a stream was produced. |
+| `/home/user` | The capture host's home directory. Home-relative paths keep their tail, for example `/home/user/Downloads`. |
+
+No other host-specific path appears in a golden: after the substitutions above, a fixture either contains
+one of these tokens or a value that is identical on every machine.
+
+`tools/capture/canonicalise.py` performs the substitutions; `capture.py` applies them to `argv.json`,
+`argv-N.json`, `invocations.json`, `observed-argv.json`, `post-argv.json`, to the `program`, `cwd` and
+`env` fields of `log.txt` and `post-log.txt`, and to the diagnostic `app.log`. Argument count, order and
+boundaries cannot change: every argument maps to exactly one argument. A path that the vocabulary cannot
+express — anything under the runtime root but outside the case directory, or a path under the repository
+root — aborts the capture with `CANONICALISATION_FAILED` instead of writing a fixture.
+
+Stream `meta.json` files are provenance, not goldens: their `command` arrays keep the capture
+environment's backend paths on purpose, because they record how each raw stream was produced.
+
+Scenario harness paths use the `{case-dir}` token in `capture.py`'s definitions (s09's archive file,
+s12's cookie file, s20's download directory) so that the artifact they point at lives inside its own case
+directory. The mirror `/home/user` used by the anonymised userdata is unchanged.
+
 ## How argv capture works
 
 `tools/capture/capture.py` creates an isolated appdata directory for each scenario, installs the
@@ -46,11 +75,27 @@ helper.
 
 Backend names in the isolated `bin/` directory resolve to `backend_wrapper.py`. At the actual process
 boundary the wrapper records `sys.argv[1:]`, the invoked program, working directory and selected proxy
-variables as JSONL. Argument boundaries therefore come from `QProcess`, not from reparsing a debug
+variables as JSONL. For the s38 post-download hook the wrapper records the program the original started
+(the hook), not the recorder standing in for it, via `CAPTURE_PROGRAM`; without it the transcript would
+name this repository's path. Argument boundaries therefore come from `QProcess`, not from reparsing a debug
 line. Startup version probes go to a disposable separate transcript. The scenario transcript becomes
-`log.txt`; its first record is copied mechanically to `argv.json`. Multi-process cases also have
-`invocations.json` and `argv-2.json`. The post-download command in s38 has `post-log.txt` and
+`log.txt`; its first record is copied mechanically to `argv.json`. Both are canonicalised on the way
+out (see Placeholders), so the transcript and the golden stay byte-comparable to each other.
+Multi-process cases also have `invocations.json` and `argv-2.json`. The post-download command in s38 has `post-log.txt` and
 `post-argv.json`.
+
+### Proxy evidence (s13, s14, s15)
+
+The proxy source is visible in two places, and the two disagree on purpose. In **Manual** mode (s14) the
+original expands the configured proxy into wget's own arguments — `-e http_proxy=host:8080`,
+`-e https_proxy=host:8080` — and passes the credentials separately as `--proxy-user=user` and
+`--proxy-password=pass`; the child environment stays empty. In **Env** mode (s15) it produces the same
+argument vector but also exports the full proxy URL to the child, so `env` holds `http_proxy` and
+`https_proxy` with `http://user:pass@host:8080`. That is the difference between "passed as arguments" and
+"passed as variables": no credentials are interpolated into any argument in either mode, which is what the
+fixtures are here to show. The evidence lives in each `log.txt`; the redundant `env.json` copies were
+removed in the review follow-up and `verify_fixtures.py` now checks the transcript `env` objects instead
+(`proxy_env` check).
 
 s10, s16, s18 and s19 disable batch metadata previews so their golden transcripts contain the requested
 download/subtitle/comments operations rather than unrelated metadata probes. s19 enables the original
@@ -99,6 +144,11 @@ python3 tools/capture/capture.py
 python3 tools/capture/verify_fixtures.py
 ```
 
+`tools/capture/check-idempotency.sh` runs the scenario capture twice, hashes every file under
+`fixtures/` (nothing excluded) before and after, and diffs the two sorted SHA-256 manifests and
+`git status --porcelain`. It prints `IDEMPOTENCY_OK files=<count>` or the first path that differs; use it
+instead of quoting a one-off shell transcript.
+
 Qt is run with `QT_QPA_PLATFORM=minimal`; no display server is required. QtNetwork must be built with
 SSL declarations available (the capture build used OpenSSL 3.0.18 in runtime mode), because the legacy
 source refers to `QSslSocket` even though these scenarios do not use real remote URLs.
@@ -128,8 +178,44 @@ tools/compare-argv s01-plain-yt-dlp -- morid --dry-run 'https://example.com/v/fi
 ```
 
 A match exits 0; a moved, missing, added or changed argument exits 1 and prints indexed golden/candidate
-columns. This helper may be folded into `xtask` in Phase 1 if it remains useful; it is not a product or
-Cargo dependency.
+columns.
+
+A future `morid --dry-run` prints real paths, so the candidate is canonically equivalent but not literally
+equal. `--canonicalise` applies the vocabulary above to the candidate, using the candidate's own case
+directory as `<case-dir>`:
+
+```sh
+tools/compare-argv s01-plain-yt-dlp --canonicalise --candidate candidate.json
+# candidate: /home/ci/morid-runtime/s01-plain-yt-dlp/appdata/bin/... node:/opt/node/bin/node
+# canonicalise: case-dir=/home/ci/morid-runtime/s01-plain-yt-dlp home=/home/user
+# MATCH: 17 arguments, order and boundaries identical
+```
+
+The case directory is read from the argument that corresponds to `<case-dir>` in the golden, so nothing
+has to be configured for another machine; `--case-dir DIR` overrides that when a golden has no
+`<case-dir>` argument, and `--home DIR` overrides the candidate's home directory (default `$HOME`).
+
+This helper may be folded into `xtask` in Phase 1 if it remains useful; it is not a product or Cargo
+dependency.
+
+## Behaviour discovered, not specified
+
+Each line is a behaviour the Phase 0 cases found in `legacy/`, not a behaviour any task asked for. The case
+IDs are the evidence; these notes are the raw material for `docs/migration.md` §6 and `docs/features.md`,
+which the manager folds in.
+
+- **s35, s36** — an invalid extension is handled two different ways: an unknown engine *name* is rejected and
+  the default engine runs instead, while an extension with `Name` removed is still loaded and executed with
+  the URL as its only argument. Neither produces the empty argv the task expected.
+- **s26** — when the extension has a `Cmd` branch only for another architecture, the original does not
+  report an error; it silently falls back to yt-dlp and downloads with it.
+- **s10** — a two-URL batch download spawns a separate process per row, and the batch metadata preview adds
+  extra metadata commands unless `ShowMetaDataInBatchDownloader` is disabled; the fixture disables it so the
+  golden holds the download command only.
+- **s33** — the interpreter invocation for you-get exists only in the Windows `Cmd` branch; on Linux the
+  shipped `Generic` branch starts `you-get` directly, so the "python -u you_get" shape is unreachable here.
+- **s28** — the update path has no argv at all: `AutoUpdate` is handled by the original's network/version
+  logic (`AutoUpdate / versionInfo`), so there is no external process for a golden to describe.
 
 ## Known gaps and observed reference behaviour
 
@@ -148,11 +234,16 @@ python3 tools/capture/capture.py --only s36-missing-required-key
   interpreter invocation is in the Windows `Cmd` branch, unavailable on this capture host. The observed
   direct invocation is preserved as `observed-argv.json`, not presented as the requested interpreter
   golden.
-- **s35 and s36, not captured:** the original does not produce the task's expected empty argv for an
-  unknown extension or an extension missing `Name`. It rejects/skips that extension and falls back to
-  another available engine. The real fallback argv and driver log are preserved. This is a reference
-  behaviour discrepancy to account for under `docs/migration.md` §6, not something these fixtures
-  correct or hide.
+- **s35, not captured:** requesting the non-existent extension `extension-does-not-exist` does not produce
+  the task's expected empty argv. The original rejects the unknown name and falls back to the default
+  engine, so `yt-dlp` runs with its full argument vector. `meta.json` records the engine that actually ran,
+  the requested extension name and the observed behaviour; the argv is preserved as
+  `observed-argv.json`, not presented as a golden.
+- **s36, not captured:** an extension whose `Name` was removed is *not* rejected: the original loads and
+  executes it, and the captured argv is the URL alone. Nothing falls back, so the task's expected empty
+  argv is not the reference behaviour. `meta.json` names the program that ran (`capture-custom`), records
+  `requested_extension: null` and the extension file, and the reason says what happened. The invalid
+  extension input is deliberately left invalid.
 - **s26, captured fallback:** with `Cmd` only for aarch64 on an x86_64 host, the original likewise
   falls back to yt-dlp. This case is captured because fallback behaviour is precisely what the task
   requests for s26; `meta.json` records the observation.

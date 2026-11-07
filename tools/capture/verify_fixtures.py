@@ -11,8 +11,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from backend_wrapper import PROXY_VARIABLES
 from capture import ROOT, FIXTURES, SCENARIOS, definitions
 from capture_userdata import FINAL as USERDATA, history_count, settings_seed
+from canonicalise import CASE_DIR, NODE
 
 
 REQUIRED_STREAM_BACKENDS = {
@@ -26,6 +28,7 @@ PROGRAMS = {
     "you-get": "you-get",
     "svtplay-dl": "svtplay-dl",
     "custom": "capture-custom",
+    "capture-custom": "capture-custom",
 }
 USERDATA_FILES = {
     "settings/settings.ini",
@@ -88,10 +91,31 @@ def verify_scenarios() -> tuple[int, int]:
         require(meta.get("qt_version") == "5.15.16", f"{case_id}: wrong Qt version")
         require(re.fullmatch(r"[0-9a-f]{40}", meta.get("reference_commit", "")) is not None, f"{case_id}: no commit pin")
 
+        backend = meta.get("backend")
+        invocations = meta.get("backend_invocations")
+        require(isinstance(invocations, int), f"{case_id}: backend_invocations is not an integer")
+        if invocations == 0:
+            # T4: nothing was spawned, so nothing may be named.  This also keeps
+            # a null backend out of every PROGRAMS lookup below.
+            require(backend is None, f"{case_id}: a case with no backend invocation must not name a spawned backend")
+            require(meta.get("backend_version") is None, f"{case_id}: a case with no backend invocation must not name a backend version")
+        else:
+            require(backend in PROGRAMS, f"{case_id}: meta names an unknown backend {backend!r}")
+
         if entry["status"] == "not-captured":
             not_captured += 1
             require(entry.get("reason") and meta.get("reason"), f"{case_id}: missing not-captured reason")
             require((directory / "app.log").is_file(), f"{case_id}: no failure evidence app.log")
+            if invocations:
+                # An observed fallback still has to agree with the engine the
+                # metadata now names, so the reason and the evidence cannot drift.
+                observed = load_jsonl(directory / "log.txt")
+                require(len(observed) == invocations, f"{case_id}: observed invocations differ from meta")
+                require(load_json(directory / "observed-argv.json") == [item["argv"] for item in observed],
+                        f"{case_id}: observed-argv differs from the transcript")
+                for item in observed:
+                    require(Path(item["program"]).name == PROGRAMS[backend],
+                            f"{case_id}: observed program {item['program']} is not the backend named in meta.json")
             continue
 
         captured += 1
@@ -116,6 +140,67 @@ def verify_scenarios() -> tuple[int, int]:
     require(captured >= 35, f"only {captured}/40 cases captured")
     require(captured + not_captured == 40, "status counts do not total 40")
     return captured, not_captured
+
+
+def verify_metadata() -> None:
+    """T4: the metadata that must describe what actually ran, or nothing at all."""
+    cases = {item["id"]: item for item in load_json(FIXTURES / "manifest.json")["cases"]}
+
+    update = load_json(SCENARIOS / "s28-auto-update-false" / "meta.json")
+    require(cases["s28-auto-update-false"]["status"] == "not-captured", "s28: status changed")
+    require(update.get("backend", "missing") is None, "s28: backend still names an engine that never ran")
+    require(update.get("backend_version", "missing") is None, "s28: backend_version still names a version")
+    require(update.get("subject") == "AutoUpdate / versionInfo", "s28: subject is not the update path")
+    require(update.get("backend_invocations") == 0, "s28: recorded invocations for a case that spawns nothing")
+
+    unknown = load_json(SCENARIOS / "s35-unknown-extension" / "meta.json")
+    require(unknown.get("backend") == "yt-dlp", "s35: backend is not the engine that actually ran")
+    require(unknown.get("requested_extension") == "extension-does-not-exist", "s35: requested_extension is not the setting under test")
+    require("fell back" in unknown.get("observed_behaviour", ""), "s35: observed_behaviour does not record the fallback")
+    require(cases["s35-unknown-extension"]["status"] == "not-captured", "s35: status changed")
+
+    missing = load_json(SCENARIOS / "s36-missing-required-key" / "meta.json")
+    require(missing.get("backend") == "capture-custom", "s36: backend is not the program that actually ran")
+    require("requested_extension" in missing and missing["requested_extension"] is None,
+            "s36: requested_extension must be present and null (a file name is not a Name)")
+    require(missing.get("extension_file") == "missing-name.json", "s36: extension_file is not the invalid extension")
+    require("no fallback occurred" in missing.get("reason", ""), "s36: reason still claims a fallback")
+    require(cases["s36-missing-required-key"]["status"] == "not-captured", "s36: status changed")
+
+    return None
+
+
+def verify_proxy_env(captured: int) -> int:
+    """T3: proxy evidence lives in the transcripts, not in duplicate env.json files."""
+    duplicates = sorted(path.relative_to(ROOT) for path in SCENARIOS.rglob("env.json"))
+    require(not duplicates, f"env.json duplicates the transcript env field: {duplicates}")
+
+    checked = 0
+    for directory in sorted(SCENARIOS.iterdir()):
+        meta = load_json(directory / "meta.json")
+        if meta.get("status") != "captured":
+            continue
+        env = load_jsonl(directory / "log.txt")[0]["env"]
+        require(isinstance(env, dict), f"{directory.name}: transcript env is not an object")
+        require(all(isinstance(key, str) and isinstance(value, str) for key, value in env.items()),
+                f"{directory.name}: transcript env is not an object of strings")
+        require(set(env) <= set(PROXY_VARIABLES), f"{directory.name}: transcript env has a key the wrapper does not record")
+        checked += 1
+
+    manual = load_json(SCENARIOS / "s14-proxy-manual" / "argv.json")
+    manual_env = load_jsonl(SCENARIOS / "s14-proxy-manual" / "log.txt")[0]["env"]
+    env_mode = load_json(SCENARIOS / "s15-proxy-env" / "argv.json")
+    env_mode_env = load_jsonl(SCENARIOS / "s15-proxy-env" / "log.txt")[0]["env"]
+    require(manual_env == {}, "s14: manual proxy mode must leave the child environment empty")
+    require(env_mode_env == {"http_proxy": "http://user:pass@host:8080", "https_proxy": "http://user:pass@host:8080"},
+            "s15: env proxy mode must export the proxy variables to the child")
+    require(manual == env_mode, "s14/s15: the two proxy sources are expected to produce the same wget argv")
+    for name, argv in (("s14", manual), ("s15", env_mode)):
+        require("--proxy-user=user" in argv and "--proxy-password=pass" in argv, f"{name}: proxy credentials are not passed as arguments")
+        require(not any("user:pass@" in item for item in argv), f"{name}: proxy credentials were interpolated into an argument")
+    print(f"proxy_env checked={checked}/{captured} env_json_files=0 "
+          f"s14_env=empty s15_env={sorted(env_mode_env)} credentials=arguments")
+    return checked
 
 
 def verify_streams() -> int:
@@ -211,6 +296,60 @@ def verify_comparator(captured: int) -> None:
     print(f"comparator_negative={first.name} exit={result.returncode} {result.stdout.splitlines()[-1]}")
 
 
+def remote_candidate(golden: list, case_id: str) -> tuple[list, str]:
+    """Rewrite a golden as a candidate from another machine would print it."""
+    case_dir = f"/home/ci/morid-runtime/{case_id}"
+    return [
+        item.replace(CASE_DIR, case_dir).replace("node:" + NODE, "node:/opt/node/bin/node")
+        for item in golden
+    ], case_dir
+
+
+def verify_comparator_canonicalised(captured: int) -> tuple[int, int]:
+    """T1: a candidate that prints real paths still has to match the golden."""
+    comparator = ROOT / "tools" / "compare-argv"
+    checked = 0
+    inferred = 0
+    negative = None
+    for directory in sorted(SCENARIOS.iterdir()):
+        golden_path = directory / "argv.json"
+        if not golden_path.exists() or load_json(directory / "meta.json")["status"] != "captured":
+            continue
+        golden = load_json(golden_path)
+        candidate, case_dir = remote_candidate(golden, directory.name)
+        carries_case_dir = any(item == CASE_DIR or item.startswith(CASE_DIR + "/") for item in golden)
+        with tempfile.TemporaryDirectory(prefix="morid-canonicalise-") as temporary:
+            path = Path(temporary) / "candidate.json"
+            path.write_text(json.dumps(candidate), encoding="utf-8")
+            command = [str(comparator), directory.name, "--candidate", str(path), "--canonicalise"]
+            if not carries_case_dir:
+                command.extend(["--case-dir", case_dir])
+            result = subprocess.run(command, text=True, capture_output=True, check=False)
+            require(result.returncode == 0,
+                    f"canonicalising comparator failed for {directory.name}:\n{result.stdout}\n{result.stderr}")
+            require("canonicalise: case-dir=" in result.stdout, f"{directory.name}: comparator did not report canonicalisation")
+        inferred += carries_case_dir
+        checked += 1
+        if negative is None and len(candidate) >= 2:
+            negative = (directory.name, case_dir, carries_case_dir)
+            swapped = list(candidate)
+            swapped[0], swapped[1] = swapped[1], swapped[0]
+            with tempfile.TemporaryDirectory(prefix="morid-canonicalise-") as temporary:
+                path = Path(temporary) / "candidate.json"
+                path.write_text(json.dumps(swapped), encoding="utf-8")
+                command = [str(comparator), directory.name, "--candidate", str(path), "--canonicalise"]
+                if not carries_case_dir:
+                    command.extend(["--case-dir", case_dir])
+                result = subprocess.run(command, text=True, capture_output=True, check=False)
+            require(result.returncode == 1, f"canonicalised negative comparator returned {result.returncode}, expected 1")
+            require("DIFFERENT" in result.stdout, "canonicalised negative comparator has no DIFFERENT output")
+    require(checked == captured, f"canonicalising comparator checked {checked}, expected {captured}")
+    require(negative is not None, "no candidate available for the canonicalised negative test")
+    print(f"comparator_canonicalised={checked}/{captured} exit=0 case_dir_inferred={inferred} "
+          f"case_dir_explicit={checked - inferred} negative={negative[0]} exit=1")
+    return checked, inferred
+
+
 def main() -> int:
     captured, not_captured = verify_scenarios()
     print(f"manifest_cases=40 captured={captured} not_captured={not_captured}")
@@ -220,6 +359,11 @@ def main() -> int:
     settings_count, history = verify_userdata()
     print(f"userdata_load_exit=0 settings_keys={settings_count} history_entries={history} anonymized_hosts=example.com")
     verify_comparator(captured)
+    verify_comparator_canonicalised(captured)
+    verify_metadata()
+    print("metadata checks=s28_backend_null,s28_subject,s35_requested_extension,s35_fallback,s36_no_fallback")
+    proxy_env = verify_proxy_env(captured)
+    require(proxy_env == captured, "proxy env check did not cover every captured case")
     fixture_bytes = directory_size(FIXTURES)
     userdata_bytes = directory_size(FIXTURES / "userdata")
     require(fixture_bytes < 2 * 1024 * 1024, f"fixtures are too large: {fixture_bytes}")

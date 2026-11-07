@@ -1,1 +1,1 @@
-{"argv": ["--engine-default", "--packaging-extra", "flatpak appimage", "https://example.com/v/fixture-01"], "cwd": "/home/user/.cache/morid-capture/runtime/s40-flatpak-appimage-extra/downloads", "env": {}, "program": "/home/user/.cache/morid-capture/runtime/s40-flatpak-appimage-extra/appdata/bin/capture-custom"}
+{"argv": ["--engine-default", "--packaging-extra", "flatpak appimage", "https://example.com/v/fixture-01"], "cwd": "<case-dir>/downloads", "env": {}, "program": "<case-dir>/appdata/bin/capture-custom"}

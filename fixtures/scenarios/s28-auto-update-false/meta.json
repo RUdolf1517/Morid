@@ -1,7 +1,7 @@
 {
   "case_id": "s28-auto-update-false",
-  "backend": "wget",
-  "backend_version": "1.21.3",
+  "backend": null,
+  "backend_version": null,
   "app_version": "5.6.8",
   "qt_version": "5.15.16",
   "os": "Linux",
@@ -11,5 +11,6 @@
   "reference_commit": "17c0104b8824bdad7620b2e5127484ca42dde98e",
   "backend_invocations": 0,
   "status": "not-captured",
+  "subject": "AutoUpdate / versionInfo",
   "reason": "AutoUpdate is handled by QNetworkAccess/versionInfo, not by spawning a backend update command; there is no external update argv for the wrapper to capture"
 }

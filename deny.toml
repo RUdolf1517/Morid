@@ -86,6 +86,12 @@ ignore = ["RUSTSEC-2026-0370", "RUSTSEC-2026-0371", "RUSTSEC-2026-0372"]
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Not in the specification. Every workspace dependency is written as
+# `{ path = "crates/…" }` with no version, which cargo-deny reports as a wildcard
+# requirement and `wildcards = "deny"` then rejects (deny.log: "found 10 wildcard
+# dependencies for crate 'morid'"). `allow-wildcard-paths` exempts exactly those
+# while a wildcard on a registry dependency stays an error.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"

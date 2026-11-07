@@ -205,3 +205,41 @@ at build time, so a stale binary translation cannot be shipped silently. `Cargo.
   `flatpak` (path overrides) and `portable` (data directory location).
 - Do not copy the profile from another project without re-measuring; the size table in
   [dependencies.md](dependencies.md) §6 is the evidence.
+
+---
+
+## 7. Deviations recorded while Phase 1 was built
+
+Each of these was forced by something the specification could not know, and each is in the same pull request as
+the code that needed it. The values above have been edited to match, so this section is the record of *why*.
+
+1. **`slint` is pinned to the 1.13 line and its feature list is different** (§1). Three separate facts, each from
+   crates.io rather than from taste:
+   - `version = "1"` resolves to 1.18.1, which is `edition = "2024"` and needs a newer rustc than the 1.85 the
+     workspace pins. `~1.13` is the newest line whose `rust_version` is exactly `1.85`.
+   - `std-widgets` is not a feature of `slint` 1.13.1 or 1.18.1 at all (`/api/v1/crates/slint/1.13.1`: 33
+     features, no `std-widgets`); widgets are built in, and `import … from "std-widgets.slint"` compiles without
+     it.
+   - `compat-1-2` cannot be dropped: `slint` 1.13.1 refuses to compile without it
+     (`error: The feature \`compat-1-2\` must be enabled`, `slint-1.13.1/lib.rs:207`).
+   `backend-winit` and `renderer-femtovg` stay as written.
+2. **`.cargo/config.toml` exists and is not mentioned above.** It sets
+   `resolver.incompatible-rust-versions = "fallback"`. With `resolver = "2"` and the default `allow`, cargo resolved
+   transitive crates needing 1.87–1.90 (`image 0.25.10`, `zbus 5.19`, `uuid 1.29`) and then refused to build with
+   the pinned toolchain, which makes `rust-version = "1.85"` a lie. With `fallback`, resolution keeps the promise.
+3. **`deny.toml` gained four things the specification did not have**, all recorded in the file itself:
+   an `[advisories]` section ignoring three unmaintained advisories (`RUSTSEC-2026-0370` `zvariant`,
+   `-0371` `zbus_names`, `-0372` `zvariant_derive`) that arrive through `slint → i-slint-backend-winit → zbus 5`
+   and have no safe upgrade inside this Slint; two licences that only appear in that transitive tree (`BSL-1.0` for
+   `clipboard-win`, `Unicode-3.0` for the `icu_*` crates); `GPL-2.0-or-later`, which is Morid's own licence and
+   which the original allow list forgot; and an exception entry for **every** Slint crate rather than only `slint`,
+   because they all declare the same triple licence and an exception is matched by crate name.
+4. **`xtask` is its own workspace.** `xtask/Cargo.toml` carries an empty `[workspace]` table, so it is not one of
+   the eight members and `cargo build --workspace` does not build it. Including it would have made nine members and
+   added a second dependency tree; the workflow formats and lints it explicitly instead.
+5. **`morid-gui/src/main.rs` uses `#![deny(unsafe_code)]`, not `forbid`.** `slint!` expands to Slint's generated
+   code, which carries `#[allow(unsafe_code)]`, and an inner `allow` under a crate-level `forbid` is error E0453.
+   The library crates keep `forbid`; Morid's own code in the binary contains no `unsafe`.
+6. **`morid-gui` has one test hook.** If `MORID_GUI_SMOKE_MS` is set, the window runs the Close button's own code
+   path after that many milliseconds, which is how CI proves that a window opens and closes with a real exit code
+   on three platforms. Unset, nothing changes.

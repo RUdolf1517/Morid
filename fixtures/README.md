@@ -183,14 +183,17 @@ The Qt INI dialect is a unit test, not a fixture check. It needs the Python stan
 — no Qt, no capture cache, no `fixtures/` — and it discovers itself from the repository root:
 
 ```sh
-python3 -m unittest discover            # 16 tests, ~0.02s
+python3 -m unittest discover            # 21 tests, ~0.02s
 python3 -m unittest tools.capture.test_qt_ini_roundtrip
 ```
 
 It is `unittest` rather than `pytest` because the repository has to stay runnable on a bare Python
 installation: `pytest` is a third-party dependency, and the Rust workspace that replaces this tooling will
 bring its own runner (`cargo test`) rather than a Python one. The fuzz is seeded (`FUZZ_SEED`, `FUZZ_ITERATIONS`
-at the top of the file) so a failure is reproducible from the file alone.
+at the top of the file) so a failure is reproducible from the file alone. One test reads
+`userdata/media-downloader/settings/settings.ini` and skips itself when `fixtures/` is not in the checkout: it
+checks that every value the original wrote is one Qt's reader gives back unchanged, which is what `configparser`
+could not do (G10). `verify_fixtures.py` prints the same check as `userdata_settings`.
 
 **Nothing in this repository runs automatically.** There is no CI configuration in this branch: the
 original's ten workflows were removed with `legacy/`, and the new CI is Rust, Phase 1 (F-75). So the test

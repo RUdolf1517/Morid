@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Qt 5.15's INI dialect: the round trip, the fuzz and the limits.
+"""Qt 5.15's INI dialect: the round trip, the fuzz, the limits, the fixture.
 
 `escape_qt_ini_value` (see `canonicalise.py`) writes the `settings.ini` values
 the capture harness hands to the original, and the original reads them back with
-Qt's own parser.  This module is the proof that it can: a port of Qt's reader, a
-fixed corpus, a seeded fuzz, and tests that make the helper's limits executable
-instead of prose.
+Qt's own parser.  This module is the proof that it can: a fixed corpus, a seeded
+fuzz, and tests that make the helper's limits executable instead of prose.
 
 It needs the standard library only, no fixtures and no arguments:
 
@@ -13,8 +12,9 @@ It needs the standard library only, no fixtures and no arguments:
     python3 -m unittest tools.capture.test_qt_ini_roundtrip
     python3 tools/capture/test_qt_ini_roundtrip.py
 
-`verify_fixtures.py` imports `check_all()` from here, so there is one
-implementation with two callers.  Qt's writer is `iniEscapedString`, its reader
+`verify_fixtures.py` imports `check_all()` and `check_userdata_settings()`
+from here, so there is one implementation with two callers; the reader itself
+lives in `qt_ini.py`.  Qt's writer is `iniEscapedString`, its reader
 `iniUnescapedStringList` and `iniChopTrailingSpaces`, all in
 `qtbase/src/corelib/io/qsettings.cpp` at tag `v5.15.16-lts-lgpl`.
 """
@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import random
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -31,20 +32,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from canonicalise import escape_qt_ini_value  # noqa: E402  (after sys.path)
+from qt_ini import qt_ini_unescape, read_settings_ini  # noqa: E402  (after sys.path)
 
 # Fixed on purpose: the fuzz must give the same answer tomorrow, so both the
 # seed and the iteration count live here rather than in a command line.
 FUZZ_SEED = 20261105
 FUZZ_ITERATIONS = 500
-
-# The single-value escapes Qt's reader knows (escapeCodes in qsettings.cpp).
-# A backslash before anything else *drops* that character; see the port below.
-QT_INI_ESCAPES = {
-    "a": "\a", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t", "v": "\v",
-    '"': '"', "?": "?", "'": "'", "\\": "\\",
-}
-
-HEX_DIGITS = "0123456789abcdefABCDEF"
 
 # What the helper is expected to produce for s20's download folder; it
 # documents the bytes rather than deriving them.
@@ -105,93 +98,43 @@ FUZZ_ALPHABET = (
 )
 
 
-def _decode_units(units: list[int]) -> str:
-    """Turn UTF-16 code units (and code points) into text, as QString does."""
-    raw = b"".join(chr(unit).encode("utf-16-be", "surrogatepass") for unit in units)
-    return raw.decode("utf-16-be", "surrogatepass")
+# The reader itself lives in `qt_ini.py` so that the verifier and the userdata
+# capture can read the same dialect without importing a test module; the tests
+# below are what prove the writer against it.
+
+# The committed userdata file: written by the original, so it is Qt dialect by
+# construction, and G10 is the finding that nothing checked it.
+USERDATA_SETTINGS = (
+    Path(__file__).resolve().parents[2]
+    / "fixtures" / "userdata" / "media-downloader" / "settings" / "settings.ini"
+)
 
 
-def qt_ini_unescape(text: str) -> str | list[str]:
-    """Read one INI value the way Qt 5.15.16 does, transcribed from its source.
+def check_userdata_settings(path: Path | str = USERDATA_SETTINGS) -> dict[str, int]:
+    """T13/G10: the committed userdata `settings.ini` is Qt's own output.
 
-    Mirrors `QSettingsPrivate::iniUnescapedStringList` for a single value:
-    leading blanks are skipped, a double quote toggles quoting, a ``\\x`` escape
-    scans *all* following hex digits greedily on its own (any length, upper or
-    lower case), a backslash plus an unknown character drops that character, an
-    unquoted trailing space is chopped by `iniChopTrailingSpaces`, and a comma
-    outside quotes starts a QStringList -- which is returned as a list, so a
-    caller comparing against a string sees that the value did not survive.
-
-    Deliberately not modelled: the `@ByteArray(`, `@Variant(` and `@DateTime(`
-    value prefixes, which Qt's reader turns into other types.  The helper does
-    not claim those either; see `QtIniLimit`.
+    The original wrote this file, so it is Qt dialect by construction -- but
+    `configparser` read it as UTF-8 and would accept anything, which is what G10
+    is.  Here the file is read the way Qt reads it (Latin-1 bytes, then the
+    reader) and every value is written back with the helper: if the two forms
+    differ, the file is not in the dialect Qt produces.  Nothing is repaired --
+    the check reports and the caller decides.
     """
-    units: list[int] = []
-    items: list[list[int]] = []
-    quoted_value = False
-    in_quotes = False
-    i, size = 0, len(text)
-
-    def chop() -> None:
-        while units and units[-1] in (0x20, 0x09):
-            units.pop()
-
-    while i < size and text[i] in " \t":
-        i += 1
-    while i < size:
-        char = text[i]
-        if char == "\\":
-            i += 1
-            if i >= size:
-                break
-            char = text[i]
-            i += 1
-            if char in QT_INI_ESCAPES:
-                units.append(ord(QT_INI_ESCAPES[char]))
-            elif char == "x":
-                j = i
-                while j < size and text[j] in HEX_DIGITS:
-                    j += 1
-                if j > i:
-                    units.append(int(text[i:j], 16) & 0xFFFF)
-                    i = j
-            elif char in "01234567":
-                j = i
-                while j < size and text[j] in "01234567":
-                    j += 1
-                units.append(int(char + text[i:j], 8) & 0xFFFF)
-                i = j
-            elif char in "\n\r":
-                if i < size and text[i] in "\n\r" and text[i] != char:
-                    i += 1
-            # any other escaped character is dropped, exactly as Qt drops it
-            continue
-        if char == '"':
-            quoted_value = True
-            in_quotes = not in_quotes
-            i += 1
-            if not in_quotes:
-                while i < size and text[i] in " \t":
-                    i += 1
-            continue
-        if char == "," and not in_quotes:
-            if not quoted_value:
-                chop()
-            items.append(units)
-            units = []
-            quoted_value = False
-            i += 1
-            while i < size and text[i] in " \t":
-                i += 1
-            continue
-        units.append(ord(char))
-        i += 1
-    if not quoted_value:
-        chop()
-    if not items:
-        return _decode_units(units)
-    items.append(units)
-    return [_decode_units(item) for item in items]
+    path = Path(path)
+    values = read_settings_ini(path)
+    non_ascii = sum(1 for byte in path.read_bytes() if byte >= 0x80)
+    lists = 0
+    for key, raw in values.items():
+        decoded = qt_ini_unescape(raw)
+        if isinstance(decoded, list):
+            lists += 1
+            reencoded = ", ".join(escape_qt_ini_value(item) for item in decoded)
+        else:
+            reencoded = escape_qt_ini_value(decoded)
+        _require(reencoded == raw,
+                 f"{path.name}: {key} is written as {raw!r}, but the value Qt reads back "
+                 f"({decoded!r}) would be written as {reencoded!r}")
+    return {"keys": len(values), "lists": lists, "non_ascii": non_ascii}
 
 
 def fuzz_values(seed: int = FUZZ_SEED, iterations: int = FUZZ_ITERATIONS):
@@ -395,6 +338,50 @@ class QtIniLimit(unittest.TestCase):
         """A comma makes Qt read a QStringList; the helper always quotes it."""
         self.assertTrue(escape_qt_ini_value("a,b").startswith('"'))
         self.assertEqual(qt_ini_unescape("a,b"), ["a", "b"])
+
+
+class UserdataSettingsIni(unittest.TestCase):
+    """T13/G10: the third Qt-dialect file is read with Qt's reader, not UTF-8."""
+
+    @unittest.skipUnless(USERDATA_SETTINGS.is_file(),
+                         "fixtures/userdata is not part of this checkout")
+    def test_committed_userdata_is_qt_dialect(self):
+        summary = check_userdata_settings()
+        self.assertGreaterEqual(summary["keys"], 90)   # the fixture has 94
+        self.assertEqual(summary["non_ascii"], 0,
+                         "the original writes ASCII; a non-ASCII byte is Latin-1 on read")
+        self.assertGreaterEqual(summary["lists"], 1)   # the options-history keys
+
+    def test_a_utf8_value_is_reported(self):
+        """The check must fail on what `configparser` accepted without comment."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.ini"
+            path.write_bytes("[General]\nDownloadFolder=/tmp/Загрузки\n".encode("utf-8"))
+            with self.assertRaises(AssertionError) as caught:
+                check_userdata_settings(path)
+        self.assertIn("DownloadFolder", str(caught.exception))
+
+    def test_a_malformed_line_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.ini"
+            path.write_bytes(b"[General]\nno-equals-sign\n")
+            with self.assertRaises(ValueError):
+                read_settings_ini(path)
+
+
+class LoneSurrogate(unittest.TestCase):
+    """T13.2: the behaviour is chosen, not a UnicodeEncodeError in passing."""
+
+    def test_a_lone_surrogate_is_rejected_with_a_message(self):
+        with self.assertRaises(ValueError) as caught:
+            escape_qt_ini_value("ok\ud800bad")
+        self.assertIn("surrogate", str(caught.exception))
+        self.assertIn("U+d800", str(caught.exception))
+
+    def test_a_real_non_bmp_character_is_still_written(self):
+        """The rejection is about lone surrogates, not about astral characters."""
+        self.assertEqual(escape_qt_ini_value("\U0001F600"), "\\xd83d\\xde00")
+        self.assertEqual(qt_ini_unescape("\\xd83d\\xde00"), "\U0001F600")
 
 
 class OneWriterForSettingsIni(unittest.TestCase):

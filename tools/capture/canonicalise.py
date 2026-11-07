@@ -184,7 +184,17 @@ def escape_qt_ini_value(value: str) -> str:
     fixtures/README.md.
     """
     needs_quotes = any(char in value for char in ";,=") or value.startswith(" ") or value.endswith(" ")
-    units = value.encode("utf-16-be")
+    try:
+        units = value.encode("utf-16-be")
+    except UnicodeEncodeError as error:
+        # Chosen, not incidental: a lone surrogate is not a value any QString
+        # from a real settings file can hold, so the harness refuses to write it
+        # instead of guessing which code unit Qt should see.
+        raise ValueError(
+            "settings.ini: value contains a lone surrogate "
+            f"(U+{ord(error.object[error.start]):04x}): {value!r} is not encodable as UTF-16, "
+            "and no real settings value has one"
+        ) from error
     escaped = []
     escape_next_if_digit = False
     for index in range(0, len(units), 2):

@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import configparser
 import hashlib
 import json
 import re
@@ -15,7 +14,8 @@ from backend_wrapper import PROXY_VARIABLES
 from capture import ROOT, FIXTURES, SCENARIOS, definitions
 from capture_userdata import FINAL as USERDATA, history_count, settings_seed
 from canonicalise import CASE_DIR, NODE, escape_qt_ini_value
-from test_qt_ini_roundtrip import check_all as check_qt_ini_roundtrip
+from qt_ini import read_settings_ini
+from test_qt_ini_roundtrip import check_all as check_qt_ini_roundtrip, check_userdata_settings
 
 
 REQUIRED_STREAM_BACKENDS = {
@@ -309,12 +309,14 @@ def verify_streams() -> int:
 def verify_userdata() -> tuple[int, int]:
     for relative in USERDATA_FILES:
         require((USERDATA / relative).is_file(), f"userdata missing {relative}")
-    parser = configparser.ConfigParser(interpolation=None, strict=False)
-    parser.optionxform = str
-    parser.read(USERDATA / "settings" / "settings.ini", encoding="utf-8")
-    require("General" in parser, "userdata settings has no General section")
-    keys = set(parser["General"])
+    settings_path = USERDATA / "settings" / "settings.ini"
+    # Qt's reader, not configparser: this file was written by the original, so it
+    # is Qt's dialect, and a UTF-8 parse would accept a value Qt reads differently.
+    keys = set(read_settings_ini(settings_path))
     require(not (set(settings_seed()) - keys), "userdata settings keys missing")
+    dialect = check_userdata_settings(settings_path)
+    print(f"userdata_settings keys={dialect['keys']} lists={dialect['lists']} "
+          f"non_ascii={dialect['non_ascii']} dialect=qt_reader")
     count = history_count(USERDATA / "data" / "downloadHistory.json")
     require(count >= 20, f"userdata has only {count} history entries")
     for name in ("presetOptions.json", "downloadDefaultOptions.json", "downloadEngineDefaultOptions.json", "subscriptions.json", "autoSavedList.json"):

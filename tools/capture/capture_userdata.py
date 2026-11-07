@@ -11,7 +11,6 @@ unless --force is supplied.
 from __future__ import annotations
 
 import argparse
-import configparser
 import json
 import os
 import shutil
@@ -22,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from capture_streams import Handler, PORT, BASE, VENV
+from qt_ini import read_settings_ini
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -319,10 +319,9 @@ def history_count(path: Path) -> int:
 
 def validate_fixture() -> dict[str, Any]:
     required = settings_seed().keys()
-    parser = configparser.ConfigParser(interpolation=None, strict=False)
-    parser.optionxform = str
-    parser.read(FINAL / "settings" / "settings.ini", encoding="utf-8")
-    actual = set(parser["General"]) if "General" in parser else set()
+    # The original wrote this file, so it is read with Qt's reader (qt_ini.py);
+    # configparser would parse it as UTF-8, which Qt never does.
+    actual = set(read_settings_ini(FINAL / "settings" / "settings.ini"))
     missing = sorted(set(required) - actual)
     if missing:
         raise RuntimeError(f"settings keys missing: {', '.join(missing)}")

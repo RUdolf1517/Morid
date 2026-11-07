@@ -59,6 +59,23 @@ Estimates are for the work, not for the waiting.
 
 **Estimate:** 5–8 days. **Not** a coding task in the Rust sense, and it must not be skipped.
 
+**Status 5 November 2026:** delivered as `fixtures/` (PR #2, commit `8fba615`) — 36 of 40 cases captured with
+wrapper transcripts, seven backends of raw output, an anonymised data directory reloaded by the original
+program, and a comparator. Goldens were then made independent of the capture host (`b344cdc`), the verifier was
+given teeth (`f187923`), and both late findings of round 2 were closed. **Accepted 7 November 2026.** Six review rounds, seven commits from the coder, and the last four rounds were about
+one file: `settings.ini`. The result is a Qt INI dialect — values and keys, reader and writer — reproduced from
+`qsettings.cpp` and proved by round trip against a port of Qt's own reader, 30 stdlib tests plus a seeded fuzz, with
+`VERIFY_OK` over 36 captured cases and 7 backends.
+
+The slowness has one cause worth recording: **the manager specified three wrong mechanisms in a row** (the field name
+in a log record, the locale in s20, the escape notation and the quoting rules), and each wrong mechanism cost a round.
+Fixing that — checking against the source before writing a claim into a task — cut the rounds to one finding each
+after round 4. This is the rule now written into [tasks/README.md](tasks/README.md).
+
+Nothing in this repository runs automatically, and that is a decision rather than a gap: D-017 defers both checks to
+the Phase 1 workflow, which Phase 1's exit criteria require to run them and to report the test count. The four uncaptured cases are real observations,
+not omissions: see [migration](migration.md) §6.
+
 **Exit criteria:** a reviewer can take any scenario and see both argument vectors; every backend that Morid will
 support has at least one captured output.
 
@@ -79,7 +96,9 @@ support has at least one captured output.
   normative (audit defect D7).
 
 **Estimate:** 5–7 days. **Exit criteria:** green CI on three platforms; `cargo build --offline` works;
-`morid --version` prints a version; size is reported.
+`morid --version` prints a version; size is reported; **and the same workflow runs the Phase 0 checks** —
+`python3 -m unittest tools.capture.test_qt_ini_roundtrip` and `tools/capture/verify_fixtures.py` — because D-017
+deferred them to here rather than dropping them.
 
 ---
 

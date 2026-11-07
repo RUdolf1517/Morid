@@ -39,6 +39,11 @@ morid-ext = { path = "crates/morid-ext" }
 morid-engine = { path = "crates/morid-engine" }
 morid-store = { path = "crates/morid-store" }
 morid-net = { path = "crates/morid-net" }
+# `morid` is the application crate both binaries depend on. It was missing from this list,
+# so `morid = { workspace = true }` in morid-cli and morid-gui could not resolve — the first
+# thing the Phase 1 branch proved, by failing to load the manifest. `morid-gui` is
+# deliberately absent: nothing may depend on it (§1, "Must not contain").
+morid = { path = "crates/morid" }
 serde = { version = "1", default-features = false, features = ["derive", "std"] }
 serde_json = { version = "1", default-features = false, features = ["std"] }
 sha2 = { version = "0.10", default-features = false }
@@ -46,7 +51,13 @@ ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] 
 tar = { version = "0.4", default-features = false }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 zip = { version = "4", default-features = false, features = ["deflate"] }
-slint = { version = "1", default-features = false, features = ["std", "compat-1-2", "renderer-femtovg"] }
+slint = { version = "1", default-features = false, features = [
+    "std",
+    "compat-1-2",
+    "renderer-femtovg",
+    "backend-winit",
+    "std-widgets",
+] }
 
 [profile.release]
 opt-level = "s"

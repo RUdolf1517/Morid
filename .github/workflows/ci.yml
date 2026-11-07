@@ -32,20 +32,28 @@ jobs:
           rustup component add rustfmt clippy 2>&1 | tee -a toolchain.log || true
           cargo --version | tee -a toolchain.log
           rustc --version | tee -a toolchain.log
-          rustfmt --version | tee -a toolchain.log
 
       - name: Cache cargo and target
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: ${{ matrix.os }}
+          key: ${{ matrix.os }}-${{ hashFiles('Cargo.lock') }}
+
+      # Temporary: generates the lock file so it can be committed by hand, since
+      # no Rust toolchain exists in the environment where this workflow is written.
+      - name: Generate the lock file (temporary)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo generate-lockfile 2>&1 | tee lockgen.log
+          wc -l Cargo.lock | tee -a lockgen.log
 
       - name: Format
         shell: bash
         run: |
           set -euo pipefail
-          # rustfmt directly, not `cargo fmt`: the wrapper in this toolchain
-          # rejects its own documented flags, and `git ls-files` is the whole
-          # truth about which files are ours (xtask included).
+          # rustfmt directly, not `cargo fmt`: on the pinned toolchain the wrapper
+          # prints its own usage text and exits 1 for both documented spellings
+          # (testing.md §7). `git ls-files` decides which files are ours.
           rustfmt --version | tee format.log
           git ls-files -z '*.rs' | xargs -0 rustfmt --edition 2021 --check 2>&1 | tee -a format.log
 
@@ -82,6 +90,21 @@ jobs:
           echo "morid --version -> $version"
           test "$version" = "morid 0.1.0"
 
+      - name: Console binary does not link Slint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo tree -p morid-cli | tee tree-cli.log
+          if cargo tree -p morid-cli -i slint > /dev/null 2>&1; then
+            echo "morid-cli depends on slint" >&2
+            exit 1
+          fi
+          if cargo tree -p morid-cli -i morid-gui > /dev/null 2>&1; then
+            echo "morid-cli depends on morid-gui" >&2
+            exit 1
+          fi
+          echo "morid-cli depends on neither slint nor morid-gui"
+
       - name: Size report
         shell: bash
         run: |
@@ -93,6 +116,20 @@ jobs:
             cat size-report.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Phase 0 checks (one platform)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tools.capture.test_qt_ini_roundtrip 2>&1 | tee phase0-unittest.log
+          ran=$(grep -o 'Ran [0-9]* test' phase0-unittest.log | grep -o '[0-9]*')
+          echo "unittest reported ${ran} tests"
+          # The task says 16; the suite has 30. Asserting the number is the point:
+          # a discovery bug reports 0 tests and exits 0.
+          test "${ran}" = "30"
+          python3 tools/capture/verify_fixtures.py 2>&1 | tee phase0-verify.log
+          grep -q '^VERIFY_OK$' phase0-verify.log
 
       - uses: taiki-e/install-action@v2
         with:
@@ -114,7 +151,11 @@ jobs:
           set -euo pipefail
           cargo audit 2>&1 | tee audit.log
 
-      - name: Print the lock file so it can be committed
+      # Temporary scaffolding, removed before the pull request is handed over:
+      # it exists only because this environment cannot read job logs and has no
+      # cargo of its own. The lock file is collected through the artefact, the
+      # rest through annotations.
+      - name: Print the lock file (temporary)
         if: always()
         shell: bash
         run: |
@@ -126,13 +167,36 @@ jobs:
             echo "no Cargo.lock in the checkout"
           fi
 
-      - name: Upload the lock file
+      - name: Upload the lock file (temporary)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cargo-lock-${{ matrix.os }}
           path: Cargo.lock
           if-no-files-found: ignore
+
+      - name: Evidence, dependency tree (temporary)
+        if: always()
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for log in tree-cli.log; do
+            [ -f "$log" ] || continue
+            head -n 10 "$log" | cut -c1-900 | while IFS= read -r line; do
+              echo "::warning title=${log}::${line}"
+            done
+          done
+
+      - name: Evidence, results (temporary)
+        if: always()
+        shell: bash
+        run: |
+          for log in size-report.txt phase0-unittest.log phase0-verify.log; do
+            [ -f "$log" ] || continue
+            tail -n 4 "$log" | cut -c1-900 | while IFS= read -r line; do
+              echo "::warning title=${log}::${line}"
+            done
+          done
 
       - name: Annotate the failure
         if: failure()

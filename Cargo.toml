@@ -37,9 +37,12 @@ ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] 
 tar = { version = "0.4", default-features = false }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 zip = { version = "4", default-features = false, features = ["deflate"] }
+# `compat-1-2` is gone from the list the specification gives: no published
+# `slint` 1.x has that feature any more, which the resolver said out loud
+# ("with features: `compat-1-2` but `slint` does not have these features", with
+# versions 1.0.0 … 1.18.1 on offer). Recorded in workspace-manifest.md §1.
 slint = { version = "1", default-features = false, features = [
     "std",
-    "compat-1-2",
     "renderer-femtovg",
     "backend-winit",
     "std-widgets",

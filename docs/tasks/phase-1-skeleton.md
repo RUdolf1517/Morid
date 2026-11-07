@@ -55,6 +55,30 @@ layout when Phase 0 started. **Do not repeat it.** Verify it instead:
 Your `git log --follow` check in §5 criterion 5 proves the move was a rename and not a copy. Nothing else about
 the layout is yours to change.
 
+### 3.1a State of the previous attempt — keep it, do not restart from scratch
+
+Phase 1 was started on `arena/17dce945-morid` before the Phase 0 branch was merged, and its remote was closed when
+PR #2 was merged. The commits `e1192eb` … `fe0f6a0` are still on that branch and are the fastest route: they already
+contain the workspace, the two binaries, `xtask size`, `deny.toml`, `rust-toolchain.toml` and a six-step workflow.
+Read them, then continue — do not rewrite them from the task text.
+
+What that attempt proved, which is worth more than the code:
+
+| Finding | Consequence, already applied to the documents |
+| --- | --- |
+| `morid = { workspace = true }` in `morid-cli` and `morid-gui` could not resolve; the manifest spec listed the five library crates but not `morid` | [../workspace-manifest.md](../workspace-manifest.md) §1 now has `morid = { path = "crates/morid" }`, with a note that `morid-gui` stays out |
+| `cargo fmt --check` prints its usage and exits 1 on the pinned 1.85.1 toolchain, for both documented spellings | [../testing.md](../testing.md) §7 now specifies `rustfmt --edition 2021 --check` over tracked `.rs` files |
+| `slint` with `default-features = false` needs `backend-winit` and `std-widgets`, which the spec omitted | the spec's feature list is corrected |
+| "four required checks" in `testing.md` §7 contradicted the six-row table | the sentence is fixed and the distinction (four gating, six steps) is written down |
+
+**Not proven, and the reason the branch is red:** `Cargo.lock` was never generated, and clippy, the tests, the
+release build, the offline build, the size report, `cargo deny` and `cargo audit` never ran — the manifest error
+stopped the job first. Nothing about "it compiles" has been demonstrated yet. The four findings above are from the
+step that did run, not from a successful build.
+
+`xtask` as a second workspace and the inline `slint!` window are acceptable if they stay explained; if either needs
+`build.rs`, stop and report, because `build.rs` is forbidden.
+
 ### 3.2 The workspace
 
 - Create the eight crates from [../workspace-manifest.md](../workspace-manifest.md) §1, each with the manifest
@@ -79,6 +103,9 @@ Replace the deleted workflows with **one** workflow, `.github/workflows/ci.yml`,
 `ubuntu-latest` / `macos-latest` / `windows-latest`, running exactly the checks in
 [../testing.md](../testing.md) §7: `fmt`, `clippy -D warnings`, `test`, `build --release`, size report,
 `cargo deny check`, `cargo audit`.
+
+The format check is `rustfmt --edition 2021 --check` over tracked `.rs` files, **not** `cargo fmt --check`: on the
+pinned toolchain 1.85.1 `cargo fmt` prints its usage and exits 1 for its own documented flags. [../testing.md](../testing.md) §7 records the reason.
 
 Requirements:
 
@@ -143,6 +170,10 @@ propose the narrowest alternative that still executes both checks; do not silent
 ---
 
 ## 5. Acceptance criteria
+
+Twelve, and criterion 12 is new: it was added by D-017 after the task was first written (commit `4a8be5f`). If your
+checkout shows eleven, your branch is based on a `main` that predates that commit — rebase before starting rather
+than reporting a missing criterion.
 
 1. `cargo build --release` succeeds on Linux, macOS and Windows; `cargo build --offline` succeeds from a warm
    cache.

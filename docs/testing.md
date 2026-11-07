@@ -177,16 +177,28 @@ Recorded here so that "we tested it" has a meaning for things automation does no
 
 ## 7. CI
 
-Target: four required checks on every pull request, all three platforms (`docs/platforms.md`).
+Target: **six** required checks on every pull request, all three platforms (`docs/platforms.md`). (This
+paragraph said "four" while the table listed six; the table is the specification and the sentence was wrong.)
 
 | Check | Command | Fails the build |
 | --- | --- | --- |
-| Format | `cargo fmt --check` | yes |
+| Format | `rustfmt --edition 2021 --check` over the tracked `.rs` files — **not** `cargo fmt --check`, see the note below | yes |
 | Lint | `cargo clippy --all-targets --all-features -- -D warnings` | yes |
 | Tests | `cargo test --all-features` | yes |
 | Build | `cargo build --release` | yes |
 | Size report | measure the release binaries, print and store the numbers | **no** ([D-008](decisions.md)) |
 | Licence and advisories | `cargo deny check`, `cargo audit` | yes |
+
+**Why not `cargo fmt --check`.** On the pinned toolchain (1.85.1) `cargo fmt` prints its own usage text and exits 1
+for *both* documented spellings, `--all --check` and `-- --check`. That is a defect in the wrapper, not in the
+formatting, and a CI step that cannot pass is worse than no step. Calling `rustfmt` directly over `git ls-files -z
+'*.rs'` was the fix that produced a real diff and then a clean run. If a future toolchain repairs `cargo fmt`,
+switching back is a one-line change — record it if you do.
+
+**Why six checks and not "four".** Format, lint, test and build gate the pull request; the size report is printed
+and stored but never fails it ([D-008](decisions.md)); licences and advisories (`cargo deny check`, `cargo audit`)
+gate it. That is four gating checks plus a report, in six steps — the phrase "four required checks" counted only the
+gating ones and confused everyone who read the table instead.
 
 The size check is a report, not a gate: growth over 10 % from the previous measurement must be explained in the
 pull request, and the history lives in [dependencies](dependencies.md). The gap this leaves — a program that

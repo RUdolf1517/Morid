@@ -57,7 +57,45 @@ The follow-up commit `b344cdc` was re-checked independently, not by reading the 
 | # | Finding | Why it matters |
 | --- | --- | --- |
 | **G5** | **The verifier does not check goldens for host paths at all.** I injected `/home/user/.cache/...` back into `s01`'s `argv.json` *and* its `log.txt` in a copy of the tree; the verifier still printed `VERIFY_OK`. | T1 is enforced only by a `grep` that runs in nobody's CI, so the exact regression it was written against can return unnoticed. The check belongs in `verify_fixtures.py`. Task **T6**. |
-| **G6** | **s20's `cwd` is the capture host's real Downloads directory, and the explanation in the report (and in my first version of this row) is wrong.** The report said the original "ignores `DownloadFolder` and takes `QStandardPaths::DownloadLocation`" when `-P` is given; I then said the cause was the locale codec. Both are wrong. `-P` is never consulted for the working directory (`utility::context::whenCreated` uses `m_events.downloadFolder()` → `settings::downloadFolder()`), and that function falls back to `downloadLocation()` **only when the configured path does not exist** (`legacy/src/settings.cpp:688-728`). The real mechanism is in [data-compat](../data-compat.md) §3.0: the original writes non-ASCII values as Qt `\xHHHH` escapes and reads them back through Qt's unescaper — so a `settings.ini` written by our harness as **literal UTF-8** is decoded by the original into a path that does not exist, and the folder is reset. The harness, not the original, is what is wrong here. | The case does not reproduce what it is named for: s20 exists to prove a non-ASCII download path works, and instead proves the reset path, because the harness wrote the file in a dialect the original cannot read. Task **T7** fixes the harness; the compatibility rule that produced this finding is D-016. |
+| **G6** | **s20's `cwd` is the capture host's real Downloads directory, and the explanation in the report (and in my first version of this row) is wrong.** The report said the original "ignores `DownloadFolder` and takes `QStandardPaths::DownloadLocation`" when `-P` is given; I then said the cause was the locale codec. Both are wrong. `-P` is never consulted for the working directory (`utility::context::whenCreated` uses `m_events.downloadFolder()` → `settings::downloadFolder()`), and that function falls back to `downloadLocation()` **only when the configured path does not exist** (`legacy/src/settings.cpp:688-728`). The real mechanism is in [data-compat](../data-compat.md) §3.0: the original writes non-ASCII values as Qt `\x<hex>` escapes and reads them back through Qt's unescaper — so a `settings.ini` written by our harness as **literal UTF-8** is decoded by the original into a path that does not exist, and the folder is reset. The harness, not the original, is what is wrong here. | The case does not reproduce what it is named for: s20 exists to prove a non-ASCII download path works, and instead proves the reset path, because the harness wrote the file in a dialect the original cannot read. Task **T7** fixes the harness; the compatibility rule that produced this finding is D-016. |
+
+### Round 3 — verdict on `f187923` (5 November 2026)
+
+Re-checked by running the verifier on a fresh `git archive` of the branch, and by reading the Qt 5.15 reader and
+writer in `qtbase/src/corelib/io/qsettings.cpp` rather than the documentation prose.
+
+**Accepted.** `VERIFY_OK`, byte-for-byte identical output to the coder's report. T7's fix works and is
+demonstrated honestly: the coder ran it *before* and *after* with everything else unchanged, showed the before
+state losing the folder, and did not claim the log line that I had wrongly told them to look for.
+
+| Check | Result |
+| --- | --- |
+| T6 host-path check exists and runs | `host_paths checked_files=126 allowed_absolute_paths=0 outside_vocabulary=0`, printed by name |
+| T6 negative | re-injected `/home/user/.cache/morid-capture/runtime/s01/...` into `argv.json` **and** `log.txt` myself: `host_paths outside the fixture vocabulary (...argv.json, ...log.txt)`, exit 1; clean tree returns `VERIFY_OK`. A second injection with a Cyrillic path outside the vocabulary (`/srv/Проекты/загрузки/...`) also fails, so the check is not ASCII-only |
+| T7 before/after | reproduced in the coder's log; `cwd` moves from `/home/user/Downloads` to `<case-dir>/output dir/Загрузки` and stays there |
+| T7 side effect | the original, on the *before* run, rewrote the value itself as `\xd0\x97\xd0\xb0...` — the UTF-8 bytes `D0 97` read as Latin-1 and written back per code unit. This is direct evidence for the mechanism in [data-compat](../data-compat.md) §3.0, better than my documentation-based argument |
+| Blast radius | `git diff --stat b344cdc f187923` = 6 files, +119/−8; 39 of 40 cases untouched |
+| Idempotency | re-run on the new tree: `IDEMPOTENCY_OK files=191`, `sha256_manifest_diff=empty` |
+
+**Corrected — the coder is right and I was wrong about the log line.** `settings::downloadFolder()` passes a
+default-constructed `sLogger`, whose `add()` is a no-op when its `Logger*` is null (`legacy/src/settings.cpp:1631`).
+The reset is therefore **not** logged: the `logger.add(tr(Settings::Resetting download folder to default))` path
+in `downloadFolderImp` only produces output when a `Logger&` overload is called. My acceptance criterion "the log
+contains no 'Resetting download folder to default'" was satisfied by every run ever made, including the broken
+ones. The coder replaced it with the observable facts — `cwd` and the rewritten `DownloadFolder` in
+`settings.ini` — which is the correct choice. Recorded as **O8** in [../migration.md](../migration.md) §6.1.
+
+**Still open — one finding (G7), one self-inflicted defect in the verifier (G8):**
+
+| # | Finding | Why it matters |
+| --- | --- | --- |
+| **G7** | **`escape_qt_ini_value` is correct for the values we have and wrong for one class we do not.** Qt 5's writer sets `escapeNextIfDigit` after any `\x` escape and then re-escapes a following ASCII digit or hex letter as `\x<ch hex>` (`qsettings.cpp`, `iniEscapedString`). So Qt writes `Загрузки5` as `...\x438\x35`, while our helper writes `...\x4385`, which Qt's reader turns into `Загрузк䎅` — the folder is lost again, silently. I verified the round trip with Qt's own unescape algorithm: `/x/Загрузки5`, `/x/Папка1`, `/x/тестa`, `/x/é5` all break; `/x/Загрузки` and `/x/Загрузки-5` survive. This is the exact silent-loss failure s20 was built to catch, one character away from the current fixture. | Any download folder whose name contains a non-ASCII character followed by a digit or an `a-f`/`A-F` letter round-trips incorrectly. A user folder named `Отпуск2024` or `фото1` is not exotic. Task **T9**. |
+| **G8** | I told the coder "do not invent quoting rules", and they obeyed too literally: `escape_qt_ini_value` does not quote. Qt 5 quotes a value when it contains `;`, `,` or `=`, or begins or ends with a space (`iniEscapedString`, `needsQuotes`). A path containing a comma is written by the original as `"..."` and read back with the quotes stripped — our writer without quoting would produce a value the original reads *including* the quote characters. Not exercised by any current case. | Combined with G7, the harness's writer differs from Qt's in two documented ways, so nothing in the fixture set may be called "the Qt dialect" yet. The verifier also only sanity-checks one hardcoded Cyrillic string, so it cannot catch either divergence. Task **T10**. |
+
+**Also recorded, not a defect:** `fixtures/streams/**/meta.json` keeps `/home/user/.cache/morid-capture/...` inside
+`command` arrays (four backends), and the new `host_paths` check is scoped to `fixtures/scenarios` only — so it
+does not fire on them. This is the same deliberate exclusion as in round 2, now load-bearing: if someone widens
+the check to all of `fixtures/`, those provenance records must be exempted explicitly rather than by accident.
 
 **Recorded so it is not raised again:** `fixtures/streams/**/meta.json` keeps the capture host's backend paths inside `command` arrays. T1 excluded them deliberately — those arrays are provenance, not goldens, and rewriting them would make the record of the capture untrue.
 
@@ -427,7 +465,7 @@ Acceptance: the injection fails loudly, the clean tree prints `VERIFY_OK`, the c
 
 The cause is established and is not the locale. The harness writes `settings.ini` as literal UTF-8
 (`capture.py`, `settings_path.open("w", encoding="utf-8")`). The original reads that file through `QSettings`
-with no `setIniCodec`, so under Qt 5 it expects Qt-escaped ASCII — `\xHHHH` per non-ASCII UTF-16 code unit — and
+with no `setIniCodec`, so under Qt 5 it expects Qt-escaped ASCII — `\x<hex>` per non-ASCII UTF-16 code unit — and
 a literal UTF-8 byte sequence decodes into a different string. The path then does not exist, and the original
 resets the download folder to the platform default, which is exactly what s20's `cwd` shows.
 
@@ -437,7 +475,8 @@ resets the download folder to the platform default, which is exactly what s20's 
    the new cause — do not paper over it.
 2. Make the escaping a single helper next to `canonicalise.py`, used for every value the harness writes into
    `settings.ini`. Scope it to what we can *verify*, not to everything Qt's writer can do:
-   - non-ASCII character → `\xHHHH` of its UTF-16 code unit (a non-BMP character becomes two escapes);
+   - non-ASCII character → `\x<hex>` of its UTF-16 code unit: lowercase, no padding, and the digit defence from
+     T9 (a non-BMP character becomes two escapes);
    - backslash → `\\`;
    - pure-ASCII values → byte-identical to today's output, so no other case changes.
    Do **not** invent quoting rules (when Qt wraps a value in `"`, how it handles commas, spaces or empty values)
@@ -461,12 +500,62 @@ Do **not** change `legacy/` and do not change the userdata fixture. Add to `fixt
 "Behaviour discovered, not specified":
 
 > **settings.ini is Qt-escaped ASCII, not UTF-8** — the original never calls `QSettings::setIniCodec`, so on Qt 5
-> a non-ASCII value is written as `\xHHHH` per code unit and the file stays pure ASCII (Qt documentation, "Format
+> a non-ASCII value is written as `\x<hex>` per code unit and the file stays pure ASCII (Qt documentation, "Format
 > enum"). A UTF-8 file placed there by anything else is decoded into a different string. Evidence: s20 before
 > T7. Consequence for Morid: it reads and writes this dialect deliberately — D-016 in `docs/decisions.md`.
 
 Also add one line about it to the top of that section. The manager folds it into
 [../data-compat.md](../data-compat.md) §3.0; do not edit that file.
+
+### T9 — the escape helper must survive a digit or hex letter after an escape (G7)
+
+Qt 5's writer does not simply emit `\x<hex>` per non-ASCII unit: it sets a flag after any escape and, if the next
+character is `0-9a-fA-F`, escapes **that** character too, because otherwise the reader's greedy hex scan would
+swallow it. The reader is greedy in exactly this way (`iniUnescapedString`, `StHexEscape`). Result: `Загрузки5`
+is written by Qt as `...\x438\x35`; our helper writes `...\x4385`, and Qt reads that as `Загрузк䎅`.
+
+1. Fix `escape_qt_ini_value` to track that flag: after emitting a `\x` escape, if the next character is an ASCII
+   digit or one of `a-f`/`A-F`, emit it as `\x<lowercase hex, unpadded>` as well. Keep two-space, lowercase and
+   unpadded; keep `\\` for backslash.
+2. Prove it with a round trip in the verifier, not in the commit message: implement Qt's unescape (greedy hex scan,
+   `\x` any number of hex digits, `\\`/`\"`/`\,`/`\=` single-character escapes) as a test helper, and assert
+   `unescape(escape(x)) == x` for at least: `Загрузки`, `Загрузки5`, `Папка1`, `тестa`, `é5`, `Отпуск2024`,
+   `фото1`, `a\\b`, and the plain-ASCII value used by the other 39 cases. The test runs as part of
+   `verify_fixtures.py` and prints its name, like the `host_paths` check does.
+3. Keep the hardcoded assertion on `Загрузки` — it documents the expected bytes — but the round-trip table is what
+   makes the helper trustworthy.
+4. If any of those round trips cannot be made to pass, stop and report which one and why. Do not adjust the
+   expected values to match the implementation.
+
+Acceptance: the round-trip table passes, `Загрузки` still escapes to the same bytes as in `f187923`, no scenario
+file changes, `VERIFY_OK` on the clean tree.
+
+### T10 — quote like Qt does, and say how far the helper goes (G8)
+
+Qt 5 wraps a value in `"` when it contains `;`, `,` or `=`, or when it starts or ends with a space
+(`iniEscapedString`, `needsQuotes`). Our writer does none of this, so it produces values the original reads back
+with quote characters in them.
+
+1. Add quoting to `escape_qt_ini_value` for exactly those five conditions, matching Qt's own test. Nothing else:
+   no escaping of newlines, tabs or other control characters, because no fixture needs them and each addition is
+   a claim we would have to test.
+2. **A wrong decision here is worse than an incomplete one.** If implementing the five conditions raises a
+   question you cannot settle from the Qt source, report it instead of guessing.
+3. State the boundary in `fixtures/README.md` in one sentence: the helper covers non-ASCII escaping, backslash,
+   and Qt's quoting conditions; it deliberately does not cover the rest of Qt's writer (control characters,
+   `@ByteArray(...)`/`@Variant(...)` value prefixes, QStringList comma splitting). Phrase it as a limit, so nobody
+   later reads "the Qt dialect" as "all of Qt".
+4. Add to the round-trip table from T9 one quoted value (a path containing a comma) and assert `unescape` strips
+   the quotes.
+
+Acceptance: the comma case round-trips, no scenario changes, `VERIFY_OK`, the limit is written down.
+
+### T11 — prove the folder survives a digit, end to end (optional, only if a case is cheap)
+
+Everything above is unit-level. If an existing case can be pointed at a download folder containing a digit after a
+Cyrillic letter without inventing a new scenario, do it and let the capture show `cwd` unchanged. If that means a
+new case in the manifest, skip it and say so — a unit-level round trip plus s20 is enough for Phase 0, and I would
+rather have the smaller diff.
 
 ### Reporting
 

@@ -74,9 +74,25 @@ constructs `QSettings(m, QSettings::IniFormat)` on every platform (`legacy/src/s
 > are encoded using standard INI escape sequences.
 
 So a `DownloadFolder` of `/x/Загрузки` is **written** by the original as `/x/\x417\x430...` — ASCII on disk,
-every UTF-16 code unit as `\xHHHH`. The file is not UTF-8, not locale-encoded, and not something a byte-oriented
+one escape per UTF-16 code unit, **lowercase hexadecimal with no padding** (`\x417`, not `\x0417`; a non-BMP
+character becomes two escapes). The file is not UTF-8, not locale-encoded, and not something a byte-oriented
 reader can interpret: it is an INI dialect with its own escaping. This is the fact that matters for Morid, and
 it is unrelated to the machine's locale.
+
+Three rules of that dialect are easy to get wrong, and all three are taken from
+`qtbase/src/corelib/io/qsettings.cpp` (`iniEscapedString` and `iniUnescapedString`) rather than from memory:
+
+1. **The hex scan is greedy, so the writer defends against it.** After emitting `\x<hex>`, Qt sets
+   `escapeNextIfDigit`; if the next character is `0-9`, `a-f` or `A-F`, it escapes that character too. `Загрузки5`
+   is therefore written `\x417...\x438\x35`, not `...\x4385` — and a reader whose scan is greedy (Qt's is)
+   turns the naive form into a different string. A folder called `Отпуск2024` or `фото1` hits this.
+2. **A value is quoted when it contains `;`, `,` or `=`, or begins or ends with a space** (`needsQuotes`). Quotes
+   are part of the file, not of the value: Qt strips them on read.
+3. **`\` is written as `\\`**, and the control characters `\0 \a \b \f \n \r \t \v` have their own
+   short escapes.
+
+Both mistakes are silent. The original does not report a bad value; it reads something else, the path does not
+exist, and the folder is reset. This is why the round trip has to be tested rather than reasoned about.
 
 The read side of the same documentation matters just as much: Qt 5 "will accept **Latin-1** encoded INI files".
 A file written by something else — our capture harness, for instance — as literal UTF-8 is therefore not
@@ -97,12 +113,13 @@ builds of *their own program* disagree about the same file.
 
 **What this means for Morid — decided by D-016 (compatibility first):**
 
-- **Read the Qt dialect, and say what was found.** A value containing `\xHHHH` escapes is decoded as Qt's; a value
+- **Read the Qt dialect, and say what was found.** A value containing `\x` escapes is decoded as Qt's; a value
   that is plain ASCII needs no decision. Two cases must be *reported rather than guessed*: a value whose bytes are
   valid UTF-8 but not ASCII (that is what a Qt 6 build of the original writes — see below), and a value that is
   neither valid UTF-8 nor pure ASCII. Never fall back to Latin-1 the way Qt 5 does; producing silent mojibake is
   the one behaviour not to copy.
-- **Write the Qt 5 dialect.** Non-ASCII characters are emitted as `\xHHHH`, exactly as Qt 5 does. This is ugly on
+- **Write the Qt 5 dialect.** Non-ASCII characters are emitted as `\x<hex>`, with the digit defence and the
+  quoting rule above, exactly as Qt 5 does. This is ugly on
   purpose: it is the only form the reference program can read back. (Qt 6 fixed this and, ironically, broke
   itself — so "write what the reference does" has to name *which* reference build.)
 - **ASCII files are byte-identical** under either rule, which is why none of this was visible for years.

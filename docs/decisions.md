@@ -217,13 +217,15 @@ is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-
   reference program writes, and writes that dialect back. It does not "improve" the file to UTF-8.
 - **Reasoning:** the owner's position is compatibility first, and here it is also the only choice that keeps the
   promise in D-003. A `settings.ini` containing a non-ASCII value is written by the original as ASCII with
-  `\xHHHH` escapes (Qt 5 with no `setIniCodec`); a UTF-8 file written by Morid would be misread by the original
+  `\x<hex>` escapes (Qt 5 with no `setIniCodec`); a UTF-8 file written by Morid would be misread by the original
   as a different path, and the original would then reset the user's download folder. Writing UTF-8 would be a
   deliberate break dressed up as an improvement.
 - **What it does not mean:** Morid does not reproduce *defects*. The Qt 5 → Qt 6 divergence is recorded so that a
   user who switches builds understands what happened, not imitated.
 - **Consequences:**
-  - the INI reader and writer are specified in [data-compat](data-compat.md) §3.0, including the `\xHHHH` rule;
+  - the INI reader and writer are specified in [data-compat](data-compat.md) §3.0, including the `\x<hex>` rule,
+    the digit-defence rule and the quoting rule — all three taken from Qt's own source, and all three silent when
+    got wrong;
   - this is an *architecture* consequence, not a local one: `morid-store` cannot use a general-purpose INI
     crate for this file. It needs a reader/writer for Qt's dialect, written and tested in this repository
     ([dependencies](dependencies.md) §2 gains a rejection entry with this reason);

@@ -207,12 +207,14 @@ assumed to be the opposite, and because the fixture records the real thing.
 | O4 | On Linux the shipped `Generic` branch of the you-get extension invokes `you-get` directly; the interpreter invocation exists only in the Windows branch. | s33 | The per-OS command tables are not interchangeable and cannot be reduced to one. Not captured as a golden; the observed command is kept. |
 | O5 | `AutoUpdate` produces no external process at all — updating a backend is done in-process through the network layer. | s28 | There is no argv to reproduce for updates; the equivalent behaviour is "fetch release metadata, verify, replace the binary" ([F-34](features.md)). |
 | O6 | Subtitles and comments are fetched with `--print`/`--get-comments` and `--no-download`, not by a separate list command. | s16, s18 | The metadata reader is the same code path as the download planner; it must not be modelled as a separate "probe" subsystem. |
-| O7 | `settings.ini` is not UTF-8: the original writes Qt-escaped ASCII (`\xHHHH` per non-ASCII code unit) because it never calls `setIniCodec` on a Qt 5 `QSettings`. Under Qt 6 the same file is written as UTF-8, so the two builds of the original disagree with each other. | s20 (the capture also exposed a separate, still-open question about that case) | Morid reads and writes the Qt 5 dialect — D-016. A general-purpose INI crate cannot do this. An earlier version of this row blamed the capture's locale; that explanation was wrong and is corrected here. |
+| O7 | `settings.ini` is not UTF-8: the original writes Qt-escaped ASCII (`\x<hex>` per non-ASCII code unit) because it never calls `setIniCodec` on a Qt 5 `QSettings`. Under Qt 6 the same file is written as UTF-8, so the two builds of the original disagree with each other. | s20 (the capture also exposed a separate, still-open question about that case) | Morid reads and writes the Qt 5 dialect — D-016. A general-purpose INI crate cannot do this. An earlier version of this row blamed the capture's locale; that explanation was wrong and is corrected here. |
 
 The distinction between §5 and §6: §5 changes something users see; §6 fixes something that was broken. Both are
 documented, because "we silently improved it" is how a replacement becomes untrustworthy.
 
 ---
+
+| O8 | The "Resetting download folder to default" message **never appears** in the application log, even when the reset happens: `settings::downloadFolder()` passes a default-constructed `sLogger` whose `add()` is a no-op without a `Logger*` (`legacy/src/settings.cpp:1631`). The reset is observable only through the resulting working directory and the rewritten `DownloadFolder` value. | s20, `f187923` | Do not use the log line as evidence of anything. Morid should log its own equivalent properly — this is one of the defects not to reproduce (D-016 note). |
 
 ## 7. Equivalence, precisely defined
 

@@ -175,14 +175,14 @@ Reconsider only if the scheduler demonstrably needs it.
 The file is `settings.ini`, written by the reference program through `QSettings` on **Qt 5 with no
 `setIniCodec` call**. Qt documents the result precisely: "no codec is used, and non-ASCII characters are encoded
 using standard INI escape sequences", generating "pure ASCII files". A `DownloadFolder` of `/x/Загрузки` is
-therefore on disk as `/x/\x417\x430...` — one `\xHHHH` per UTF-16 code unit, inside an INI dialect that no
+therefore on disk as `/x/\x417\x430...` — one `\x<hex>` per UTF-16 code unit, inside an INI dialect that no
 general-purpose parser implements.
 
 Reading that file with a byte-oriented INI crate yields a path with literal backslashes in it; writing it back as
 UTF-8 produces a file the original cannot read. Either way the user's download folder is lost. This is why
 D-016 made the encoding a compatibility requirement rather than a preference.
 
-**What is used instead:** a reader and writer for Qt's INI dialect, inside `morid-store`, with the `\xHHHH` rule,
+**What is used instead:** a reader and writer for Qt's INI dialect, inside `morid-store`, with the `\x<hex>` rule,
 the `%XX`/`%UXXXX` key-escaping rule, `[Section]` grouping, `;`/`#` comments and Qt's writer quirks. It is
 perhaps 200 lines plus tests — smaller than the argument needed to justify a dependency that still would not
 work. The test fixture is a real `settings.ini` produced by the reference program containing a non-ASCII path

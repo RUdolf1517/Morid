@@ -97,11 +97,14 @@ builds of *their own program* disagree about the same file.
 
 **What this means for Morid — decided by D-016 (compatibility first):**
 
-- **Read both dialects.** A value is decoded as a Qt-escaped INI string when it contains `\x` escapes; otherwise
-  it is read as UTF-8. Nothing else is guessed, and the rule is stated in the importer's report.
-- **Write the original's dialect.** When Morid writes a value that the original may read, non-ASCII characters
-  are emitted as `\xHHHH`, exactly as Qt 5 does. This is ugly on purpose: it is the only form the reference
-  program can read back.
+- **Read the Qt dialect, and say what was found.** A value containing `\xHHHH` escapes is decoded as Qt's; a value
+  that is plain ASCII needs no decision. Two cases must be *reported rather than guessed*: a value whose bytes are
+  valid UTF-8 but not ASCII (that is what a Qt 6 build of the original writes — see below), and a value that is
+  neither valid UTF-8 nor pure ASCII. Never fall back to Latin-1 the way Qt 5 does; producing silent mojibake is
+  the one behaviour not to copy.
+- **Write the Qt 5 dialect.** Non-ASCII characters are emitted as `\xHHHH`, exactly as Qt 5 does. This is ugly on
+  purpose: it is the only form the reference program can read back. (Qt 6 fixed this and, ironically, broke
+  itself — so "write what the reference does" has to name *which* reference build.)
 - **ASCII files are byte-identical** under either rule, which is why none of this was visible for years.
 - **Import decodes strictly and reports.** A file containing bytes that are neither valid UTF-8 nor valid Qt
   escapes is reported as a finding, not silently repaired.

@@ -233,25 +233,28 @@ is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-
   - a non-ASCII value must appear in the fixture set, so the rule is exercised rather than assumed.
 
 
-### Open question for the owner — CI before Phase 1?
+### D-017 — Phase 0's checks stay manual; CI arrives with Phase 1
 
-- **Raised:** 5 November 2026, by the coder during round 5 of Phase 0, accepted as a fair question rather than a
-  coder decision.
-- **Situation:** nothing in this repository runs automatically. `.github/` is absent: the ten inherited workflows
-  were removed in `4a82e19` and the replacement is Rust CI in Phase 1. Phase 0 now owns two checks that must be
-  remembered by hand — `tools/capture/verify_fixtures.py` and `python3 -m unittest` (16 tests, seeded fuzz,
-  round 3 object). Both were written because checks that do not run are the exact failure they were created to fix.
-- **Options:** (a) one `ubuntu-latest` job now, running both — one file, no Rust; (b) wait for Phase 1, accept that
-  both can rot until then.
-- **Manager's recommendation:** (a). It does not contradict the Phase 1 decision, which is about the Rust CI matrix,
-  not about whether any workflow may exist earlier. The cost of (b) is paid in Phase 3, which will trust the
-  fixtures.
-- **What it blocks:** nothing in Phase 0 acceptance except the wording of the roadmap status. T13 proceeds either
-  way.
+- **Date:** 5 November 2026 · **Question:** should the Phase 0 checks get a workflow before Phase 1? Raised by the
+  coder in round 5 and escalated, because it was not theirs to decide.
+- **Decision:** **wait for Phase 1.** No workflow is added in Phase 0. `tools/capture/verify_fixtures.py` and
+  `python3 -m unittest tools.capture.test_qt_ini_roundtrip` stay commands a person runs.
+- **Reasoning:** the owner's call, against the manager's recommendation of a job now. The Phase 1 deliverable is a
+  pipeline that reports on every later phase; adding a throwaway job first means writing one file now and a
+  different one in a week, and the repository has no Rust to run yet.
+- **Consequence that must be honoured, not just noted:** the risk I raised does not go away because the decision
+  went the other way. Both checks can rot silently until Phase 1 lands, and Phase 3 will trust the fixtures. So
+  the obligation is explicit:
+  - `docs/roadmap.md` Phase 1 carries a **new exit criterion**: the CI workflow must run the Phase 0 checks as well
+    as the Rust ones. It is not extra scope — it is where these checks were always going to live.
+  - the first Phase 1 task must list them, so the coder cannot deliver "green CI" that ignores them.
+  - until then, the review procedure for any Phase 0 follow-up states which commands were run by hand and their
+    output, so "it was not run" is visible rather than assumed.
+- **What would reverse this:** if Phase 1 slips past its estimate, or if either check is found broken in a way an
+  automated run would have caught, the job comes first and the Phase 1 matrix waits.
 
-
-**None.** All fifteen questions of the audit were decided on 4 November 2026. D-016 was raised afterwards, by
-the Phase 0 review, and is decided.
+**None.** All fifteen questions of the audit were decided on 4 November 2026. D-016 and D-017 were raised
+afterwards, by the Phase 0 review, and both are decided.
 
 | Question | Decision | Question | Decision |
 | --- | --- | --- | --- |

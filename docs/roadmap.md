@@ -64,9 +64,9 @@ wrapper transcripts, seven backends of raw output, an anonymised data directory 
 program, and a comparator. Goldens were then made independent of the capture host (`b344cdc`), the verifier was
 given teeth (`f187923`), and both late findings of round 2 were closed. **Not yet accepted, and only one reason left:** round 5 made the
 `settings.ini` writer correct and its proof runnable (`python3 -m unittest`, 16 tests, seeded fuzz), and reduced
-the file to one writer. What remains is small (T13) plus a decision that is not the coder's: **nothing in this
-repository runs automatically**, so both the new test and `verify_fixtures.py` still have to be remembered. One CI
-job now, or wait for Phase 1 — [tasks/phase-0-fixtures.md](tasks/phase-0-fixtures.md) §0, Q-owner. The four uncaptured cases are real observations,
+the file to one writer. What remains is T13, small. Nothing in this
+repository runs automatically, and that is now a decision rather than a gap: D-017 defers both checks to the
+Phase 1 workflow, which is required by Phase 1's exit criteria to run them and to report the test count. The four uncaptured cases are real observations,
 not omissions: see [migration](migration.md) §6.
 
 **Exit criteria:** a reviewer can take any scenario and see both argument vectors; every backend that Morid will
@@ -89,7 +89,9 @@ support has at least one captured output.
   normative (audit defect D7).
 
 **Estimate:** 5–7 days. **Exit criteria:** green CI on three platforms; `cargo build --offline` works;
-`morid --version` prints a version; size is reported.
+`morid --version` prints a version; size is reported; **and the same workflow runs the Phase 0 checks** —
+`python3 -m unittest tools.capture.test_qt_ini_roundtrip` and `tools/capture/verify_fixtures.py` — because D-017
+deferred them to here rather than dropping them.
 
 ---
 

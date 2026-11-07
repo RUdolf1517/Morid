@@ -92,6 +92,25 @@ Requirements:
 - no secret, no token and no write permission beyond reading the repository;
 - total wall-clock under 15 minutes per platform.
 
+**The Phase 0 checks run here too, on one platform only** (D-017 deferred them to this phase rather than dropping
+them):
+
+```
+python3 -m unittest tools.capture.test_qt_ini_roundtrip     # 16 tests, stdlib only
+python3 tools/capture/verify_fixtures.py                    # prints VERIFY_OK
+```
+
+Two things about them that are the whole point of putting them here:
+
+- they need nothing but `python3` — no Qt, no network, no fixtures download — so a failure is a real failure, not
+  an environment problem;
+- the first one is **not** a formality: without `tools/__init__.py` and `tools/capture/__init__.py`, discovery runs
+  zero tests and exits 0. If a workflow step can pass while running nothing, it will. Assert that the run reports
+  16 tests, not merely exit 0 — count them in the step's output.
+
+If `verify_fixtures.py` cannot run on the runner for a reason you can demonstrate, say so in the pull request and
+propose the narrowest alternative that still executes both checks; do not silently skip them.
+
 ### 3.4 Documentation of the result
 
 - `README.md`: replace "There is no Rust code yet" with an accurate one-paragraph status — what builds today, and
@@ -144,6 +163,9 @@ Requirements:
     hiding `cc`/`gcc` and building, or explain precisely why that test cannot be performed in your environment
     and what you did instead.
 11. Total CI wall-clock per platform is under 15 minutes; the actual times are reported.
+12. The workflow runs the Phase 0 checks and **reports 16 tests**, not just exit 0: paste the step where the count
+    appears. A run that discovers nothing must fail the job — demonstrate the guard by pointing the step at an
+    empty test pattern locally and showing it fails.
 
 ---
 

@@ -38,14 +38,16 @@ tar = { version = "0.4", default-features = false }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 zip = { version = "4", default-features = false, features = ["deflate"] }
 # Deviations from workspace-manifest.md §1, each forced by crates.io itself:
-#   * `compat-1-2` and `std-widgets` do not exist in the `slint` versions that
-#     build with the pinned toolchain, and `std-widgets` does not exist in 1.13
-#     or 1.18 at all (crates.io API, /api/v1/crates/slint/1.13.1);
+#   * `std-widgets` does not exist in slint 1.13 or 1.18 at all (crates.io API,
+#     /api/v1/crates/slint/1.13.1: 33 features, no `std-widgets`); widgets are
+#     built in. `compat-1-2` stays: slint refuses to compile without it
+#     ("the feature `compat-1-2` must be enabled", slint-1.13.1/lib.rs:207);
 #   * `version = "1"` resolved to 1.18.1, which is edition 2024 and needs a
 #     newer rustc than the 1.85 the workspace pins. `~1.13` is the newest line
 #     whose MSRV is exactly 1.85, which is what §1's note claims this pin is.
 slint = { version = "~1.13", default-features = false, features = [
     "std",
+    "compat-1-2",
     "renderer-femtovg",
     "backend-winit",
 ] }

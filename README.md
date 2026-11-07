@@ -25,11 +25,13 @@ by Francis Banyikwa. The original C++/Qt program is the functional reference; it
 
 ## Project status
 
-**Pre-alpha. There is no Rust code yet.**
+**Pre-alpha. The workspace builds, and does nothing.**
 
-The inventory of what has to be built, how it is verified and in what order is complete and is recorded in
-[`docs/`](docs/). No functional Rust code exists, so nothing here should be read as a description of a
-working program. What exists today:
+Phase 1 is a skeleton: eight crates that compile, an empty library in each, a console binary whose only
+feature is `morid --version`, and a Slint window that shows "Morid 0.1.0" and closes. `cargo build --release`,
+`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`, `cargo deny check` and `cargo audit` run in CI on
+Linux, macOS and Windows, and the release binaries are measured rather than gated. There is no download
+functionality yet: the crates are shapes, not behaviour, and Phase 2 starts filling them. What exists today:
 
 | Area | State |
 | --- | --- |
@@ -37,7 +39,7 @@ working program. What exists today:
 | Product decisions (15 open questions) | decided — [`docs/decisions.md`](docs/decisions.md) |
 | Functional map (every feature, priority, acceptance criterion) | done — [`docs/features.md`](docs/features.md) |
 | Architecture, roadmap, migration plan | done — [`docs/architecture.md`](docs/architecture.md), [`docs/roadmap.md`](docs/roadmap.md), [`docs/migration.md`](docs/migration.md) |
-| Rust workspace, CI, first code | not started — Phase 1 |
+| Rust workspace, CI, first code | done — Phase 1: eight crates, six checks on three platforms, size reported |
 | Repository layout: C++ in `legacy/`, 10 inherited workflows retired | done — see [`legacy/`](legacy/) |
 
 The roadmap explains the order and why it is that order: [docs/roadmap.md](docs/roadmap.md).

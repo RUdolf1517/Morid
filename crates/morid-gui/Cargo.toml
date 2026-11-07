@@ -1,0 +1,18 @@
+[package]
+name = "morid-gui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The morid Slint window"
+
+[[bin]]
+name = "morid-gui"
+path = "src/main.rs"
+
+
+[dependencies]
+morid = { workspace = true }
+slint = { workspace = true }

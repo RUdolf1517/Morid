@@ -13,7 +13,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from canonicalise import Canonicaliser, CanonicalisationError, escape_qt_ini_value
+from canonicalise import (
+    Canonicaliser,
+    CanonicalisationError,
+    escape_qt_ini_key,
+    escape_qt_ini_value,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -326,7 +331,9 @@ def prepare_case(definition: dict[str, Any], runtime: Path) -> dict[str, Any]:
             # Qt 5 writes ini values it owns as escaped ASCII and reads a raw
             # UTF-8 file back as Latin-1; s20's cyrillic download folder only
             # survives the round trip in Qt's dialect.
-            output.write(f"{key}={escape_qt_ini_value(str(value))}\n")
+            # Keys and values are two dialects (data-compat §3.0a): a key goes
+            # through the key escaper, never through the value one.
+            output.write(f"{escape_qt_ini_key(key)}={escape_qt_ini_value(str(value))}\n")
 
     for name, value in definition.get("data_files", {}).items():
         json_write(data_dir / name, value)

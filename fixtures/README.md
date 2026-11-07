@@ -81,7 +81,9 @@ own `iniUnescapedStringList`; `verify_fixtures.py` calls the same checks and pri
 `settings_ini_roundtrip`. The helper's limit is narrower than "the Qt dialect": it covers non-ASCII
 escaping, backslash, quotes and the five quoting conditions, and it deliberately says nothing about control
 characters, `@ByteArray(...)`/`@Variant(...)` value prefixes or QStringList comma splitting — each of those
-is pinned by a test in `QtIniLimit` rather than by this sentence. There is exactly one writer: the post-download
+is pinned by a test in `QtIniLimit` rather than by this sentence. Keys are a separate dialect with its own
+escaper (`%XX`, `%UXXXX`, `\\` for the group separator) and its own tests in `QtIniKeys`; a non-ASCII engine
+name puts one of those in a real `settings.ini`, which is why the harness writes keys through it too. There is exactly one writer: the post-download
 hook's command line in s38 is a settings value like any other and goes through the same helper.
 `tools/capture/qt_driver.cpp` is built as an external `LD_PRELOAD` helper; it interposes only
 `QCoreApplication::exec()` to schedule UI actions. Nothing in `legacy/` is changed or linked into the

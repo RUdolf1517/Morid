@@ -31,8 +31,13 @@ from pathlib import Path
 # directory (direct execution, and the verifier next to it) alike.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from canonicalise import escape_qt_ini_value  # noqa: E402  (after sys.path)
-from qt_ini import qt_ini_unescape, read_settings_ini  # noqa: E402  (after sys.path)
+from canonicalise import escape_qt_ini_key, escape_qt_ini_value  # noqa: E402  (after sys.path)
+from qt_ini import (  # noqa: E402  (after sys.path)
+    qt_ini_lines,
+    qt_ini_unescape,
+    qt_ini_unescape_key,
+    read_settings_ini,
+)
 
 # Fixed on purpose: the fuzz must give the same answer tomorrow, so both the
 # seed and the iteration count live here rather than in a command line.
@@ -110,6 +115,33 @@ USERDATA_SETTINGS = (
 )
 
 
+# Keys are a different dialect from values (data-compat §3.0a): `%XX` for
+# Latin-1, `%UXXXX` for the rest, `\\` for the group separator.  Nothing in
+# fixtures/ uses one; real Windows settings.ini files do.
+KEY_CORPUS = (
+    "DownloadFolder",               # ASCII, the ordinary case
+    "CookieBrowser_yt-dlp-aria2c",  # every character Qt keeps literal
+    "Загрузки",                     # %UXXXX
+    "é",                            # %XX, Latin-1
+    "My/Group/Key",                 # a nested key: a backslash in the file
+    "50%",                          # a literal percent, which is escaped
+    "\U0001F600",                   # non-BMP: two escapes, as Qt writes it
+    "a b",                          # a space, escaped
+)
+
+
+def check_keys(escape_key=escape_qt_ini_key, unescape_key=qt_ini_unescape_key) -> int:
+    """Check that a key survives its own escape, which no fixture exercises."""
+    for key in KEY_CORPUS:
+        escaped = escape_key(key)
+        _require(all(ord(char) < 0x80 for char in escaped),
+                 f"key {key!r} escaped to non-ASCII {escaped!r}")
+        _require(unescape_key(escaped) == key,
+                 f"key {key!r} is written as {escaped!r}, which Qt reads back as "
+                 f"{unescape_key(escaped)!r}")
+    return len(KEY_CORPUS)
+
+
 def check_userdata_settings(path: Path | str = USERDATA_SETTINGS) -> dict[str, int]:
     """T13/G10: the committed userdata `settings.ini` is Qt's own output.
 
@@ -121,10 +153,14 @@ def check_userdata_settings(path: Path | str = USERDATA_SETTINGS) -> dict[str, i
     the check reports and the caller decides.
     """
     path = Path(path)
-    values = read_settings_ini(path)
+    lines = qt_ini_lines(path)
     non_ascii = sum(1 for byte in path.read_bytes() if byte >= 0x80)
     lists = 0
-    for key, raw in values.items():
+    for raw_key, raw in lines:
+        key = qt_ini_unescape_key(raw_key)
+        _require(escape_qt_ini_key(key) == raw_key,
+                 f"{path.name}: key {raw_key!r} decodes to {key!r}, which would be written "
+                 f"as {escape_qt_ini_key(key)!r}")
         decoded = qt_ini_unescape(raw)
         if isinstance(decoded, list):
             lists += 1
@@ -134,7 +170,7 @@ def check_userdata_settings(path: Path | str = USERDATA_SETTINGS) -> dict[str, i
         _require(reencoded == raw,
                  f"{path.name}: {key} is written as {raw!r}, but the value Qt reads back "
                  f"({decoded!r}) would be written as {reencoded!r}")
-    return {"keys": len(values), "lists": lists, "non_ascii": non_ascii}
+    return {"keys": len(lines), "lists": lists, "non_ascii": non_ascii}
 
 
 def fuzz_values(seed: int = FUZZ_SEED, iterations: int = FUZZ_ITERATIONS):
@@ -224,8 +260,9 @@ def check_all(escape=escape_qt_ini_value) -> dict[str, int]:
     for value in ("en_US", "/home/user/downloads/archive", "yt-dlp"):
         _require(escape(value) == value, f"{value!r} is no longer written verbatim: {escape(value)!r}")
 
+    keys = check_keys()
     fuzz = round_trip(escape, fuzz_values())
-    return {"values": values, "quoted": quoted, "fuzz": fuzz, "seed": FUZZ_SEED}
+    return {"values": values, "keys": keys, "quoted": quoted, "fuzz": fuzz, "seed": FUZZ_SEED}
 
 
 class QtIniRoundTrip(unittest.TestCase):
@@ -273,6 +310,7 @@ class QtIniRoundTrip(unittest.TestCase):
         self.assertEqual(summary["fuzz"], FUZZ_ITERATIONS)
         self.assertEqual(summary["quoted"], 5)
         self.assertEqual(summary["seed"], FUZZ_SEED)
+        self.assertEqual(summary["keys"], len(KEY_CORPUS))
 
     def test_a_broken_writer_is_caught(self):
         """Proof that the checks above are not vacuous: drop the digit flag."""
@@ -382,6 +420,90 @@ class LoneSurrogate(unittest.TestCase):
         """The rejection is about lone surrogates, not about astral characters."""
         self.assertEqual(escape_qt_ini_value("\U0001F600"), "\\xd83d\\xde00")
         self.assertEqual(qt_ini_unescape("\\xd83d\\xde00"), "\U0001F600")
+
+
+SETTINGS_INI_SAMPLE = (
+    "[General]\n"
+    "AutoDownload=false\n"
+    "%U0417%U0430%U0433%U0440%U0443%U0437%U043A%U0438=\\x417\\x430\\x433\\x440\\x443\\x437\\x43a\\x438\n"
+    "%E9=50%25\n"
+    "My\\Group\\Key=two words\n"
+    "%UD83D%UDE00=\\xd83d\\xde00\n"
+    "50%25=value\n"
+)
+
+
+class QtIniKeys(unittest.TestCase):
+    """T14/G11: the reader understands keys, not only values.
+
+    Qt escapes a key with a dialect of its own -- `%XX` for Latin-1, `%UXXXX`
+    above it, `\\` for the group separator -- and `iniUnescapedKey` is what
+    reverses it.  No fixture in this tree has such a key; real settings.ini
+    files from Windows users do.
+    """
+
+    def test_a_wide_escape(self):
+        self.assertEqual(qt_ini_unescape_key("%U0417%U0430"), "За")
+        self.assertEqual(escape_qt_ini_key("Загрузки"),
+                         "%U0417%U0430%U0433%U0440%U0443%U0437%U043A%U0438")
+
+    def test_a_latin1_escape(self):
+        self.assertEqual(qt_ini_unescape_key("%D0%BF"), "Ð¿")   # a byte, not a UTF-8 pair
+        self.assertEqual(escape_qt_ini_key("é"), "%E9")         # uppercase hex on the way out
+        self.assertEqual(qt_ini_unescape_key("%e9"), "é")       # ... and case-insensitive on the way in
+
+    def test_a_nested_key(self):
+        self.assertEqual(escape_qt_ini_key("My/Group/Key"), "My\\Group\\Key")
+        self.assertEqual(qt_ini_unescape_key("My\\Group\\Key"), "My/Group/Key")
+
+    def test_a_literal_percent(self):
+        """A '%' in a key is always an escape in the file, so `50%` is `50%25`."""
+        self.assertEqual(escape_qt_ini_key("50%"), "50%25")
+        self.assertEqual(qt_ini_unescape_key("50%25"), "50%")
+
+    def test_a_non_bmp_key_is_two_escapes(self):
+        self.assertEqual(escape_qt_ini_key("\U0001F600"), "%UD83D%UDE00")
+        self.assertEqual(qt_ini_unescape_key("%UD83D%UDE00"), "\U0001F600")
+
+    def test_the_key_corpus_round_trips(self):
+        self.assertEqual(check_keys(), len(KEY_CORPUS))
+
+    def test_a_malformed_escape_is_refused(self):
+        """Qt appends a literal '%' and carries on; we refuse instead.
+
+        A key that silently decodes to something else is the failure this port
+        exists to prevent: the caller looks for a setting that is not there.
+        No file Qt wrote contains a malformed escape.
+        """
+        for bad in ("%U417", "%zz", "%u0417", "%U04", "abc%"):
+            with self.assertRaises(ValueError, msg=bad):
+                qt_ini_unescape_key(bad)
+
+    def test_the_file_reader_refuses_a_malformed_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.ini"
+            path.write_text("[General]\n%zz=1\n", encoding="ascii")
+            with self.assertRaises(ValueError):
+                read_settings_ini(path)
+
+    def test_a_whole_settings_file_round_trips_byte_for_byte(self):
+        """One file with every case, decoded and written back by the writers."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.ini"
+            path.write_text(SETTINGS_INI_SAMPLE, encoding="ascii")
+
+            keys = read_settings_ini(path)
+            self.assertIn("Загрузки", keys)
+            self.assertIn("My/Group/Key", keys)
+            self.assertIn("\U0001F600", keys)
+
+            rebuilt = ["[General]"]
+            for raw_key, raw_value in qt_ini_lines(path):
+                rebuilt.append(
+                    f"{escape_qt_ini_key(qt_ini_unescape_key(raw_key))}="
+                    f"{escape_qt_ini_value(qt_ini_unescape(raw_value))}"
+                )
+            self.assertEqual("\n".join(rebuilt) + "\n", SETTINGS_INI_SAMPLE)
 
 
 class OneWriterForSettingsIni(unittest.TestCase):

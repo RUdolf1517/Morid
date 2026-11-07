@@ -207,8 +207,9 @@ def verify_settings_ini_roundtrip() -> None:
         summary = check_qt_ini_roundtrip()
     except AssertionError as error:
         raise RuntimeError(f"settings.ini: {error}") from error
-    print(f"settings_ini_roundtrip values={summary['values']} fuzz={summary['fuzz']} "
-          f"seed={summary['seed']} quoted={summary['quoted']} digit_after_escape=ok ascii_verbatim=3")
+    print(f"settings_ini_roundtrip values={summary['values']} keys={summary['keys']} "
+          f"fuzz={summary['fuzz']} seed={summary['seed']} quoted={summary['quoted']} "
+          f"digit_after_escape=ok ascii_verbatim=3")
 
 
 def verify_metadata() -> None:

@@ -155,6 +155,27 @@ class Canonicaliser:
 
 
 HEX_DIGITS = "0123456789abcdefABCDEF"
+HEX_UPPER = "0123456789ABCDEF"
+# Keys and values share nothing but this split into UTF-16 code units: Qt stores
+# QString as UTF-16, and the two escape dialects are different rules over the
+# same units (data-compat §3.0a).
+KEY_SAFE = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.")
+
+
+def _utf16_units(text: str) -> list[int]:
+    """Split `text` into UTF-16 code units, refusing a lone surrogate."""
+    try:
+        raw = text.encode("utf-16-be")
+    except UnicodeEncodeError as error:
+        # Chosen, not incidental: a lone surrogate is not a value any QString
+        # from a real settings file can hold, so the harness refuses to write it
+        # instead of guessing which code unit Qt should see.
+        raise ValueError(
+            "settings.ini: text contains a lone surrogate "
+            f"(U+{ord(error.object[error.start]):04x}): {text!r} is not encodable as UTF-16, "
+            "and no real settings key or value has one"
+        ) from error
+    return [(raw[index] << 8) | raw[index + 1] for index in range(0, len(raw), 2)]
 
 
 def escape_qt_ini_value(value: str) -> str:
@@ -184,21 +205,10 @@ def escape_qt_ini_value(value: str) -> str:
     fixtures/README.md.
     """
     needs_quotes = any(char in value for char in ";,=") or value.startswith(" ") or value.endswith(" ")
-    try:
-        units = value.encode("utf-16-be")
-    except UnicodeEncodeError as error:
-        # Chosen, not incidental: a lone surrogate is not a value any QString
-        # from a real settings file can hold, so the harness refuses to write it
-        # instead of guessing which code unit Qt should see.
-        raise ValueError(
-            "settings.ini: value contains a lone surrogate "
-            f"(U+{ord(error.object[error.start]):04x}): {value!r} is not encodable as UTF-16, "
-            "and no real settings value has one"
-        ) from error
+    units = _utf16_units(value)
     escaped = []
     escape_next_if_digit = False
-    for index in range(0, len(units), 2):
-        unit = (units[index] << 8) | units[index + 1]
+    for unit in units:
         if escape_next_if_digit and 0x20 <= unit <= 0x7E and chr(unit) in HEX_DIGITS:
             # Qt keeps the flag set here, so a run of digits is escaped digit
             # by digit instead of ending the previous hex escape.
@@ -218,3 +228,30 @@ def escape_qt_ini_value(value: str) -> str:
     if needs_quotes:
         result = '"%s"' % result
     return result
+
+
+def escape_qt_ini_key(key: str) -> str:
+    """Encode a settings key the way Qt 5.15's writer does (iniEscapedKey).
+
+    A different dialect from `escape_qt_ini_value`, sharing only the UTF-16
+    split: `a-z A-Z 0-9 _ - .` stay literal, `/` (the group separator) becomes
+    a backslash, everything up to U+00FF becomes `%XX` and everything above
+    `%UXXXX`, both with uppercase hexadecimal and four digits when wide.  A
+    literal `%` is `%25`; a non-BMP character is written as its two surrogate
+    halves, as Qt does.
+
+    This is the only place a settings key is encoded; the reader in `qt_ini.py`
+    is the only place one is decoded, and the test file proves they meet.
+    """
+    escaped = []
+    for unit in _utf16_units(key):
+        char = chr(unit)
+        if unit == 0x2F:
+            escaped.append("\\")
+        elif char in KEY_SAFE:
+            escaped.append(char)
+        elif unit <= 0xFF:
+            escaped.append("%%%s%s" % (HEX_UPPER[unit >> 4], HEX_UPPER[unit & 0xF]))
+        else:
+            escaped.append("%%U%04X" % unit)
+    return "".join(escaped)

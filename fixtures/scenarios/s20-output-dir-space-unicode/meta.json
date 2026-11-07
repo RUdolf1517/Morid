@@ -10,5 +10,7 @@
   "method": "wrapper",
   "reference_commit": "17c0104b8824bdad7620b2e5127484ca42dde98e",
   "backend_invocations": 1,
-  "status": "captured"
+  "status": "captured",
+  "download_folder": "<case-dir>/output dir/Загрузки",
+  "download_folder_reset": false
 }

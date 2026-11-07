@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from canonicalise import Canonicaliser, CanonicalisationError
+from canonicalise import Canonicaliser, CanonicalisationError, escape_qt_ini_value
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -203,7 +203,7 @@ def definitions() -> list[dict[str, Any]]:
             step("click", "pbSetTimeIntervals"),
             step("click", "pbBDDownload"),
         ], settings={"ShowMetaDataInBatchDownloader": False, "AutoSetDefaultEngineAndOptions": True}),
-        case("s20-output-dir-space-unicode", "F-50", "yt-dlp", basic(options="-P \"{case-dir}/output dir/Загрузки\""), download_dir="{case-dir}/output dir/Загрузки"),
+        case("s20-output-dir-space-unicode", "F-50", "yt-dlp", basic(options="-P \"{case-dir}/output dir/Загрузки\""), download_dir="{case-dir}/output dir/Загрузки", record_download_folder_reset=True),
         case("s21-user-output-template", "F-50", "yt-dlp", basic(options="-o \"%(title)s from user.%(ext)s\"")),
         case("s22-url-metacharacters", "F-50", "yt-dlp", basic(url="https://example.com/watch?a=1&b=two#frag%20x")),
         case("s23-url-manager", "F-52", "gallery-dl", basic(url="https://route.example/v/fixture"), data_files={"downloadDefaultOptions.json": [{"url": "route.example", "engine": "gallery-dl", "downloadOption": "--route-option \"two words\""}]}),
@@ -316,7 +316,10 @@ def prepare_case(definition: dict[str, Any], runtime: Path) -> dict[str, Any]:
         for key, value in settings.items():
             if isinstance(value, bool):
                 value = "true" if value else "false"
-            output.write(f"{key}={value}\n")
+            # Qt 5 writes ini values it owns as escaped ASCII and reads a raw
+            # UTF-8 file back as Latin-1; s20's cyrillic download folder only
+            # survives the round trip in Qt's dialect.
+            output.write(f"{key}={escape_qt_ini_value(str(value))}\n")
 
     for name, value in definition.get("data_files", {}).items():
         json_write(data_dir / name, value)
@@ -362,6 +365,7 @@ def prepare_case(definition: dict[str, Any], runtime: Path) -> dict[str, Any]:
         "runtime": case_runtime,
         "transcript": transcript,
         "post_transcript": post_transcript,
+        "download_dir": str(download_dir),
         "environment": environment,
     }
 
@@ -475,6 +479,13 @@ def finalize_case(definition: dict[str, Any], prepared: dict[str, Any], returnco
         "backend_invocations": len(records),
         "status": status,
     }
+    if definition.get("record_download_folder_reset"):
+        # The reset is only observable through where the backend actually ran:
+        # settings::downloadFolder() passes a default-constructed logger, so its
+        # "Resetting download folder to default" line never reaches stdout.
+        configured = transform.value(str(prepared["download_dir"]))
+        meta["download_folder"] = configured
+        meta["download_folder_reset"] = bool(records) and records[0]["cwd"] != configured
     if definition.get("subject"):
         meta["subject"] = definition["subject"]
     for name in ("requested_extension", "extension_file", "observed_behaviour"):

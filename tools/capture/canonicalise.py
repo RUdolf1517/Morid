@@ -152,3 +152,31 @@ class Canonicaliser:
             self._reject_residual(line, body)
             lines.append(body + ending)
         return "".join(lines)
+
+
+def escape_qt_ini_value(value: str) -> str:
+    """Encode a settings.ini value the way Qt 5 writes an INI file it owns.
+
+    Qt 5 without QSettings::setIniCodec escapes everything outside printable
+    ASCII as a \\x escape per UTF-16 code unit, in lowercase hexadecimal with
+    no padding (Qt writes \\x417 for U+0417, not \\x0417), and a literal
+    backslash as \\\\.  The file therefore stays pure ASCII.  A file written as raw UTF-8
+    is not rejected on read: Qt 5 "accepts Latin-1 encoded INI files" and the
+    value silently decodes to different text, which is exactly how s20 lost its
+    download folder before this helper existed.
+
+    ASCII values, which are all the other scenarios write, come back unchanged;
+    quoting, commas and empty values are deliberately not handled here because
+    nothing in the fixture set exercises them.
+    """
+    units = value.encode("utf-16-be")
+    escaped = []
+    for index in range(0, len(units), 2):
+        unit = (units[index] << 8) | units[index + 1]
+        if unit == 0x5C:
+            escaped.append("\\\\")
+        elif 0x20 <= unit <= 0x7E:
+            escaped.append(chr(unit))
+        else:
+            escaped.append("\\x%x" % unit)
+    return "".join(escaped)

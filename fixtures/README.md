@@ -68,7 +68,13 @@ directory. The mirror `/home/user` used by the anonymised userdata is unchanged.
 ## How argv capture works
 
 `tools/capture/capture.py` creates an isolated appdata directory for each scenario, installs the
-shipped extension JSON files, writes scenario-specific QSettings and drives the original widgets.
+shipped extension JSON files, writes scenario-specific QSettings and drives the original widgets. The
+`settings.ini` it writes is escaped the way Qt 5 itself writes an INI file it owns — non-ASCII as a `\x`
+escape per UTF-16 code unit, lowercase hexadecimal and unpadded (`\x417`, not `\x0417`), literal backslash
+as `\\` — because the original never calls
+`QSettings::setIniCodec` and reads a raw UTF-8 value back as Latin-1, which silently changes it (s20 was
+captured in the wrong folder until this was fixed). ASCII values are written unchanged; nothing in this
+fixture set needs Qt's quoting rules, so the helper does not invent any.
 `tools/capture/qt_driver.cpp` is built as an external `LD_PRELOAD` helper; it interposes only
 `QCoreApplication::exec()` to schedule UI actions. Nothing in `legacy/` is changed or linked into the
 helper.
@@ -202,7 +208,9 @@ dependency.
 
 Each line is a behaviour the Phase 0 cases found in `legacy/`, not a behaviour any task asked for. The case
 IDs are the evidence; these notes are the raw material for `docs/migration.md` §6 and `docs/features.md`,
-which the manager folds in.
+which the manager folds in. The last entry is about the file format the original reads and writes rather
+than about the download pipeline, but it is just as much a discovered contract: the harness had to
+reproduce Qt's INI dialect before s20 could be observed at all.
 
 - **s35, s36** — an invalid extension is handled two different ways: an unknown engine *name* is rejected and
   the default engine runs instead, while an extension with `Name` removed is still loaded and executed with
@@ -216,6 +224,13 @@ which the manager folds in.
   shipped `Generic` branch starts `you-get` directly, so the "python -u you_get" shape is unreachable here.
 - **s28** — the update path has no argv at all: `AutoUpdate` is handled by the original's network/version
   logic (`AutoUpdate / versionInfo`), so there is no external process for a golden to describe.
+- **settings.ini (s20, and every case)** — `settings.ini` is Qt-escaped ASCII, not UTF-8. The original never
+  calls `QSettings::setIniCodec`, so on Qt 5 a non-ASCII value is written as a `\x` escape per UTF-16 code
+  unit — lowercase hexadecimal, unpadded (`\x417`) — and the file stays pure ASCII (Qt documentation,
+  "Format enum"). A file that somebody else put there as UTF-8 is
+  decoded as Latin-1 into different text. Evidence: s20 before T7, where the cyrillic download folder became
+  a path that did not exist and the original logged "Resetting download folder to default". Consequence for
+  Morid: it reads and writes this dialect deliberately — D-016 in `docs/decisions.md`.
 
 ## Known gaps and observed reference behaviour
 

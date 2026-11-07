@@ -14,7 +14,7 @@ from pathlib import Path
 from backend_wrapper import PROXY_VARIABLES
 from capture import ROOT, FIXTURES, SCENARIOS, definitions
 from capture_userdata import FINAL as USERDATA, history_count, settings_seed
-from canonicalise import CASE_DIR, NODE
+from canonicalise import CASE_DIR, NODE, escape_qt_ini_value
 
 
 REQUIRED_STREAM_BACKENDS = {
@@ -140,6 +140,59 @@ def verify_scenarios() -> tuple[int, int]:
     require(captured >= 35, f"only {captured}/40 cases captured")
     require(captured + not_captured == 40, "status counts do not total 40")
     return captured, not_captured
+
+
+# An absolute path is only expected where a fixture quotes it or separates it
+# with whitespace; "bestvideo[ext=mp4]/bestvideo" and "https://..." are neither.
+ABSOLUTE_PATH = re.compile(r'(?:(?<=[\s"\',=\[\(])|^)(/[A-Za-z0-9._~][^\s"\',;\[\]{}()<>|]*)', re.MULTILINE)
+NODE_PATH = re.compile(r'node:(/[^\s"\',;\[\]{}()<>|]*)')
+
+
+def verify_host_paths() -> tuple[int, int]:
+    """T6: no scenario file may name a path outside the documented vocabulary."""
+    files = 0
+    allowed = 0
+    offenders = []
+    for path in sorted(SCENARIOS.rglob("*")):
+        if not path.is_file():
+            continue
+        files += 1
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for match in ABSOLUTE_PATH.finditer(text):
+            value = match.group(1)
+            # /home/user is the documented home placeholder, but the capture
+            # cache lives underneath it, so it needs its own condition.
+            if value.startswith("/home/user/.cache") or "/morid-capture/" in value:
+                offenders.append((path, value))
+            elif value == "/home/user" or value.startswith("/home/user/"):
+                allowed += 1
+            else:
+                offenders.append((path, value))
+        for match in NODE_PATH.finditer(text):
+            # <node> is the only accepted spelling of the interpreter.
+            offenders.append((path, "node:" + match.group(1)))
+    require(not offenders, "host paths outside the fixture vocabulary (" + ", ".join(
+        f"{path.relative_to(ROOT)}: {value}" for path, value in offenders[:5]) + ")")
+    print(f"host_paths checked_files={files} allowed_absolute_paths={allowed} outside_vocabulary=0")
+    return files, allowed
+
+
+def verify_download_folder() -> None:
+    """T7: settings.ini in Qt's dialect keeps s20 in its configured folder."""
+    directory = SCENARIOS / "s20-output-dir-space-unicode"
+    meta = load_json(directory / "meta.json")
+    require(meta.get("download_folder_reset") is False,
+            "s20: the original reset the download folder to the platform default")
+    argv = load_json(directory / "argv.json")
+    require("<case-dir>/output dir/Загрузки" in argv, "s20: the -P argument lost its cyrillic output directory")
+    cwd = load_jsonl(directory / "log.txt")[0]["cwd"]
+    require(cwd == "<case-dir>/output dir/Загрузки",
+            f"s20: cwd is {cwd!r}, expected the configured download folder")
+    require(meta.get("download_folder") == cwd,
+            f"s20: meta records {meta.get('download_folder')!r}, the backend ran in {cwd!r}")
+    require(escape_qt_ini_value("Загрузки") == "\\x417\\x430\\x433\\x440\\x443\\x437\\x43a\\x438",
+            "the harness no longer escapes settings.ini the way Qt 5 writes it")
+    print("download_folder s20 cwd=<case-dir>/output dir/Загрузки reset=false settings_ini=qt_escaped")
 
 
 def verify_metadata() -> None:
@@ -360,6 +413,8 @@ def main() -> int:
     print(f"userdata_load_exit=0 settings_keys={settings_count} history_entries={history} anonymized_hosts=example.com")
     verify_comparator(captured)
     verify_comparator_canonicalised(captured)
+    verify_host_paths()
+    verify_download_folder()
     verify_metadata()
     print("metadata checks=s28_backend_null,s28_subject,s35_requested_extension,s35_fallback,s36_no_fallback")
     proxy_env = verify_proxy_env(captured)

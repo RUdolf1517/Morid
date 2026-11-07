@@ -62,10 +62,10 @@ Estimates are for the work, not for the waiting.
 **Status 5 November 2026:** delivered as `fixtures/` (PR #2, commit `8fba615`) — 36 of 40 cases captured with
 wrapper transcripts, seven backends of raw output, an anonymised data directory reloaded by the original
 program, and a comparator. Goldens were then made independent of the capture host (`b344cdc`), the verifier was
-given teeth (`f187923`), and both late findings of round 2 were closed. **Not yet accepted:** round 3 leaves the
-`settings.ini` writer incomplete — it is correct for the value s20 uses and wrong for a value with a digit or a
-hex letter after a non-ASCII character, and it does not quote. Tasks T9–T11, see
-[tasks/phase-0-fixtures.md](tasks/phase-0-fixtures.md) §0 and §8. The four uncaptured cases are real observations,
+given teeth (`f187923`), and both late findings of round 2 were closed. **Not yet accepted:** round 4 made the
+`settings.ini` writer correct — digit defence, quoting, escapes — and proved it by round trip against a port of
+Qt's own reader, but the proof is a script nothing runs automatically and the file still has two writers.
+Task T12, see [tasks/phase-0-fixtures.md](tasks/phase-0-fixtures.md) §0 and §8. The four uncaptured cases are real observations,
 not omissions: see [migration](migration.md) §6.
 
 **Exit criteria:** a reviewer can take any scenario and see both argument vectors; every backend that Morid will

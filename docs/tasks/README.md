@@ -6,7 +6,7 @@ project manager through the owner, and a task is not started before the previous
 
 | # | File | Phase | Estimate | State |
 | --- | --- | --- | --- | --- |
-| 1 | [phase-0-fixtures.md](phase-0-fixtures.md) | Phase 0 — reference behaviour and fixtures | 5–8 days | delivered; T1–T5 done in `b344cdc`, T6–T8 done in `f187923`; **round 3: T9–T11 open** |
+| 1 | [phase-0-fixtures.md](phase-0-fixtures.md) | Phase 0 — reference behaviour and fixtures | 5–8 days | delivered; T1–T5 done in `b344cdc`, T6–T8 done in `f187923`; **round 4: T9–T11 done in `f0f0746`, T12 open** |
 | 2 | [phase-1-skeleton.md](phase-1-skeleton.md) | Phase 1 — workspace skeleton and CI | 5–7 days | not started |
 
 Task 1 produces no Rust code and must not be skipped: without it there is no definition of "same behaviour" to

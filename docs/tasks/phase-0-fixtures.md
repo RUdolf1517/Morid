@@ -97,6 +97,12 @@ ones. The coder replaced it with the observable facts — `cwd` and the rewritte
 does not fire on them. This is the same deliberate exclusion as in round 2, now load-bearing: if someone widens
 the check to all of `fixtures/`, those provenance records must be exempted explicitly rather than by accident.
 
+**Standing environment limitation, confirmed twice:** the capture cannot be re-run in the review environment —
+no Qt prefix, no driver, no legacy binary, and `download.qt.io` / `mirror.qt.io` are outside the egress
+allowlist here (TLS failure and no resolution, respectively). `check-idempotency.sh` therefore exits 2 at
+`QT_PREFIX`, in this round and the previous one. Any acceptance criterion that requires the capture to be re-run
+is unprovable from here and must say so, or be replaced by an argument from the code — as T12 does for the writer.
+
 **Recorded so it is not raised again:** `fixtures/streams/**/meta.json` keeps the capture host's backend paths inside `command` arrays. T1 excluded them deliberately — those arrays are provenance, not goldens, and rewriting them would make the record of the capture untrue.
 
 ---
@@ -518,7 +524,8 @@ is written by Qt as `...\x438\x35`; our helper writes `...\x4385`, and Qt reads 
    digit or one of `a-f`/`A-F`, emit it as `\x<lowercase hex, unpadded>` as well. Keep lowercase and unpadded;
    keep `\\` for backslash.
 2. Prove it with a round trip in the verifier, not in the commit message: implement Qt's unescape (greedy hex scan,
-   `\x` any number of hex digits, `\\`/`\"`/`\,`/`\=` single-character escapes) as a test helper, and assert
+   `\x` any number of hex digits; the single-character escapes are exactly `a b f n r t v " ? ' \`, and a
+   backslash before anything else **drops** that character) as a test helper, and assert
    `unescape(escape(x)) == x` for at least: `Загрузки`, `Загрузки5`, `Папка1`, `тестa`, `é5`, `Отпуск2024`,
    `фото1`, `a\\b`, and the plain-ASCII value used by the other 39 cases. The test runs as part of
    `verify_fixtures.py` and prints its name, like the `host_paths` check does.
@@ -536,7 +543,10 @@ Qt 5 wraps a value in `"` when it contains `;`, `,` or `=`, or when it starts or
 (`iniEscapedString`, `needsQuotes`). Our writer does none of this, so it produces values the original reads back
 with quote characters in them.
 
-1. Add quoting to `escape_qt_ini_value` for exactly those conditions. Nothing else:
+1. Add quoting to `escape_qt_ini_value` for exactly those conditions. Nothing else — but note what the failure
+   mode actually is, because I had it wrong: an unquoted `,` does not leave stray quote characters behind, it
+   turns the value into a **QStringList**; `=` and `;` are read back verbatim; a trailing space is chopped by
+   `iniChopTrailingSpaces` and a leading one survives:
    no escaping of newlines, tabs or other control characters, because no fixture needs them and each addition is
    a claim we would have to test.
 2. **A wrong decision here is worse than an incomplete one.** If implementing the five conditions raises a
@@ -556,6 +566,65 @@ Everything above is unit-level. If an existing case can be pointed at a download
 Cyrillic letter without inventing a new scenario, do it and let the capture show `cwd` unchanged. If that means a
 new case in the manifest, skip it and say so — a unit-level round trip plus s20 is enough for Phase 0, and I would
 rather have the smaller diff.
+
+### Round 4 — verdict on `f0f0746` (5 November 2026)
+
+Re-checked by running the verifier on a fresh `git archive`, by reading `iniEscapedString` / `iniUnescapedStringList`
+/ `iniChopTrailingSpaces` in `qtbase` v5.15.16, and by **fuzzing the helper against my own transcription of Qt's
+reader** — 30 000 random values over ASCII, punctuation, `; , =`, quotes, backslashes, space, tab, control
+characters, Cyrillic and an emoji. Zero unexplained failures; the only cases that do not round-trip are control
+characters, which the helper writes as `\x9` and Qt reads as U+0009-coded-as-hex — a documented limit, not a
+defect.
+
+**Accepted.** `VERIFY_OK`, output identical to the report. `Загрузки` still escapes to the same bytes, all four
+quoting conditions match Qt's `needsQuotes`, and every round-trip value in the table is genuinely checked.
+
+**The coder was right three times, and the third one is a hole I did not know about:**
+
+| Coder's point | Verdict |
+| --- | --- |
+| (a) my `\,`/`\=` "single-character escapes" do not exist; a backslash before an unknown character **drops** it | correct — `escapeCodes` is `a b f n r t v " ? ' \`, and the `else` branch skips the character. My T9.2 listed escapes Qt does not have. |
+| (b) the digit flag is set only after `\x…`/`\0`, and the digit branch `continue`s before clearing it, so a **run** of digits escapes digit by digit | correct — and a naive implementation passes the round-trip table too, so this is the one place where matching the source rather than the tests was the only way to be right. |
+| (c) my G8 premise was wrong: an unquoted `,` does not produce stray quote characters, it makes the value a **QStringList**; `=` and `;` read back verbatim; a trailing space is chopped by `iniChopTrailingSpaces` | correct, and worse than I described — the `,` case silently changes the *type* of the value, so `DownloadFolder=/a,/b` would have been read as a two-element list. |
+| **New: the third hole — `"` was written raw** | correct, and mine to have found. Qt writes `\"`; a raw quote toggles `inQuotedString`, so `Он сказал "да"` read back as `Он сказал да`. Fixed, and the round-trip table now carries it. |
+
+**Still open — one finding (G9):**
+
+| # | Finding | Why it matters |
+| --- | --- | --- |
+| **G9** | **The round-trip proof is not reachable from CI, and the helper has no test file at all.** It lives inside `verify_fixtures.py`, which runs only when someone runs it; there is no `pytest`, no `#[test]`, no CI workflow in this branch. That was tolerable while the helper was wrong in ways a reviewer could eyeball; it is not tolerable now — the helper encodes five rules of a foreign file format, each of which fails silently, and the only thing standing between a future edit and a broken `settings.ini` is a script nobody runs automatically. The fuzz I ran this round is not in the repository either. | The same reasoning as G5, one level up: the check exists, and nothing forces it to run. Task **T12**. |
+
+**Accepted as reported, not defects:**
+
+- **T2 idempotency is unprovable here, and the coder's substitute is sound.** I confirmed the route by
+  `grep`: `escape_qt_ini_value` is called from exactly one place (`capture.py:322`), so the helper cannot move the
+  capture unless it moves `settings.ini`, and the coder demonstrated 40/40 byte-identical. `check-idempotency.sh`
+  stops at `QT_PREFIX` here too (exit 2), for the same reason: no Qt, and `download.qt.io` is outside the egress
+  allowlist. Recorded as a standing environment limitation, not a coder failure.
+- **s38's `CommandOnSuccessfulDownload` is hand-written** (`capture.py:343`) and bypasses the helper. I checked it
+  against Qt's reader myself: the hand-written line decodes to the intended value, so the fixture is correct
+  today. It is still a second, unproved writer — folded into T12 rather than made a separate task.
+
+### T12 — make the round trip something that runs without being remembered (G9)
+
+1. Move the Qt-reader port and the round-trip table out of `verify_fixtures.py` into a form CI can run with no
+   arguments and no fixtures: `python3 -m unittest` or `pytest` (state which, and why — precedent matters for
+   the Rust workspace later). It must fail if `escape_qt_ini_value` regresses, and it must not require anything
+   installed beyond the standard library.
+2. Put the fuzz into the test, not just the table: a seeded fixed corpus (seed and iteration count in the file, so
+   results are reproducible), covering ASCII, `; , =`, `"`, `\`, edge spaces, tab, newline, control characters,
+   Cyrillic and a non-BMP character. Control characters and the `@ByteArray(`/`@Variant(`/`@DateTime(` prefixes
+   are asserted to be **out of scope**, by a test that says so, so the limit is executable rather than prose.
+3. Replace `capture.py:343`'s hand-written line with the helper, so there is exactly one writer for
+   `settings.ini`. If the helper's output for that value differs from the current hand-written line, say so and
+   show both — the fixture must be re-captured only if the value the original reads changes.
+4. `verify_fixtures.py` calls the same test module rather than keeping a second copy, so a reviewer sees one
+   implementation and two callers.
+5. State in `fixtures/README.md` which command runs the test and whether CI runs it. If nothing else in this
+   repository runs automatically either, say that plainly — do not describe the test as "in CI" if there is no CI.
+
+Acceptance: `python3 -m unittest discover` (or the chosen equivalent) passes from a clean checkout with only the
+standard library; deliberately breaking the digit flag makes it fail; one writer for `settings.ini`.
 
 ### Reporting
 

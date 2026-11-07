@@ -309,6 +309,13 @@ def prepare_case(definition: dict[str, Any], runtime: Path) -> dict[str, Any]:
         "MaxConcurrentDownloads": 1,
     }
     settings.update(definition.get("settings", {}))
+    post_hook = bin_dir / "post-hook"
+    if definition.get("post_command"):
+        # The hook's command line is a settings value like any other and goes
+        # through the same writer.  This string is what the original must read,
+        # quotes included, so that the shell sees `--label "two words"` as one
+        # argument; the writer escapes the quotes into Qt's dialect itself.
+        settings["CommandOnSuccessfulDownload"] = f'{post_hook} --label "two words"'
     settings_path = app_data / "settings" / "settings.ini"
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     with settings_path.open("w", encoding="utf-8", newline="\n") as output:
@@ -328,7 +335,6 @@ def prepare_case(definition: dict[str, Any], runtime: Path) -> dict[str, Any]:
     json_write(steps_path, definition["steps"])
     transcript = case_runtime / "transcript.jsonl"
     post_transcript = case_runtime / "post-transcript.jsonl"
-    post_hook = bin_dir / "post-hook"
     if definition.get("post_command"):
         # CAPTURE_PROGRAM records the program the original started (the hook)
         # rather than the wrapper that replaces it, so post-log.txt does not
@@ -339,8 +345,6 @@ def prepare_case(definition: dict[str, Any], runtime: Path) -> dict[str, Any]:
             encoding="utf-8",
         )
         post_hook.chmod(0o755)
-        with settings_path.open("a", encoding="utf-8") as output:
-            output.write(f'CommandOnSuccessfulDownload="{post_hook} --label \\"two words\\""\n')
 
     environment = os.environ.copy()
     for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "all_proxy", "ALL_PROXY", "no_proxy", "NO_PROXY"):

@@ -15,6 +15,7 @@ from backend_wrapper import PROXY_VARIABLES
 from capture import ROOT, FIXTURES, SCENARIOS, definitions
 from capture_userdata import FINAL as USERDATA, history_count, settings_seed
 from canonicalise import CASE_DIR, NODE, escape_qt_ini_value
+from test_qt_ini_roundtrip import check_all as check_qt_ini_roundtrip
 
 
 REQUIRED_STREAM_BACKENDS = {
@@ -195,160 +196,19 @@ def verify_download_folder() -> None:
     print("download_folder s20 cwd=<case-dir>/output dir/Загрузки reset=false settings_ini=qt_escaped")
 
 
-QT_INI_ESCAPES = {
-    "a": "\a", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t", "v": "\v",
-    '"': '"', "?": "?", "'": "'", "\\": "\\",
-}
-
-
-def _qt_ini_decode(units: list[int]) -> str:
-    """Turn UTF-16 code units (and code points) into text, as QString does."""
-    raw = b"".join(chr(unit).encode("utf-16-be", "surrogatepass") for unit in units)
-    return raw.decode("utf-16-be", "surrogatepass")
-
-
-def qt_ini_unescape(text: str) -> str | list[str]:
-    """Read one INI value the way Qt 5.15.16 does, from its own source.
-
-    Mirrors QSettingsPrivate::iniUnescapedStringList (qtbase/src/corelib/io/
-    qsettings.cpp, v5.15.16-lts-lgpl) for a single value: leading blanks are
-    skipped, a double quote toggles quoting, a ``\\x`` escape scans *all*
-    following hex digits greedily on its own (any length, uppercase or lower
-    case), a backslash plus an unknown character drops that character, an
-    unquoted trailing space is chopped, and a comma outside quotes starts a
-    QStringList -- which is returned as a list so that a caller comparing
-    against a string sees the value did not survive.
-
-    This is the reader the harness's own writer is judged by; it is a test
-    helper and deliberately covers only that writer's output.
-    """
-    units: list[int] = []
-    items: list[list[int]] = []
-    quoted_value = False
-    in_quotes = False
-    i, size = 0, len(text)
-
-    def chop() -> None:
-        while units and units[-1] in (0x20, 0x09):
-            units.pop()
-
-    while i < size and text[i] in " \t":
-        i += 1
-    while i < size:
-        char = text[i]
-        if char == "\\":
-            i += 1
-            if i >= size:
-                break
-            char = text[i]
-            i += 1
-            if char in QT_INI_ESCAPES:
-                units.append(ord(QT_INI_ESCAPES[char]))
-            elif char == "x":
-                j = i
-                while j < size and text[j] in "0123456789abcdefABCDEF":
-                    j += 1
-                if j > i:
-                    units.append(int(text[i:j], 16) & 0xFFFF)
-                    i = j
-            elif char in "01234567":
-                j = i
-                while j < size and text[j] in "01234567":
-                    j += 1
-                units.append(int(char + text[i:j], 8) & 0xFFFF)
-                i = j
-            elif char in "\n\r":
-                if i < size and text[i] in "\n\r" and text[i] != char:
-                    i += 1
-            # any other escaped character is dropped, exactly as Qt drops it
-            continue
-        if char == '"':
-            quoted_value = True
-            in_quotes = not in_quotes
-            i += 1
-            if not in_quotes:
-                while i < size and text[i] in " \t":
-                    i += 1
-            continue
-        if char == "," and not in_quotes:
-            if not quoted_value:
-                chop()
-            items.append(units)
-            units = []
-            quoted_value = False
-            i += 1
-            while i < size and text[i] in " \t":
-                i += 1
-            continue
-        units.append(ord(char))
-        i += 1
-    if not quoted_value:
-        chop()
-    if not items:
-        return _qt_ini_decode(units)
-    items.append(units)
-    return [_qt_ini_decode(item) for item in items]
-
-
-SETTINGS_INI_ROUND_TRIP = (
-    "Загрузки",
-    "Загрузки5",
-    "Папка1",
-    "тестa",
-    "é5",
-    "Отпуск2024",
-    "фото1",
-    "фото15",
-    "тестa5",
-    "a\\b",
-    'Он сказал "да"',
-    "загрузки ",
-    " загрузки",
-    "en_US",
-    "/home/user/downloads/archive",
-    "/home/user/Загрузки, архив",
-    "output dir, второй",
-    "key=value;",
-)
-
-
 def verify_settings_ini_roundtrip() -> None:
-    """T9/T10: Qt's reader must give back every value the harness writes."""
-    quoted = 0
-    for value in SETTINGS_INI_ROUND_TRIP:
-        escaped = escape_qt_ini_value(value)
-        require(all(ord(char) < 0x80 for char in escaped),
-                f"settings.ini: {value!r} escaped to non-ASCII {escaped!r}")
-        decoded = qt_ini_unescape(escaped)
-        require(decoded == value,
-                f"settings.ini: {value!r} is written as {escaped!r}, which Qt reads back as {decoded!r}")
-        if escaped.startswith('"'):
-            quoted += 1
+    """T12: the round trip runs here and in `python3 -m unittest discover`.
 
-    # T9: a hexadecimal digit directly after an escape must itself be escaped.
-    require(escape_qt_ini_value("Загрузки5").endswith("\\x438\\x35"),
-            f"a digit after an escape is not escaped: {escape_qt_ini_value('Загрузки5')!r}")
-    require(escape_qt_ini_value("Загрузки") == "\\x417\\x430\\x433\\x440\\x443\\x437\\x43a\\x438",
-            "the harness no longer escapes settings.ini the way Qt 5 writes it")
-
-    # T10: exactly Qt's five quoting conditions, and no others.
-    for value in ("a;b", "a,b", "a=b", " leading", "trailing "):
-        require(escape_qt_ini_value(value).startswith('"'), f"settings.ini: {value!r} must be quoted")
-    for value in ("two words", "/home/user/output dir/Загрузки", "en_US", ""):
-        require(not escape_qt_ini_value(value).startswith('"'), f"settings.ini: {value!r} must not be quoted")
-    comma = "/home/user/Загрузки, архив"
-    comma_escaped = escape_qt_ini_value(comma)
-    require(comma_escaped.startswith('"') and comma_escaped.endswith('"'),
-            f"settings.ini: a comma does not quote the value: {comma_escaped!r}")
-    require(qt_ini_unescape(comma_escaped) == comma,
-            f"settings.ini: the reader does not strip the quotes: {qt_ini_unescape(comma_escaped)!r}")
-
-    # The plain-ASCII values of the other 39 cases must not change at all.
-    for value in ("en_US", "/home/user/downloads/archive", "yt-dlp"):
-        require(escape_qt_ini_value(value) == value, f"settings.ini: {value!r} is no longer written verbatim")
-
-    print(f"settings_ini_roundtrip values={len(SETTINGS_INI_ROUND_TRIP)} quoted={quoted} "
-          f"digit_after_escape=ok ascii_verbatim=3")
+    The proof itself lives in `test_qt_ini_roundtrip.py`, next to this file:
+    this function only calls it, so there is one implementation and two
+    callers, and a reviewer reading either one sees the same checks.
+    """
+    try:
+        summary = check_qt_ini_roundtrip()
+    except AssertionError as error:
+        raise RuntimeError(f"settings.ini: {error}") from error
+    print(f"settings_ini_roundtrip values={summary['values']} fuzz={summary['fuzz']} "
+          f"seed={summary['seed']} quoted={summary['quoted']} digit_after_escape=ok ascii_verbatim=3")
 
 
 def verify_metadata() -> None:

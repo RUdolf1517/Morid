@@ -75,12 +75,14 @@ backslash as `\\`, a double quote as `\"`, a hexadecimal digit that follows an e
 (the reader's hex scan is greedy: `\x4385` is one code point, not `и` followed by `5`), and a value that
 contains `;`, `,` or `=` — or that starts or ends with a space — wrapped in double quotes — because the
 original never calls `QSettings::setIniCodec` and reads a raw UTF-8 value back as Latin-1, which silently
-changes it (s20 was captured in the wrong folder until this was fixed). `verify_fixtures.py` proves those
-rules the only way they can be proved, by reading the helper's output back with a port of Qt's own
-`iniUnescapedStringList` and asserting the value survives. The helper's limit is narrower than "the Qt
-dialect": it covers non-ASCII escaping, backslash, quotes and the five quoting conditions, and it
-deliberately says nothing about control characters, `@ByteArray(...)`/`@Variant(...)` value prefixes or
-QStringList comma splitting.
+changes it (s20 was captured in the wrong folder until this was fixed). `tools/capture/test_qt_ini_roundtrip.py`
+proves those rules the only way they can be proved, by reading the helper's output back with a port of Qt's
+own `iniUnescapedStringList`; `verify_fixtures.py` calls the same checks and prints them as
+`settings_ini_roundtrip`. The helper's limit is narrower than "the Qt dialect": it covers non-ASCII
+escaping, backslash, quotes and the five quoting conditions, and it deliberately says nothing about control
+characters, `@ByteArray(...)`/`@Variant(...)` value prefixes or QStringList comma splitting — each of those
+is pinned by a test in `QtIniLimit` rather than by this sentence. There is exactly one writer: the post-download
+hook's command line in s38 is a settings value like any other and goes through the same helper.
 `tools/capture/qt_driver.cpp` is built as an external `LD_PRELOAD` helper; it interposes only
 `QCoreApplication::exec()` to schedule UI actions. Nothing in `legacy/` is changed or linked into the
 helper.
@@ -174,6 +176,26 @@ clean-tree idempotency check.
 `verify_fixtures.py` is read-only. It checks all 40 manifest entries, transcript/argv equality and
 backend identity, raw-stream hashes and awkward bytes, userdata structure and anonymization, comparator
 positive/negative behaviour, and fixture size/artifact constraints.
+
+### Running the settings.ini test
+
+The Qt INI dialect is a unit test, not a fixture check. It needs the Python standard library and nothing else
+— no Qt, no capture cache, no `fixtures/` — and it discovers itself from the repository root:
+
+```sh
+python3 -m unittest discover            # 16 tests, ~0.02s
+python3 -m unittest tools.capture.test_qt_ini_roundtrip
+```
+
+It is `unittest` rather than `pytest` because the repository has to stay runnable on a bare Python
+installation: `pytest` is a third-party dependency, and the Rust workspace that replaces this tooling will
+bring its own runner (`cargo test`) rather than a Python one. The fuzz is seeded (`FUZZ_SEED`, `FUZZ_ITERATIONS`
+at the top of the file) so a failure is reproducible from the file alone.
+
+**Nothing in this repository runs automatically.** There is no CI configuration in this branch: the
+original's ten workflows were removed with `legacy/`, and the new CI is Rust, Phase 1 (F-75). So the test
+runs when someone runs it — either the command above or `python3 tools/capture/verify_fixtures.py`, which
+calls the same `check_all()`. If CI is added later, this is the command it should run.
 
 ## Comparator
 

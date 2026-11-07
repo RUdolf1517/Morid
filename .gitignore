@@ -21,3 +21,7 @@ ${default}/
 /legacy/build/
 /legacy/BUILD/
 /legacy/src/build/
+
+# python bytecode from the capture tooling and its tests
+__pycache__/
+*.pyc

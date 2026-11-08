@@ -83,6 +83,11 @@ support has at least one captured output.
 
 ### Phase 1 — Skeleton
 
+**Implementation status:** workspace and three-platform CI implemented; acceptance pending review.
+Green baseline: [CI 42460111802](https://github.com/RUdolf1517/Morid/actions/runs/42460111802).
+The Windows runner cannot initialize OpenGL, so GUI opening there remains unproven.
+The Phase 0 suite currently has **30**, not 16, tests; CI guards that count.
+
 **Deliverable:** a workspace that builds, tests and reports size on three platforms, with no features.
 
 - Cargo workspace, the eight crates of [architecture](architecture.md) §1, all empty but compiling.

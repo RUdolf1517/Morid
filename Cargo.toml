@@ -9,7 +9,6 @@ members = [
     "crates/morid",
     "crates/morid-cli",
     "crates/morid-gui",
-    "crates/licence-probe",
 ]
 
 [workspace.package]

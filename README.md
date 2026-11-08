@@ -131,3 +131,49 @@ Morid exists because of [Media Downloader](https://github.com/mhogomchungu/media
 **Francis Banyikwa** (`mhogomchungu@gmail.com`), Copyright (c) 2021–2026, GPL-2.0-or-later. The functional
 specification, the extension format and the user data formats are his work. Any defect in the Rust
 reimplementation is ours, not his.
+
+### Phase 1 acceptance evidence
+
+Continues the original skeleton commits `e1192eb…fe0f6a0`, rather than replacing them:
+eight crate stubs, the separate `xtask`, inline Slint window and matrix CI were retained.
+Repairs include the Slint feature/MSRV selection, licence policy, committed lock file,
+offline build, GUI smoke checks, size report and guarded Phase 0 checks.
+No downloader functionality is implemented. See `docs/workspace-manifest.md` §7 for deviations.
+
+- [Green three-platform baseline, committed lock](https://github.com/RUdolf1517/Morid/actions/runs/42460111802):
+  Linux 7m31s, Windows 7m31s, macOS 7m30s (job wall clocks; all below 15 minutes).
+- [Earlier green run with detailed evidence](https://github.com/RUdolf1517/Morid/actions/runs/42459576443):
+  Linux size `morid-gui: 5749160 bytes (5.48 MiB)`, `morid: 326040 bytes (0.31 MiB)`;
+  CLI tree contains only Morid's skeleton crates, no Slint or GUI;
+  Phase 0: `Ran 30 tests`, `OK`, `VERIFY_OK`.
+- [Negative licence probe](https://github.com/RUdolf1517/Morid/actions/runs/42460673154)
+  at `c3455d39`: temporary workspace crate `licence-probe`, declaring `GPL-3.0-only`,
+  caused `cargo deny` to fail (exit 4):
+
+  ```text
+  error[rejected]: failed to satisfy license requirements
+  crates/licence-probe/Cargo.toml:10:12
+  10 | license = "GPL-3.0-only"
+     | rejected: license is not explicitly allowed
+  ```
+
+  The probe is removed. This tested a disallowed crate against the policy;
+  it did **not** literally break `deny.toml`, as criterion 8 requests.
+- [No-C-compiler experiment](https://github.com/RUdolf1517/Morid/actions/runs/42460673068):
+  `cc=none gcc=none clang=none`. Full GNU build failed with `linker cc not found`
+  (exit 101); the host procedural macro build scripts need a native linker driver.
+  Instead the console target was built with
+  `RUSTFLAGS="-C linker=rust-lld -C link-self-contained=yes"` for
+  `x86_64-unknown-linux-musl`: exit 0, 410424 bytes, `morid 0.1.0`.
+  This proves only the console alternative, not a no-C-toolchain GUI build.
+- The empty-test-pattern check locally reports `Ran 0 tests` and exits successfully;
+  applying CI's exact-count guard (`30`) rejects it. The specification's count of 16
+  is stale; tests and fixtures were not changed to fit it.
+
+Known limitations: no local Rust toolchain, so Rust checks were executed in Actions,
+not locally. Linux/macOS GUI smoke checks pass; Windows lacks `glCreateShader` and
+that exact initialization error is a warning, not proof that a window opened.
+The `unmaintained = "workspace"` cargo-deny policy is a reviewable deviation:
+transitive unmaintained advisories are not gating, while vulnerabilities remain gating
+and cargo-audit still reports warnings. Binary size policy D-008 does not authorize
+this advisory-policy change. Temporary diagnostic workflows and lock emitters are removed.

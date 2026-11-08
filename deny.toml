@@ -79,8 +79,8 @@ allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-
 # So the policy is stated instead: unmaintained advisories are reported for
 # workspace crates only. Vulnerabilities still fail the check, and `cargo audit`
 # in the next step still prints every unmaintained crate it finds, without
-# gating — which is the D-008 shape: report, do not hide, do not block on a
-# property of a third-party tree that Morid cannot fix.
+# gating. This is a Phase 1 policy deviation requiring review, not an
+# application of D-008 (which concerns binary size only).
 unmaintained = "workspace"
 
 [bans]

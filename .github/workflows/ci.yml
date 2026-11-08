@@ -38,8 +38,6 @@ jobs:
         with:
           key: ${{ matrix.os }}-${{ hashFiles('Cargo.lock') }}
 
-      # Temporary: generates the lock file so it can be committed by hand, since
-      # no Rust toolchain exists in the environment where this workflow is written.
       - name: Format
         shell: bash
         run: |
@@ -214,22 +212,3 @@ jobs:
         run: |
           set -euo pipefail
           cargo audit 2>&1 | tee audit.log
-
-      # Temporary scaffolding, removed before the pull request is handed over:
-      # it exists only because this environment cannot read job logs and has no
-      # cargo of its own. The lock file is collected through the artefact, the
-      # rest through annotations.
-      - name: Annotate the failure
-        if: failure()
-        shell: bash
-        run: |
-          shopt -s nullglob
-          for log in deny.log audit.log clippy.log build.log offline.log test.log lockgen.log; do
-            [ -f "$log" ] || continue
-            head -n 6 "$log" | cut -c1-900 | while IFS= read -r line; do
-              echo "::error title=${log}-head::${line}"
-            done
-            grep -m 12 -i -e "not explicitly allowed" -e "error\[" "$log" | cut -c1-900 | while IFS= read -r line; do
-              echo "::error title=${log}-hit::${line}"
-            done || true
-          done

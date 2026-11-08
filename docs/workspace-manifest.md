@@ -211,7 +211,7 @@ at build time, so a stale binary translation cannot be shipped silently. `Cargo.
 ## 7. Deviations recorded while Phase 1 was built
 
 Each of these was forced by something the specification could not know, and each is in the same pull request as
-the code that needed it. The values above have been edited to match, so this section is the record of *why*.
+the code that needed it. This section overrides the original values above where explicitly noted and records why.
 
 1. **`slint` is pinned to the 1.13 line and its feature list is different** (§1). Three separate facts, each from
    crates.io rather than from taste:
@@ -253,4 +253,5 @@ the code that needed it. The values above have been edited to match, so this sec
    the exemption for publishable crates because "crates.io disallows path dependencies".
 7. **`morid-gui` has one test hook.** If `MORID_GUI_SMOKE_MS` is set, the window runs the Close button's own code
    path after that many milliseconds, which is how CI proves that a window opens and closes with a real exit code
-   on three platforms. Unset, nothing changes.
+   on Linux and macOS. Windows hosted runners lack the required OpenGL symbol; that specific
+   initialization failure is a warning, not evidence of a window opening. Unset, nothing changes.

@@ -40,13 +40,6 @@ jobs:
 
       # Temporary: generates the lock file so it can be committed by hand, since
       # no Rust toolchain exists in the environment where this workflow is written.
-      - name: Generate the lock file (temporary)
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo generate-lockfile 2>&1 | tee lockgen.log
-          wc -l Cargo.lock | tee -a lockgen.log
-
       - name: Format
         shell: bash
         run: |
@@ -112,14 +105,18 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb x11-utils imagemagick libgl1-mesa-dri mesa-utils
-          export MORID_GUI_SMOKE_MS=8000
-          export LIBGL_ALWAYS_SOFTWARE=1
-          xvfb-run -a -n 99 --server-args="-screen 0 1024x768x24" ./target/release/morid-gui &
-          gui=$!
-          sleep 5
-          DISPLAY=:99 import -window root gui-linux.png || echo "screenshot unavailable"
-          ls -l gui-linux.png || true
-          wait "$gui"
+          # The screenshot is taken from inside the X server's own environment,
+          # otherwise DISPLAY belongs to the outer shell and the capture fails.
+          xvfb-run -a --server-args="-screen 0 1024x768x24" bash -eu -c '
+            export MORID_GUI_SMOKE_MS=9000
+            export LIBGL_ALWAYS_SOFTWARE=1
+            ./target/release/morid-gui &
+            gui=$!
+            sleep 5
+            import -window root gui-linux.png || echo "import failed"
+            ls -l gui-linux.png || true
+            wait "$gui"
+          '
           echo "morid-gui exited 0 after opening its window"
 
       - name: GUI smoke (macOS)
@@ -222,59 +219,6 @@ jobs:
       # it exists only because this environment cannot read job logs and has no
       # cargo of its own. The lock file is collected through the artefact, the
       # rest through annotations.
-      - name: Print the lock file (temporary)
-        if: always()
-        shell: bash
-        run: |
-          if [ -f Cargo.lock ]; then
-            echo '::group::Cargo.lock'
-            cat Cargo.lock
-            echo '::endgroup::'
-          else
-            echo "no Cargo.lock in the checkout"
-          fi
-
-      - name: Upload the lock file (temporary)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cargo-lock-${{ matrix.os }}
-          path: Cargo.lock
-          if-no-files-found: ignore
-
-      - name: Licence inventory (temporary)
-        if: always()
-        shell: bash
-        run: |
-          cargo deny list > deny-list.log 2>&1 || true
-          awk -F': ' 'NF > 1 { print $2 }' deny-list.log | sort | uniq -c | sort -rn > deny-licences.log || true
-          head -n 8 deny-licences.log | cut -c1-900 | while IFS= read -r line; do
-            echo "::warning title=licences::${line}"
-          done
-
-      - name: Evidence, dependency tree (temporary)
-        if: always()
-        shell: bash
-        run: |
-          shopt -s nullglob
-          for log in tree-cli.log; do
-            [ -f "$log" ] || continue
-            head -n 10 "$log" | cut -c1-900 | while IFS= read -r line; do
-              echo "::warning title=${log}::${line}"
-            done
-          done
-
-      - name: Evidence, results (temporary)
-        if: always()
-        shell: bash
-        run: |
-          for log in size-report.txt phase0-unittest.log phase0-verify.log gui-smoke.log; do
-            [ -f "$log" ] || continue
-            tail -n 4 "$log" | cut -c1-900 | while IFS= read -r line; do
-              echo "::warning title=${log}::${line}"
-            done
-          done
-
       - name: Annotate the failure
         if: failure()
         shell: bash
@@ -289,13 +233,3 @@ jobs:
               echo "::error title=${log}-hit::${line}"
             done
           done
-
-      - name: Emit the lock file, part 1 (temporary)
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: python3 .github/emit-chunks.py Cargo.lock 0 9 gzip
-
-      - name: Emit the lock file, part 2 (temporary)
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: python3 .github/emit-chunks.py Cargo.lock 10 19 gzip

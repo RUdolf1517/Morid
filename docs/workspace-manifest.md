@@ -227,19 +227,30 @@ the code that needed it. The values above have been edited to match, so this sec
    `resolver.incompatible-rust-versions = "fallback"`. With `resolver = "2"` and the default `allow`, cargo resolved
    transitive crates needing 1.87–1.90 (`image 0.25.10`, `zbus 5.19`, `uuid 1.29`) and then refused to build with
    the pinned toolchain, which makes `rust-version = "1.85"` a lie. With `fallback`, resolution keeps the promise.
-3. **`deny.toml` gained four things the specification did not have**, all recorded in the file itself:
-   an `[advisories]` section ignoring three unmaintained advisories (`RUSTSEC-2026-0370` `zvariant`,
-   `-0371` `zbus_names`, `-0372` `zvariant_derive`) that arrive through `slint → i-slint-backend-winit → zbus 5`
-   and have no safe upgrade inside this Slint; two licences that only appear in that transitive tree (`BSL-1.0` for
-   `clipboard-win`, `Unicode-3.0` for the `icu_*` crates); `GPL-2.0-or-later`, which is Morid's own licence and
-   which the original allow list forgot; and an exception entry for **every** Slint crate rather than only `slint`,
-   because they all declare the same triple licence and an exception is matched by crate name.
+3. **`deny.toml` gained five things the specification did not have**, all recorded in the file itself:
+   - `[advisories] unmaintained = "workspace"`. Without the section, `cargo deny check` denies every advisory,
+     unmaintained ones included, and Slint's tree carries a growing set of them — `zvariant`, `zbus_names`,
+     `zvariant_derive`, `ttf-parser`, `rustybuzz`, `pin-utils`, each marked "no safe upgrade" inside Slint 1.13.
+     The policy states that unmaintained advisories are reported for workspace crates only; vulnerabilities still
+     fail, and `cargo audit` in the next step still prints every unmaintained crate it finds, as a warning.
+   - `GPL-2.0-or-later` in the allow list — Morid's own licence, which the list forgot: `cargo deny` rejected
+     `morid 0.1.0`, `morid-cli 0.1.0` and the other six.
+   - `BSL-1.0` (`clipboard-win`, through `copypasta`) and `Unicode-3.0` (the `icu_*` crates) — licences that only
+     appear in Slint's transitive tree, both permissive and GPL-compatible.
+   - an exception entry for **every** Slint crate rather than only `slint`: they all declare the same triple
+     licence and an exception is matched by crate name, so the single `slint` entry left nine violations.
+   - `[bans] allow-wildcard-paths = true` — every workspace dependency is written `{ path = "crates/…" }` with no
+     version, which `wildcards = "deny"` rejects ("found 10 wildcard dependencies for crate \'morid\'"). The flag
+     exempts path dependencies only, and only for crates that are not publishable (see the next item).
 4. **`xtask` is its own workspace.** `xtask/Cargo.toml` carries an empty `[workspace]` table, so it is not one of
    the eight members and `cargo build --workspace` does not build it. Including it would have made nine members and
    added a second dependency tree; the workflow formats and lints it explicitly instead.
 5. **`morid-gui/src/main.rs` uses `#![deny(unsafe_code)]`, not `forbid`.** `slint!` expands to Slint's generated
    code, which carries `#[allow(unsafe_code)]`, and an inner `allow` under a crate-level `forbid` is error E0453.
    The library crates keep `forbid`; Morid's own code in the binary contains no `unsafe`.
-6. **`morid-gui` has one test hook.** If `MORID_GUI_SMOKE_MS` is set, the window runs the Close button's own code
+6. **`publish = false`** is set in `[workspace.package]` and inherited by every crate. Morid is an application;
+   nothing here goes to a registry, and saying so is what makes `allow-wildcard-paths` apply — `cargo deny` refuses
+   the exemption for publishable crates because "crates.io disallows path dependencies".
+7. **`morid-gui` has one test hook.** If `MORID_GUI_SMOKE_MS` is set, the window runs the Close button's own code
    path after that many milliseconds, which is how CI proves that a window opens and closes with a real exit code
    on three platforms. Unset, nothing changes.

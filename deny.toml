@@ -71,17 +71,17 @@ allow = ["GPL-3.0-only", "LicenseRef-Slint-Royalty-free-2.0", "LicenseRef-Slint-
 [advisories]
 # Missing from the specification (workspace-manifest.md §4). With no
 # `[advisories]` section `cargo deny check` denies every advisory, unmaintained
-# ones included, and Slint 1.13 carries three it cannot drop:
-#   RUSTSEC-2026-0370  zvariant          unmaintained
-#   RUSTSEC-2026-0371  zbus_names        unmaintained
-#   RUSTSEC-2026-0372  zvariant_derive   unmaintained
-# all arriving as slint → i-slint-backend-winit → zbus 5. Every one says "No
-# safe upgrade is available": the fix is zbus 6, which this Slint does not use.
-# Named rather than blanket ignored so they are revisited when Slint moves;
-# vulnerabilities still fail the check. The advisory database has no other
-# entry for zbus, zbus_names, zbus_macros, zvariant, zvariant_derive or
-# zvariant_utils (api.github.com/repos/rustsec/advisory-db/contents/crates/…).
-ignore = ["RUSTSEC-2026-0370", "RUSTSEC-2026-0371", "RUSTSEC-2026-0372"]
+# ones included, and Slint's dependency tree carries a growing set of them:
+# zvariant, zbus_names, zvariant_derive, ttf-parser, rustybuzz, pin-utils — all
+# transitive, all "no safe upgrade inside Slint 1.13". Listing them one by one
+# makes the file a diary of somebody else's packaging.
+#
+# So the policy is stated instead: unmaintained advisories are reported for
+# workspace crates only. Vulnerabilities still fail the check, and `cargo audit`
+# in the next step still prints every unmaintained crate it finds, without
+# gating — which is the D-008 shape: report, do not hide, do not block on a
+# property of a third-party tree that Morid cannot fix.
+unmaintained = "workspace"
 
 [bans]
 multiple-versions = "warn"

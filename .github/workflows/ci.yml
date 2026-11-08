@@ -231,5 +231,5 @@ jobs:
             done
             grep -m 12 -i -e "not explicitly allowed" -e "error\[" "$log" | cut -c1-900 | while IFS= read -r line; do
               echo "::error title=${log}-hit::${line}"
-            done
+            done || true
           done

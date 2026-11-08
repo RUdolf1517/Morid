@@ -79,7 +79,8 @@ jobs:
         run: |
           set +e
           rustup target add x86_64-unknown-linux-musl 2>&1 | tail -2
-          RUSTFLAGS="-C linker=rust-lld -C link-self-contained=+linker" \
+          export PATH="$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin:$PATH"
+          RUSTFLAGS="-C linker=rust-lld -C link-self-contained=yes" \
             cargo build --release -p morid-cli --target x86_64-unknown-linux-musl > build-musl.log 2>&1
           status=$?
           echo "musl build exit code: $status" | tee -a build-musl.log

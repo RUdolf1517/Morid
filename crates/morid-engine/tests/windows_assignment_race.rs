@@ -166,7 +166,10 @@ fn race_grandchild() -> io::Result<()> {
     let root = PathBuf::from(
         std::env::var_os("MORID_RACE_ROOT").ok_or_else(|| io::Error::other("missing root"))?,
     );
-    fs::write(root.join("grandchild.pid.tmp"), std::process::id().to_string())?;
+    fs::write(
+        root.join("grandchild.pid.tmp"),
+        std::process::id().to_string(),
+    )?;
     fs::rename(root.join("grandchild.pid.tmp"), root.join("grandchild.pid"))?;
     let deadline = Instant::now() + Duration::from_secs(45);
     while !root.join("stop").exists() && Instant::now() < deadline {

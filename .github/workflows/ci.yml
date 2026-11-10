@@ -300,7 +300,7 @@ jobs:
           def emit(title, text):
               text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
               print(f"::notice title={title}::{text}")
-          for name in ["engines.txt", "engines-warnings.txt", "size-report.txt", "phase0-unittest.log", "phase0-verify.log", "variants.log", "warnings-demo.log", "windows-race.log"]:
+          for name in ["engines.txt", "engines-warnings.txt", "size-report.txt", "phase0-unittest.log", "phase0-verify.log", "variants.log", "warnings-demo.log", "windows-race.log", "test.log"]:
               path = Path(name)
               if path.exists(): emit(name, path.read_text(errors="replace")[-12000:])
           path = Path("test.log")

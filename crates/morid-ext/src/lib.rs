@@ -48,12 +48,43 @@ pub struct ArgPolicy {
     pub extra_options_win7: Vec<String>,
 }
 
+/// Passive schema data. Credentials deliberately have no Debug implementation.
+#[derive(Default, Clone, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct Metadata {
+    pub auto_update: bool,
+    pub backend_path: String,
+    pub can_download_playlist: bool,
+    pub like_youtube_dl: bool,
+    pub use_private_executable: bool,
+    pub supporting_engine: bool,
+    pub updatable_supporting_engine: bool,
+    pub archive_contains_folder: bool,
+    pub user_name: String,
+    pub password: String,
+    pub download_url: String,
+    pub download_url_win7: String,
+    #[serde(rename = "DownloadUrlMAC")]
+    pub download_url_mac: String,
+    pub version_argument: String,
+    pub version_string_line: i64,
+    pub version_string_position: i64,
+    pub remove_text: Vec<String>,
+    pub skip_line_with_text: Vec<String>,
+    pub split_lines_by: Vec<String>,
+    pub replace_output_with_progress_report: bool,
+    // Do not interpret this field yet: docs call it bool, aria2c ships an object.
+    pub show_list_table_boundary: Option<Value>,
+}
+
 #[derive(Deserialize)]
 struct Known {
     #[serde(rename = "Cmd")]
     commands: BTreeMap<String, BTreeMap<String, Command>>,
     #[serde(flatten)]
     policy: ArgPolicy,
+    #[serde(flatten)]
+    metadata: Metadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,7 +100,10 @@ pub struct Extension {
     pub schema_version: u32,
     /// Includes unknown keys. Credentials in this value must never be logged.
     pub raw: Value,
+    /// Original file, including unknown data before a thin transformation.
+    pub source: Value,
     pub policy: ArgPolicy,
+    pub metadata: Metadata,
     pub control: control::Control,
     pub command: Command,
     pub selected_arch: String,
@@ -307,7 +341,10 @@ pub fn read(
             .unwrap_or(&serde_json::json!({})),
     )
     .map_err(|message| failure(file, 5, message))?;
-    let executable = search.find(&command.args[0]);
+    let backend = search.find(&command.name);
+    let launcher_exists =
+        command.args[0] == command.name || search.find(&command.args[0]).is_some();
+    let executable = backend.filter(|_| launcher_exists);
     let mut warnings = Vec::new();
     for object in [&raw, &input] {
         if let Some(object) = object.as_object() {
@@ -333,7 +370,9 @@ pub fn read(
         id,
         schema_version,
         raw,
+        source: input,
         policy: known.policy,
+        metadata: known.metadata,
         control,
         command,
         selected_arch,

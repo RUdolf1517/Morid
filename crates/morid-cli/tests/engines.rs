@@ -42,3 +42,39 @@ fn cli_engines_integration_without_spawning() {
         assert!(diagnostics.contains("ytdl-patched.json: warning: ExtraArguments"));
     }
 }
+
+#[test]
+fn warning_demo_copy_of_ytdl_patched() {
+    let directory =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/phase2-warning-demo");
+    std::fs::create_dir_all(&directory).expect("demo directory");
+    let mut document: serde_json::Value =
+        serde_json::from_str(include_str!("../../../extensions/ytdl-patched.json"))
+            .expect("original");
+    document["FutureFeature"] = serde_json::json!({"preserve":true});
+    std::fs::write(directory.join("ytdl-patched.json"), document.to_string()).expect("copy");
+    let search = SearchPath {
+        bin: directory.join("bin"),
+        paths: vec![],
+    };
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    assert_eq!(
+        morid_cli::run(
+            &["engines".to_owned()],
+            &directory,
+            &Target::current(),
+            &search,
+            &mut out,
+            &mut err
+        )
+        .expect("CLI"),
+        4
+    );
+    let diagnostics = String::from_utf8(err).expect("UTF-8");
+    assert!(
+        diagnostics.contains("ytdl-patched.json: warning: FutureFeature: unknown key preserved")
+    );
+    assert!(diagnostics.contains("ytdl-patched.json: warning: ExtraArguments: ignored spelling"));
+    println!("warning-demo:\n{diagnostics}");
+    std::fs::remove_dir_all(directory).expect("cleanup copy");
+}

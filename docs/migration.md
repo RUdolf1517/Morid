@@ -171,6 +171,7 @@ is listed in `CHANGELOG.md` when it ships. Any *other* difference is a defect un
 | M8 | RTL layout not mirrored | D-002 | Arabic renders correctly but the layout stays LTR |
 | M9 | `downloadHistory.json` is written as valid JSON in Morid's own directory; the original's file is left untouched | data-compat §5.1 | two files exist with different shapes; the original's remains usable |
 | M10 | Automatic subscription checking exists (F-26) | features §3 | new feature, not parity — must not be presented as "was always there" |
+| M11 | *(withdrawn — replaced by D-016)* `settings.ini` was to be read and written as UTF-8. The premise was wrong: the original writes Qt-escaped ASCII, not locale-encoded bytes, and writing UTF-8 would break the original's ability to read the file. | [decisions](decisions.md) D-016 | none: Morid now reads and writes the original's dialect |
 
 ---
 
@@ -192,10 +193,28 @@ deliberately left alone with a reason.
 | D9 | Empty `//?????` completion handlers for extension download | `legacy/src/configure.cpp:983` | download has an outcome and reports it |
 | D10 | Self-update renames directories at startup | `legacy/src/utility.cpp:1358` | not carried over |
 
+### 6.1 Observed during Phase 0 capture
+
+Behaviour found by running the original, which no document predicted. Recorded here because it was previously
+assumed to be the opposite, and because the fixture records the real thing.
+
+| # | Observation | Case | Consequence for Morid |
+| --- | --- | --- | --- |
+| O1 | An unknown extension **name** does not produce an empty command. The original rejects the name and downloads with the default engine. | s35 | "Unknown engine" is a warning plus a fallback to the default, not a hard failure. State which engine is chosen and whether the user is told before or after the download starts; the fixture pins the original's choice. |
+| O1b | An extension with the `Name` field **missing** is not rejected: the original loads it and executes its command. The captured argv is the URL alone. | s36 | "Missing required key" is a different path from "unknown name", and today it is not a validation failure at all. Decide deliberately whether Morid validates `Name` and what it does when it is absent; record the answer in [extensions](extensions.md) §2. |
+| O2 | An extension whose `Cmd` exists only for another architecture is likewise replaced by a working engine. | s26 | The selection table is a fallback chain, not a lookup that can fail. [extensions](extensions.md) §3 must describe the chain. |
+| O3 | Adding a URL to batch mode issues metadata commands before the download, so a scenario's transcript holds more than the command under test. | s10, s16, s18, s19 | Any argv test must name the invocation it asserts on, and the fixtures do so explicitly. Metadata preview is switched off in those captures rather than filtered afterwards. |
+| O4 | On Linux the shipped `Generic` branch of the you-get extension invokes `you-get` directly; the interpreter invocation exists only in the Windows branch. | s33 | The per-OS command tables are not interchangeable and cannot be reduced to one. Not captured as a golden; the observed command is kept. |
+| O5 | `AutoUpdate` produces no external process at all — updating a backend is done in-process through the network layer. | s28 | There is no argv to reproduce for updates; the equivalent behaviour is "fetch release metadata, verify, replace the binary" ([F-34](features.md)). |
+| O6 | Subtitles and comments are fetched with `--print`/`--get-comments` and `--no-download`, not by a separate list command. | s16, s18 | The metadata reader is the same code path as the download planner; it must not be modelled as a separate "probe" subsystem. |
+| O7 | `settings.ini` is not UTF-8: the original writes Qt-escaped ASCII (`\x<hex>` per non-ASCII code unit) because it never calls `setIniCodec` on a Qt 5 `QSettings`. Under Qt 6 the same file is written as UTF-8, so the two builds of the original disagree with each other. | s20 (the capture also exposed a separate, still-open question about that case) | Morid reads and writes the Qt 5 dialect — D-016. A general-purpose INI crate cannot do this. An earlier version of this row blamed the capture's locale; that explanation was wrong and is corrected here. |
+
 The distinction between §5 and §6: §5 changes something users see; §6 fixes something that was broken. Both are
 documented, because "we silently improved it" is how a replacement becomes untrustworthy.
 
 ---
+
+| O8 | The "Resetting download folder to default" message **never appears** in the application log, even when the reset happens: `settings::downloadFolder()` passes a default-constructed `sLogger` whose `add()` is a no-op without a `Logger*` (`legacy/src/settings.cpp:1631`). The reset is observable only through the resulting working directory and the rewritten `DownloadFolder` value. | s20, `f187923` | Do not use the log line as evidence of anything. Morid should log its own equivalent properly — this is one of the defects not to reproduce (D-016 note). |
 
 ## 7. Equivalence, precisely defined
 

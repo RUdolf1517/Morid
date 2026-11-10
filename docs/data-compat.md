@@ -60,6 +60,119 @@ Two entries deserve emphasis:
 
 ## 3. Settings
 
+### 3.0 Encoding of `settings.ini` — how the original actually writes it
+
+This section replaces an earlier version of itself that was **wrong**. The correction matters, because the
+first reading produced a wrong conclusion about what "compatibility" means here.
+
+**The original never calls `QSettings::setIniCodec`** (`grep -r setIniCodec legacy/src` finds nothing), and it
+constructs `QSettings(m, QSettings::IniFormat)` on every platform (`legacy/src/settings.cpp:374-380`). Under
+**Qt 5.15** that has a specific consequence, taken from the Qt documentation:
+
+> By default, no codec is used, and non-ASCII characters are encoded using standard INI escape sequences.
+> [...] QSettings will accept Latin-1 encoded INI files, but generate pure ASCII files, where non-ASCII values
+> are encoded using standard INI escape sequences.
+
+So a `DownloadFolder` of `/x/Загрузки` is **written** by the original as `/x/\x417\x430...` — ASCII on disk,
+one escape per UTF-16 code unit, **lowercase hexadecimal with no padding** (`\x417`, not `\x0417`; a non-BMP
+character becomes two escapes). The file is not UTF-8, not locale-encoded, and not something a byte-oriented
+reader can interpret: it is an INI dialect with its own escaping. This is the fact that matters for Morid, and
+it is unrelated to the machine's locale.
+
+Three rules of that dialect are easy to get wrong, and all three are taken from
+`qtbase/src/corelib/io/qsettings.cpp` (`iniEscapedString` and `iniUnescapedString`) rather than from memory:
+
+1. **The hex scan is greedy, so the writer defends against it.** After emitting `\x<hex>`, Qt sets
+   `escapeNextIfDigit`; if the next character is `0-9`, `a-f` or `A-F`, it escapes that character too. `Загрузки5`
+   is therefore written `\x417...\x438\x35`, not `...\x4385` — and a reader whose scan is greedy (Qt's is)
+   turns the naive form into a different string. A folder called `Отпуск2024` or `фото1` hits this.
+2. **A value is quoted when it contains `;`, `,` or `=`, or begins or ends with a space** (`needsQuotes`). Quotes
+   are part of the file, not of the value: Qt strips them on read.
+3. **`\` is written as `\\`**, and the control characters `\0 \a \b \f \n \r \t \v` have their own
+   short escapes.
+
+Both mistakes are silent. The original does not report a bad value; it reads something else, the path does not
+exist, and the folder is reset. This is why the round trip has to be tested rather than reasoned about.
+
+The read side of the same documentation matters just as much: Qt 5 "will accept **Latin-1** encoded INI files".
+A file written by something else — our capture harness, for instance — as literal UTF-8 is therefore not
+rejected; it is decoded as Latin-1 and silently becomes different text. Cyrillic `/x/Загрузки` turns into
+`/x/Ð—Ð°Ð³Ñ€ÑƒÐ·ÐºÐ¸`, which does not exist, which is why the original then resets the folder. Silent mojibake,
+not an error, is the failure mode to design against.
+
+(The locale theory in the first version of this section was wrong. What actually happened during the Phase 0
+capture is recorded in `fixtures/README.md` (appears with PR #2) under s20 and is still an open question
+for the capture — see [tasks/phase-0-fixtures.md](tasks/phase-0-fixtures.md) T7. The Qt behaviour above does not
+depend on how that turns out: it is a property of the writer, not of the capture host.)
+
+**Under Qt 6 the writer changed.** Qt 6 assumes INI values are UTF-8 and writes them as UTF-8; the Qt 6
+documentation says INI files written by Qt 5 remain readable by Qt 6 only "unless an ini codec different from
+utf8 had been set". A `settings.ini` produced by our Qt 5 reference build therefore does **not** round-trip
+through a Qt 6 build of the original. That matters if a user ever runs a Qt 6 build of Media Downloader: the two
+builds of *their own program* disagree about the same file.
+
+**What this means for Morid — decided by D-016 (compatibility first):**
+
+- **Read the Qt dialect, and say what was found.** A value containing `\x` escapes is decoded as Qt's; a value
+  that is plain ASCII needs no decision. Two cases must be *reported rather than guessed*: a value whose bytes are
+  valid UTF-8 but not ASCII (that is what a Qt 6 build of the original writes — see below), and a value that is
+  neither valid UTF-8 nor pure ASCII. Never fall back to Latin-1 the way Qt 5 does; producing silent mojibake is
+  the one behaviour not to copy.
+- **Write the Qt 5 dialect.** Non-ASCII characters are emitted as `\x<hex>`, with the digit defence and the
+  quoting rule above, exactly as Qt 5 does. This is ugly on
+  purpose: it is the only form the reference program can read back. (Qt 6 fixed this and, ironically, broke
+  itself — so "write what the reference does" has to name *which* reference build.)
+- **ASCII files are byte-identical** under either rule, which is why none of this was visible for years.
+- **Import decodes strictly and reports.** A file containing bytes that are neither valid UTF-8 nor valid Qt
+  escapes is reported as a finding, not silently repaired.
+- **Round trip is the acceptance test**, not "it looks right": write with Morid → read with the original →
+  value intact ([§6](#6-export-and-going-back)).
+
+The JSON data files are UTF-8 by construction. `archiveFile-<engine>.txt` is written by the backend, not by the
+original, and is passed through byte for byte.
+
+---
+
+### 3.0a Keys are escaped too — and it is a different escape
+
+The value escaping above does not apply to keys. `iniEscapedKey` keeps `a-z A-Z 0-9 _ - .`, writes `/` (the
+group separator) as `\\`, and escapes everything else as **`%XX`** for code units up to 0xFF or **`%UXXXX`** above
+— uppercase `U`, uppercase hex digits, zero-padded to four.
+
+Three details, each of which has already been written wrong once in this project's own notes:
+
+1. **`%XX` is a Latin-1 code point, not a UTF-8 byte.** `%D0%BF` is `Ð¿`, not `п`. A reader that pairs the bytes
+   decodes real Windows files into plausible-looking nonsense.
+2. **`%U` is uppercase only.** Qt tests `ch == 'U'`; `%u0417` is not an escape there. Lowercase is accepted only for
+   the two hex digits of a `%XX` escape (`%e9`). Treating `%u…` as an escape is a divergence dressed as fidelity.
+3. **The writer iterates UTF-16 code units, so a non-BMP character is two escapes** — `😀` is `%UD83D%UDE00` — while
+   the same character in a *value* is `\xd83d\xde00`. A Rust `escape_key` written over `char` instead of `u16`
+   produces `%U1F600` and is wrong.
+
+`iniUnescapedKey` also reports `lowercaseOnly`, and **it lowercases nothing**: the flag is used only by the caller to
+pick `Qt::CaseSensitive` versus the platform's `IniCaseSensitivity` when looking a key up. On Linux that sensitivity
+is already case-sensitive, so the flag changes nothing there; on Windows it does. The stored key text keeps its case.
+
+Malformed escapes: Qt appends a literal `%` and carries on, so `%zz` reads as the key `%zz`. **Morid refuses it
+instead** — deliberately, and this is a documented divergence rather than a port. A file Qt wrote never contains a
+malformed escape; one that does should fail loudly rather than resolve to a different key, which is the whole G11
+failure mode.
+
+This matters beyond the fixtures: an engine or extension whose name is not ASCII produces such a key in a real
+`settings.ini`, and Windows users have those files today. A reader that treats `%U417%U430` as a literal key name
+will not find the setting it is looking at, and will report a missing key rather than a decoding problem.
+
+**Morid must implement both escapes** — one helper for values, one for keys, in `morid-store`, with a round-trip
+test that re-encodes what it decoded and compares bytes. They may share a UTF-16 code-unit splitter and nothing
+else: the two dialects look similar and share no rules, and a single "smart" function is how a `%U` sequence ends
+up inside a path.
+
+**Status, 7 November 2026:** both escapes exist and are proved against Qt's own reader and writer in
+`tools/capture/qt_ini.py` and `tools/capture/canonicalise.py`, by 30 stdlib tests and a seeded fuzz. That is the
+specification in executable form; the Rust implementation in Phase 4 has to reproduce it, not re-derive it.
+
+### 3.1 Keys
+
 `settings.ini` holds ~51 distinct keys plus dynamically named families
 (`CookieBrowser_<engine>`, `CookieTextFilePath_<engine>`, `LastUsedOption<tab>_<engine>`,
 `TextEncoding_<engine>`, `WindowDimensions_<tab>`). The full list extracted from `legacy/src/settings.cpp` is:

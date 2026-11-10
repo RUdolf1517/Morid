@@ -96,20 +96,35 @@ It is how I5 is tested at all.
 
 ## 4. Fixtures: capture, storage, provenance
 
+**As built (5 November 2026):** the fixtures exist, in `fixtures/`, not in `tests/fixtures/`. The layout that was
+specified in [tasks/phase-0-fixtures.md](tasks/phase-0-fixtures.md) and delivered differs slightly from the table
+below, and the delivered one wins: `fixtures/scenarios/<case-id>/` (an `argv.json` plus the wrapper transcript it
+was copied from), `fixtures/streams/<backend>/` (raw bytes with a SHA-256 per file in `meta.json`),
+`fixtures/userdata/media-downloader/` (an anonymised data directory, reloaded by the original program),
+`fixtures/manifest.json` (the index) and `fixtures/README.md` (provenance, re-capture, gaps). The capture helpers
+are dev tooling in `tools/`, not a Cargo dependency.
+
+Two properties of the delivered set matter for everything below. The argv goldens record **argument boundaries
+as passed to `QProcess`**, not a shell string — the capture went through a wrapper backend that wrote
+`sys.argv[1:]`, so quoting bugs cannot hide in the fixture. And the goldens are being made host-independent
+(`<case-dir>`, `<node>`, `<local-url>` placeholders) so that a comparison on another machine is meaningful; until
+that lands, a golden only matches on the capture host.
+
 ### 4.1 What is captured, and from where
 
 | Fixture class | Source | Anonymised? |
 | --- | --- | --- |
-| Backend output (progress, list, errors, version) | real runs of `legacy/` against a small set of public URLs and against local test servers | titles replaced where they identify a person; no cookies, no tokens |
-| argv golden files | `--dry-run` equivalent, plus a debug log line of the executed command in `legacy/` | cookies replaced by a placeholder path |
+| Backend output (progress, list, errors, version) | real backend runs against a local deterministic HTTP server, merged stdout+stderr, unedited bytes | URL classes recorded instead of URLs; no cookies, no tokens |
+| argv golden files | a wrapper backend recording `sys.argv[1:]`, `program`, `cwd` and proxy environment as JSONL; the golden is copied mechanically from the first record | capture-host paths and the Node path replaced by placeholders |
 | Extension JSON | copies of `extensions/*.json` plus deliberate mutations | — |
 | Data directory | a real Media Downloader data directory with paths and names replaced | yes, and reviewed before commit |
 | HTTP responses | recorded GitHub API bodies | URLs kept; hashes are real values from a real release |
 
 ### 4.2 Storage rules
 
-- fixtures live in `tests/fixtures/`, one directory per class, with a `README.md` naming the backend version and
-  the capture date;
+- fixtures live in `fixtures/`, one directory per class, with a `README.md` naming each backend version and the
+  capture date; `fixtures/.gitattributes` disables EOL normalisation and whitespace checks for
+  `fixtures/streams/**` because those bytes are evidence, not source;
 - a fixture over 256 KiB is not committed; large captures are trimmed to the lines that matter, and the trimming
   script is committed instead;
 - **no fixture may contain a credential, a session cookie, a private URL or personal data.** Review rejects it,
@@ -162,16 +177,28 @@ Recorded here so that "we tested it" has a meaning for things automation does no
 
 ## 7. CI
 
-Target: four required checks on every pull request, all three platforms (`docs/platforms.md`).
+Target: **six** required checks on every pull request, all three platforms (`docs/platforms.md`). (This
+paragraph said "four" while the table listed six; the table is the specification and the sentence was wrong.)
 
 | Check | Command | Fails the build |
 | --- | --- | --- |
-| Format | `cargo fmt --check` | yes |
+| Format | `rustfmt --edition 2021 --check` over the tracked `.rs` files — **not** `cargo fmt --check`, see the note below | yes |
 | Lint | `cargo clippy --all-targets --all-features -- -D warnings` | yes |
 | Tests | `cargo test --all-features` | yes |
 | Build | `cargo build --release` | yes |
 | Size report | measure the release binaries, print and store the numbers | **no** ([D-008](decisions.md)) |
 | Licence and advisories | `cargo deny check`, `cargo audit` | yes |
+
+**Why not `cargo fmt --check`.** On the pinned toolchain (1.85.1) `cargo fmt` prints its own usage text and exits 1
+for *both* documented spellings, `--all --check` and `-- --check`. That is a defect in the wrapper, not in the
+formatting, and a CI step that cannot pass is worse than no step. Calling `rustfmt` directly over `git ls-files -z
+'*.rs'` was the fix that produced a real diff and then a clean run. If a future toolchain repairs `cargo fmt`,
+switching back is a one-line change — record it if you do.
+
+**Why six checks and not "four".** Format, lint, test and build gate the pull request; the size report is printed
+and stored but never fails it ([D-008](decisions.md)); licences and advisories (`cargo deny check`, `cargo audit`)
+gate it. That is four gating checks plus a report, in six steps — the phrase "four required checks" counted only the
+gating ones and confused everyone who read the table instead.
 
 The size check is a report, not a gate: growth over 10 % from the previous measurement must be explained in the
 pull request, and the history lives in [dependencies](dependencies.md). The gap this leaves — a program that

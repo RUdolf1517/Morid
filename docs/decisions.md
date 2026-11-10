@@ -210,7 +210,51 @@ is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-
 
 ## Open questions
 
-**None.** All fifteen questions of the audit were decided on 4 November 2026.
+### D-016 — `settings.ini` is read and written the way the original does it
+
+- **Date:** 5 November 2026 · **Question:** raised by the Phase 0 review, not by the audit
+- **Decision:** **compatibility wins over correctness of encoding.** Morid reads the Qt-escaped INI dialect the
+  reference program writes, and writes that dialect back. It does not "improve" the file to UTF-8.
+- **Reasoning:** the owner's position is compatibility first, and here it is also the only choice that keeps the
+  promise in D-003. A `settings.ini` containing a non-ASCII value is written by the original as ASCII with
+  `\x<hex>` escapes (Qt 5 with no `setIniCodec`); a UTF-8 file written by Morid would be misread by the original
+  as a different path, and the original would then reset the user's download folder. Writing UTF-8 would be a
+  deliberate break dressed up as an improvement.
+- **What it does not mean:** Morid does not reproduce *defects*. The Qt 5 → Qt 6 divergence is recorded so that a
+  user who switches builds understands what happened, not imitated.
+- **Consequences:**
+  - the INI reader and writer are specified in [data-compat](data-compat.md) §3.0, including the `\x<hex>` rule,
+    the digit-defence rule and the quoting rule — all three taken from Qt's own source, and all three silent when
+    got wrong;
+  - this is an *architecture* consequence, not a local one: `morid-store` cannot use a general-purpose INI
+    crate for this file. It needs a reader/writer for Qt's dialect, written and tested in this repository
+    ([dependencies](dependencies.md) §2 gains a rejection entry with this reason);
+  - the round trip "Morid writes → the original reads → value intact" is an acceptance test, not a manual check;
+  - a non-ASCII value must appear in the fixture set, so the rule is exercised rather than assumed.
+
+
+### D-017 — Phase 0's checks stay manual; CI arrives with Phase 1
+
+- **Date:** 5 November 2026 · **Question:** should the Phase 0 checks get a workflow before Phase 1? Raised by the
+  coder in round 5 and escalated, because it was not theirs to decide.
+- **Decision:** **wait for Phase 1.** No workflow is added in Phase 0. `tools/capture/verify_fixtures.py` and
+  `python3 -m unittest tools.capture.test_qt_ini_roundtrip` stay commands a person runs.
+- **Reasoning:** the owner's call, against the manager's recommendation of a job now. The Phase 1 deliverable is a
+  pipeline that reports on every later phase; adding a throwaway job first means writing one file now and a
+  different one in a week, and the repository has no Rust to run yet.
+- **Consequence that must be honoured, not just noted:** the risk I raised does not go away because the decision
+  went the other way. Both checks can rot silently until Phase 1 lands, and Phase 3 will trust the fixtures. So
+  the obligation is explicit:
+  - `docs/roadmap.md` Phase 1 carries a **new exit criterion**: the CI workflow must run the Phase 0 checks as well
+    as the Rust ones. It is not extra scope — it is where these checks were always going to live.
+  - the first Phase 1 task must list them, so the coder cannot deliver "green CI" that ignores them.
+  - until then, the review procedure for any Phase 0 follow-up states which commands were run by hand and their
+    output, so "it was not run" is visible rather than assumed.
+- **What would reverse this:** if Phase 1 slips past its estimate, or if either check is found broken in a way an
+  automated run would have caught, the job comes first and the Phase 1 matrix waits.
+
+**None.** All fifteen questions of the audit were decided on 4 November 2026. D-016 and D-017 were raised
+afterwards, by the Phase 0 review, and both are decided.
 
 | Question | Decision | Question | Decision |
 | --- | --- | --- | --- |
@@ -223,9 +267,10 @@ is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-
 | Q7 Windows | D-005 10/11 only | Q15 network endpoints | D-014 split |
 | Q8 self-update | D-013 notice only | | |
 
-Engineering choices that are not product decisions — thread model, HTTP client, INI parsing, translation format
-— are listed in [architecture](architecture.md) §10 and [roadmap](roadmap.md) §5, and are settled in the phase
-that needs them.
+Engineering choices that are not product decisions — thread model, HTTP client, translation format — are listed
+in [architecture](architecture.md) §10 and [roadmap](roadmap.md) §5, and are settled in the phase that needs
+them. **INI parsing is no longer in that list**: D-016 settled it, because the answer is dictated by
+compatibility rather than by preference.
 
 New questions are added to the table above with what they block and by when an answer is needed. An open
 question stops only the work that depends on it, never the whole project.

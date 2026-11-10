@@ -83,10 +83,10 @@ support has at least one captured output.
 
 ### Phase 1 — Skeleton
 
-**Implementation status:** workspace and three-platform CI implemented; acceptance pending review.
-Green baseline: [CI 42460111802](https://github.com/RUdolf1517/Morid/actions/runs/42460111802).
-The Windows runner cannot initialize OpenGL, so GUI opening there remains unproven.
-The Phase 0 suite currently has **30**, not 16, tests; CI guards that count.
+**Implementation status:** accepted and merged (PR #4, `b6c2a58`). Green on all three platforms:
+[CI 42461122995](https://github.com/RUdolf1517/Morid/actions/runs/42461122995). The Windows runner cannot initialize
+OpenGL, so GUI opening there remains unproven. The Phase 0 suite has **30** tests; CI asserts that count rather than
+a number written down here.
 
 **Deliverable:** a workspace that builds, tests and reports size on three platforms, with no features.
 
@@ -106,6 +106,17 @@ The Phase 0 suite currently has **30**, not 16, tests; CI guards that count.
 deferred them to here rather than dropping them.
 
 ---
+
+**Status 8 November 2026:** delivered in PR #4 (`b6c2a58`) and green on all three platforms — run
+[42461122995](https://github.com/RUdolf1517/Morid/actions/runs/42461122995). Eleven of the twelve criteria met as
+written; two of those by an equivalent rather than literally (criterion 8 used a disallowed-licence probe crate;
+criterion 10 builds the CLI for musl instead of proving a C-toolchain-free GUI build). Two deviations accepted and
+recorded in [tasks/phase-1-skeleton.md](tasks/phase-1-skeleton.md) §7a: `deny.toml` stops failing on transitive
+*unmaintained* advisories — vulnerabilities still fail — and Slint is pinned `~1.13` because the specification's
+`version = "1"` resolves to an edition-2024 release the pinned 1.85 compiler cannot build. Windows GUI launch stays
+unproven: the hosted runner has no `glCreateShader`.
+
+The workflow now also runs the Phase 0 checks and asserts their test count, which is what D-017 deferred here.
 
 ### Phase 2 — Domain and extension schema
 

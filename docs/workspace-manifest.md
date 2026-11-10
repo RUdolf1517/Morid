@@ -51,12 +51,13 @@ ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] 
 tar = { version = "0.4", default-features = false }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 zip = { version = "4", default-features = false, features = ["deflate"] }
-slint = { version = "1", default-features = false, features = [
+# Corrected: see §7.1 for why `std-widgets` is gone and why the pin is `~1.13`.
+slint = { version = "~1.13", default-features = false, features = [
     "std",
     "compat-1-2",
     "renderer-femtovg",
     "backend-winit",
-    "std-widgets",
+] }
 ] }
 
 [profile.release]

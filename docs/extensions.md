@@ -227,12 +227,27 @@ smuggled in as a "fix".
 }
 ```
 
-Operators available on each side: `startsWith`, `endsWith`, `contains`, `containsAny` (array),
-`containsAll` (array). `Connector` is `&&` in every shipped file; `||` is not implemented by the original and
-is **not** part of the contract.
+Predicates available on each side: `startsWith`, `endsWith`, `contains`, `containsAny` (array of strings) and
+`containsAll` (array of strings). **One predicate per side is used**, and if a side carries more than one they are
+tested in exactly that order — `startsWith`, `endsWith`, `contains`, `containsAny`, `containsAll` — and the first
+present one decides. They are not combined. `containsAny` is true when any element is in the line; `containsAll`
+when every element is.
 
-Evaluation: a line is a progress line when `lhs` and `rhs` both hold. An empty object is "no condition". An
-empty `ControlJsonStructure` means "no progress detection" and the backend's output is shown verbatim.
+`Connector` selects between two forms (`legacy/src/engines.cpp:1551-1582`):
+
+| Form | Shape | Result |
+| --- | --- | --- |
+| no connector | `Connector` absent or empty, `lhs` present | the line matches when `lhs` holds; `rhs` is ignored |
+| `&&` | `Connector`, `lhs` and `rhs` all present | both must hold |
+| `||` | same | either may hold |
+
+Both connectors are part of the contract. `gallery-dl.json` ships `"Connector": "||"`; `svtplay-dl.json` and
+`wget.json` ship the no-connector form with `lhs` only. A connector other than `&&` or `||`, a connector without
+both sides, or a structure that is not an object at all, is a **validation failure naming the file** — not a rule
+that silently never fires.
+
+An empty side object matches nothing, so a rule written that way never fires. An empty `ControlJsonStructure` (`{}`,
+as `getsauce.json` and `lux.json` ship) means no progress detection, and the backend's output is shown verbatim.
 
 The values are then read from the line by the generic progress reader (percent, size, speed, ETA, file name)
 or, for the six engines with a named `BackendKind` ([architecture](architecture.md) §3.2), by that variant's

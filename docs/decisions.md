@@ -232,7 +232,6 @@ is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-
   - the round trip "Morid writes → the original reads → value intact" is an acceptance test, not a manual check;
   - a non-ASCII value must appear in the fixture set, so the rule is exercised rather than assumed.
 
-
 ### D-017 — Phase 0's checks stay manual; CI arrives with Phase 1
 
 - **Date:** 5 November 2026 · **Question:** should the Phase 0 checks get a workflow before Phase 1? Raised by the
@@ -253,8 +252,32 @@ is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-
 - **What would reverse this:** if Phase 1 slips past its estimate, or if either check is found broken in a way an
   automated run would have caught, the job comes first and the Phase 1 matrix waits.
 
+### D-018 — Tasks specify the contract; the coder reads the legacy source
+
+- **Date:** 10 November 2026 · **Question:** raised by the owner after the fourth task in a row contained a mechanism
+  the manager had not read the source for: "why do you read the code? From now on just tell the coder what has to be
+  done — the interface and so on — with an eye to the legacy code."
+- **Decision:** a task states **what must be true when it is done** — the behaviour as the user sees it, the
+  interface, the invariants it must not break, the acceptance criterion, and the files and sections where the answer
+  lives. The **mechanism** — how the old code actually does it — is established by the coder from `legacy/`, not
+  asserted by the manager from a reading of it.
+- **Reasoning:** the manager's record is four wrong mechanisms, each inferred from a symptom and each disproved from
+  the source: the log field, the s20 locale, the `\x` notation and quoting, and the thin-file "inheritance". Each
+  one cost a round or, in the first two cases, a wrong task. Reading more carefully would not have fixed the cause;
+  it would have produced longer tasks that paraphrase C++ and move the errors one level down, out of sight. A
+  contract, by contrast, can be checked by someone who never read the old code, and it stays true when the old code
+  is more surprising than expected.
+- **What it does not mean:** the manager stops checking claims in a document against the source when the coder's
+  report raises doubt — that check is how the fourth error was caught and corrected. And a task may still name a
+  mechanism **as a claim with its source attached**, together with what to do if the source disagrees. That is a
+  falsifiable statement handed to the reader, not an instruction to be obeyed.
+- **Consequences:** [tasks/README.md](tasks/README.md) "Rule for the manager" is rewritten; the Phase 2 task keeps
+  its three-transformation claim as the only mechanism statement in it, because it is the point the coder proves;
+  Phases 3 and later are written as contracts. The coder's stopping rule — report a contradiction with evidence and
+  stop on that point — is unchanged and remains the backstop.
+
 **None.** All fifteen questions of the audit were decided on 4 November 2026. D-016 and D-017 were raised
-afterwards, by the Phase 0 review, and both are decided.
+afterwards, by the Phase 0 review. D-018 came from the owner on 10 November 2026, after the Phase 2 task.
 
 | Question | Decision | Question | Decision |
 | --- | --- | --- | --- |

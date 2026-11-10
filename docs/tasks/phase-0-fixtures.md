@@ -339,7 +339,7 @@ Updated by the manager after the work is reviewed, not by you:
 
 - [../testing.md](../testing.md) §4 — fixture inventory and provenance become real instead of planned.
 - [../migration.md](../migration.md) §3 — any capture method that turned out not to work.
-- [../roadmap.md](../roadmap.md) §1 — Phase 0 marked done, estimate corrected against actual.
+- [../roadmap.md](../roadmap.md) §4, Phase 0 — marked accepted, estimate corrected against the actual.
 - [../features.md](../features.md) — a case that revealed an undocumented behaviour gets its note.
 
 Report any inconsistency you find between these documents and the real behaviour of `legacy/`; do not resolve

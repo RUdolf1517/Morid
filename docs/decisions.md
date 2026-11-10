@@ -291,7 +291,7 @@ afterwards, by the Phase 0 review. D-018 came from the owner on 10 November 2026
 | Q8 self-update | D-013 notice only | | |
 
 Engineering choices that are not product decisions — thread model, HTTP client, translation format — are listed
-in [architecture](architecture.md) §10 and [roadmap](roadmap.md) §5, and are settled in the phase that needs
+in [architecture](architecture.md) §10 and [roadmap](roadmap.md) §8, and are settled in the phase that needs
 them. **INI parsing is no longer in that list**: D-016 settled it, because the answer is dictated by
 compatibility rather than by preference.
 

@@ -135,7 +135,7 @@ replaced. It becomes the fixture for F-68 and the round trip of [data-compat](da
 
 ## 4. Order of migration and why
 
-The order in [roadmap](roadmap.md) §2 is: reference → skeleton → domain and extensions → one backend end to end →
+The order in [roadmap](roadmap.md) §4 is: reference → skeleton → domain and extensions → one backend end to end →
 user data → network → remaining backends → interface → release.
 
 Three deliberate choices inside that order:

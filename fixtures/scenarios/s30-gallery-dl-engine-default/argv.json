@@ -1,0 +1,14 @@
+[
+  "-o",
+  "output.mode=terminal",
+  "-o",
+  "output.shorten=false",
+  "--no-colors",
+  "-d",
+  "<case-dir>/downloads/gallery-dl",
+  "--per-engine-default",
+  "two words",
+  "--download-archive",
+  "<case-dir>/appdata/data/archiveFile-gallery-dl.db",
+  "https://example.com/v/fixture-01"
+]

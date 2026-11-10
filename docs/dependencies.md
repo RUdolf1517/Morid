@@ -237,7 +237,7 @@ Required by [D-008](decisions.md): the size is measured and published, not gated
 
 | Date | Commit | `morid-gui` (Linux x86_64, release) | `morid` (Linux x86_64, release) | Note |
 | --- | --- | --- | --- | --- |
-| — | — | — | — | no build exists yet |
+| CI run 42459576443 | `4b3ae528` | 5,749,160 bytes (5.48 MiB) | 326,040 bytes (0.31 MiB) | Skeleton only; [three-platform CI](https://github.com/RUdolf1517/Morid/actions/runs/42459576443) |
 
 For reference, the program being replaced ships as a Qt bundle: a Qt6 Windows installer is in the tens of
 megabytes before backends are counted. The Rust target is expected to be in single-digit megabytes for the

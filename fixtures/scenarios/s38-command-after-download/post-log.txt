@@ -1,0 +1,1 @@
+{"argv": ["yt-dlp", "--label", "two words", "<case-dir>/downloads/fixture-output.bin"], "cwd": "<case-dir>", "env": {}, "program": "<case-dir>/appdata/bin/post-hook"}

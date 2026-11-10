@@ -1,0 +1,1 @@
+{"argv": ["-o", "output.mode=terminal", "-o", "output.shorten=false", "--no-colors", "-d", "<case-dir>/downloads/gallery-dl", "--route-option", "two words", "--download-archive", "<case-dir>/appdata/data/archiveFile-gallery-dl.db", "https://route.example/v/fixture"], "cwd": "<case-dir>/downloads", "env": {}, "program": "<case-dir>/appdata/bin/gallery-dl.bin"}

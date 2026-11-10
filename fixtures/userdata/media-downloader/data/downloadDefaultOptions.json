@@ -1,0 +1,7 @@
+[
+    {
+        "downloadOption": "--url-manager \"two words\"",
+        "engine": "gallery-dl",
+        "url": "route.example"
+    }
+]

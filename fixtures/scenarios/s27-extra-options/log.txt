@@ -1,0 +1,1 @@
+{"argv": ["--engine-default", "--extra-from-extension", "two words", "https://example.com/v/fixture-01"], "cwd": "<case-dir>/downloads", "env": {}, "program": "<case-dir>/appdata/bin/capture-custom"}

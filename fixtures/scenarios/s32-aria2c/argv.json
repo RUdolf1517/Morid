@@ -1,0 +1,5 @@
+[
+  "-d",
+  "<case-dir>/downloads",
+  "https://example.com/v/fixture-01"
+]

@@ -1,0 +1,18 @@
+[package]
+name = "morid"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Application service: jobs, queue and command construction"
+
+
+[dependencies]
+morid-core = { workspace = true }
+morid-ext = { workspace = true }
+morid-engine = { workspace = true }
+morid-store = { workspace = true }
+morid-net = { workspace = true }

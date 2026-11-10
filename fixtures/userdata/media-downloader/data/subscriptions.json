@@ -1,0 +1,7 @@
+[
+    {
+        "getListOptions": "--flat-playlist",
+        "uiName": "Example subscription",
+        "url": "https://example.com/playlist/subscription"
+    }
+]

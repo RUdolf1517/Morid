@@ -1,0 +1,6 @@
+[
+  "yt-dlp",
+  "--label",
+  "two words",
+  "<case-dir>/downloads/fixture-output.bin"
+]

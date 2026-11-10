@@ -1,0 +1,11 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "GPL-2.0-or-later"
+publish = false
+
+# `xtask` is a tool, not a crate of the application: it stays out of the
+# workspace so that `cargo build --release` produces exactly two binaries.
+[workspace]

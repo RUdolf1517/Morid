@@ -1,0 +1,68 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/morid-core",
+    "crates/morid-ext",
+    "crates/morid-engine",
+    "crates/morid-store",
+    "crates/morid-net",
+    "crates/morid",
+    "crates/morid-cli",
+    "crates/morid-gui",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "GPL-2.0-or-later"
+authors = ["Rudolf Zinovev"]
+repository = "https://github.com/RUdolf1517/Morid"
+# Morid is an application, not a library: nothing here is published to a
+# registry. Saying so is also what lets `cargo deny` accept the path-only
+# workspace dependencies below as the only kind of "wildcard" it permits
+# (`[bans] allow-wildcard-paths`, which does not apply to publishable crates).
+publish = false
+
+[workspace.dependencies]
+morid-core = { path = "crates/morid-core" }
+morid-ext = { path = "crates/morid-ext" }
+morid-engine = { path = "crates/morid-engine" }
+morid-store = { path = "crates/morid-store" }
+morid-net = { path = "crates/morid-net" }
+# `morid` is the application crate both binaries depend on. It was missing from this list,
+# so `morid = { workspace = true }` in morid-cli and morid-gui could not resolve — the first
+# thing the Phase 1 branch proved, by failing to load the manifest. `morid-gui` is
+# deliberately absent: nothing may depend on it (§1, "Must not contain").
+morid = { path = "crates/morid" }
+serde = { version = "1", default-features = false, features = ["derive", "std"] }
+serde_json = { version = "1", default-features = false, features = ["std"] }
+sha2 = { version = "0.10", default-features = false }
+ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
+tar = { version = "0.4", default-features = false }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+zip = { version = "4", default-features = false, features = ["deflate"] }
+# Deviations from workspace-manifest.md §1, each forced by crates.io itself:
+#   * `std-widgets` does not exist in slint 1.13 or 1.18 at all (crates.io API,
+#     /api/v1/crates/slint/1.13.1: 33 features, no `std-widgets`); widgets are
+#     built in. `compat-1-2` stays: slint refuses to compile without it
+#     ("the feature `compat-1-2` must be enabled", slint-1.13.1/lib.rs:207);
+#   * `version = "1"` resolved to 1.18.1, which is edition 2024 and needs a
+#     newer rustc than the 1.85 the workspace pins. `~1.13` is the newest line
+#     whose MSRV is exactly 1.85, which is what §1's note claims this pin is.
+slint = { version = "~1.13", default-features = false, features = [
+    "std",
+    "compat-1-2",
+    "renderer-femtovg",
+    "backend-winit",
+] }
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+[profile.release.package."*"]
+opt-level = "s"

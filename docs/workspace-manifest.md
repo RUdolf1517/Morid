@@ -51,18 +51,13 @@ ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] 
 tar = { version = "0.4", default-features = false }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 zip = { version = "4", default-features = false, features = ["deflate"] }
-# Two values here were wrong in the first version of this specification, and crates.io
-# settled both (Phase 1, PR #4):
-#   * `std-widgets` does not exist in slint 1.x at all — the 33 published features of
-#     slint 1.13.1 do not include it; widgets are built in. Removed.
-#   * `version = "1"` resolves to 1.18.1, which is edition 2024 and needs a newer
-#     compiler than the 1.85 this workspace pins. `~1.13` is the newest line whose
-#     MSRV is exactly 1.85, which is what the pin is for.
+# Corrected: see §7.1 for why `std-widgets` is gone and why the pin is `~1.13`.
 slint = { version = "~1.13", default-features = false, features = [
     "std",
     "compat-1-2",
     "renderer-femtovg",
     "backend-winit",
+] }
 ] }
 
 [profile.release]
@@ -211,3 +206,53 @@ at build time, so a stale binary translation cannot be shipped silently. `Cargo.
   `flatpak` (path overrides) and `portable` (data directory location).
 - Do not copy the profile from another project without re-measuring; the size table in
   [dependencies.md](dependencies.md) §6 is the evidence.
+
+---
+
+## 7. Deviations recorded while Phase 1 was built
+
+Each of these was forced by something the specification could not know, and each is in the same pull request as
+the code that needed it. This section overrides the original values above where explicitly noted and records why.
+
+1. **`slint` is pinned to the 1.13 line and its feature list is different** (§1). Three separate facts, each from
+   crates.io rather than from taste:
+   - `version = "1"` resolves to 1.18.1, which is `edition = "2024"` and needs a newer rustc than the 1.85 the
+     workspace pins. `~1.13` is the newest line whose `rust_version` is exactly `1.85`.
+   - `std-widgets` is not a feature of `slint` 1.13.1 or 1.18.1 at all (`/api/v1/crates/slint/1.13.1`: 33
+     features, no `std-widgets`); widgets are built in, and `import … from "std-widgets.slint"` compiles without
+     it.
+   - `compat-1-2` cannot be dropped: `slint` 1.13.1 refuses to compile without it
+     (`error: The feature \`compat-1-2\` must be enabled`, `slint-1.13.1/lib.rs:207`).
+   `backend-winit` and `renderer-femtovg` stay as written.
+2. **`.cargo/config.toml` exists and is not mentioned above.** It sets
+   `resolver.incompatible-rust-versions = "fallback"`. With `resolver = "2"` and the default `allow`, cargo resolved
+   transitive crates needing 1.87–1.90 (`image 0.25.10`, `zbus 5.19`, `uuid 1.29`) and then refused to build with
+   the pinned toolchain, which makes `rust-version = "1.85"` a lie. With `fallback`, resolution keeps the promise.
+3. **`deny.toml` gained five things the specification did not have**, all recorded in the file itself:
+   - `[advisories] unmaintained = "workspace"`. Without the section, `cargo deny check` denies every advisory,
+     unmaintained ones included, and Slint's tree carries a growing set of them — `zvariant`, `zbus_names`,
+     `zvariant_derive`, `ttf-parser`, `rustybuzz`, `pin-utils`, each marked "no safe upgrade" inside Slint 1.13.
+     The policy states that unmaintained advisories are reported for workspace crates only; vulnerabilities still
+     fail, and `cargo audit` in the next step still prints every unmaintained crate it finds, as a warning.
+   - `GPL-2.0-or-later` in the allow list — Morid's own licence, which the list forgot: `cargo deny` rejected
+     `morid 0.1.0`, `morid-cli 0.1.0` and the other six.
+   - `BSL-1.0` (`clipboard-win`, through `copypasta`) and `Unicode-3.0` (the `icu_*` crates) — licences that only
+     appear in Slint's transitive tree, both permissive and GPL-compatible.
+   - an exception entry for **every** Slint crate rather than only `slint`: they all declare the same triple
+     licence and an exception is matched by crate name, so the single `slint` entry left nine violations.
+   - `[bans] allow-wildcard-paths = true` — every workspace dependency is written `{ path = "crates/…" }` with no
+     version, which `wildcards = "deny"` rejects ("found 10 wildcard dependencies for crate \'morid\'"). The flag
+     exempts path dependencies only, and only for crates that are not publishable (see the next item).
+4. **`xtask` is its own workspace.** `xtask/Cargo.toml` carries an empty `[workspace]` table, so it is not one of
+   the eight members and `cargo build --workspace` does not build it. Including it would have made nine members and
+   added a second dependency tree; the workflow formats and lints it explicitly instead.
+5. **`morid-gui/src/main.rs` uses `#![deny(unsafe_code)]`, not `forbid`.** `slint!` expands to Slint's generated
+   code, which carries `#[allow(unsafe_code)]`, and an inner `allow` under a crate-level `forbid` is error E0453.
+   The library crates keep `forbid`; Morid's own code in the binary contains no `unsafe`.
+6. **`publish = false`** is set in `[workspace.package]` and inherited by every crate. Morid is an application;
+   nothing here goes to a registry, and saying so is what makes `allow-wildcard-paths` apply — `cargo deny` refuses
+   the exemption for publishable crates because "crates.io disallows path dependencies".
+7. **`morid-gui` has one test hook.** If `MORID_GUI_SMOKE_MS` is set, the window runs the Close button's own code
+   path after that many milliseconds, which is how CI proves that a window opens and closes with a real exit code
+   on Linux and macOS. Windows hosted runners lack the required OpenGL symbol; that specific
+   initialization failure is a warning, not evidence of a window opening. Unset, nothing changes.

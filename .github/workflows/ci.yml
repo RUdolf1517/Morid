@@ -1,0 +1,214 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain from rust-toolchain.toml
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup show 2>&1 | tee toolchain.log
+          rustup component add rustfmt clippy 2>&1 | tee -a toolchain.log || true
+          cargo --version | tee -a toolchain.log
+          rustc --version | tee -a toolchain.log
+
+      - name: Cache cargo and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Format
+        shell: bash
+        run: |
+          set -euo pipefail
+          # rustfmt directly, not `cargo fmt`: on the pinned toolchain the wrapper
+          # prints its own usage text and exits 1 for both documented spellings
+          # (testing.md §7). `git ls-files` decides which files are ours.
+          rustfmt --version | tee format.log
+          git ls-files -z '*.rs' | xargs -0 rustfmt --edition 2021 --check 2>&1 | tee -a format.log
+
+      - name: Lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee clippy.log
+          cargo clippy --manifest-path xtask/Cargo.toml --all-targets -- -D warnings 2>&1 | tee -a clippy.log
+
+      - name: Test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --workspace --all-features 2>&1 | tee test.log
+
+      - name: Build release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --workspace 2>&1 | tee build.log
+
+      - name: Build offline from the warm cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --workspace --offline 2>&1 | tee offline.log
+
+      - name: Version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(./target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} --version)
+          echo "morid --version -> $version"
+          test "$version" = "morid 0.1.0"
+
+      - name: Console binary does not link Slint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo tree -p morid-cli | tee tree-cli.log
+          if cargo tree -p morid-cli -i slint > /dev/null 2>&1; then
+            echo "morid-cli depends on slint" >&2
+            exit 1
+          fi
+          if cargo tree -p morid-cli -i morid-gui > /dev/null 2>&1; then
+            echo "morid-cli depends on morid-gui" >&2
+            exit 1
+          fi
+          echo "morid-cli depends on neither slint nor morid-gui"
+
+      - name: GUI smoke (Linux, Xvfb)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb x11-utils imagemagick libgl1-mesa-dri mesa-utils
+          # The screenshot is taken from inside the X server's own environment,
+          # otherwise DISPLAY belongs to the outer shell and the capture fails.
+          xvfb-run -a --server-args="-screen 0 1024x768x24" bash -eu -c '
+            export MORID_GUI_SMOKE_MS=9000
+            export LIBGL_ALWAYS_SOFTWARE=1
+            ./target/release/morid-gui &
+            gui=$!
+            sleep 5
+            import -window root gui-linux.png || echo "import failed"
+            ls -l gui-linux.png || true
+            wait "$gui"
+          '
+          echo "morid-gui exited 0 after opening its window"
+
+      - name: GUI smoke (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          MORID_GUI_SMOKE_MS=8000 ./target/release/morid-gui &
+          gui=$!
+          sleep 5
+          screencapture -x gui-macos.png || echo "screenshot unavailable"
+          ls -l gui-macos.png || true
+          wait "$gui"
+          echo "morid-gui exited 0 after opening its window"
+
+      - name: GUI smoke (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:MORID_GUI_SMOKE_MS = "4000"
+          $process = Start-Process -FilePath ".\target\release\morid-gui.exe" -PassThru `
+            -RedirectStandardOutput gui-stdout.txt -RedirectStandardError gui-stderr.txt
+          $exited = $process.WaitForExit(60000)
+          if (-not $exited) {
+            $process.Kill()
+            "did not exit within 60 s" | Tee-Object -FilePath gui-smoke.log
+            exit 1
+          }
+          $stdout = Get-Content gui-stdout.txt -Raw -ErrorAction SilentlyContinue
+          $stderr = Get-Content gui-stderr.txt -Raw -ErrorAction SilentlyContinue
+          "exit code $($process.ExitCode); stdout: $stdout; stderr: $stderr" | Tee-Object -FilePath gui-smoke.log
+          if ($process.ExitCode -eq 0) { exit 0 }
+          # The hosted Windows runner has no OpenGL driver, so the femtovg renderer
+          # cannot start. That is a property of the runner, not of the binary: the
+          # same binary opens a window on Linux and macOS in this workflow. Any
+          # other exit is a real failure.
+          if ($stderr -match "Failed to initialize OpenGL driver") {
+            Write-Output "::warning title=gui-windows::the runner has no OpenGL driver, so the window cannot be shown here: $($stderr.Trim())"
+            exit 0
+          }
+          exit 1
+
+      - name: Upload the window screenshot
+        if: always() && runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-window-${{ matrix.os }}
+          path: |
+            gui-linux.png
+            gui-macos.png
+          if-no-files-found: ignore
+
+      - name: Size report
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo run --offline --quiet --manifest-path xtask/Cargo.toml -- size | tee size-report.txt
+          {
+            echo '### Size report (${{ matrix.os }}, release)'
+            echo '```'
+            cat size-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Phase 0 checks (one platform)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tools.capture.test_qt_ini_roundtrip 2>&1 | tee phase0-unittest.log
+          ran=$(grep -o 'Ran [0-9]* test' phase0-unittest.log | grep -o '[0-9]*')
+          echo "unittest reported ${ran} tests"
+          # The task says 16; the suite has 30. Asserting the number is the point:
+          # a discovery bug reports 0 tests and exits 0.
+          test "${ran}" = "30"
+          python3 tools/capture/verify_fixtures.py 2>&1 | tee phase0-verify.log
+          grep -q '^VERIFY_OK$' phase0-verify.log
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Licences, sources and bans
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo deny check 2>&1 | tee deny.log
+
+      - name: Advisories
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo audit 2>&1 | tee audit.log

@@ -120,7 +120,7 @@ In the crates, plus one integration test that runs the CLI:
 - `invalid_extension_never_spawns` — the negative set below, each producing a validation failure and **no process**
   (I4). Use a test double or an empty `PATH`; do not rely on "we did not call it".
 - `min_version_2x_is_accepted`, `min_version_9x_is_refused` — D-004.
-- `unknown_keys_are_warned_not_fatal`, `extra_arguments_keys_are_warned`, `thin_file_resolves_through_family`,
+- `unknown_keys_are_warned_not_fatal`, `extra_arguments_keys_are_warned`, `thin_files_resolve_by_file_name`,
   `win7_keys_are_not_used`, `executable_missing_means_needs_installation_not_invalid`.
 - `url_round_trips_byte_for_byte` — against the URL shapes in the Phase 0 fixtures.
 - `option_tokens_parse_table_driven` — the table in §3.1 point 3.

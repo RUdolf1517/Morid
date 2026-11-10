@@ -51,15 +51,18 @@ fn wait_file(path: &Path) -> io::Result<String> {
             Err(error) => return Err(error),
         }
         if Instant::now() >= deadline {
-            return Err(io::Error::new(io::ErrorKind::TimedOut, path.display().to_string()));
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                path.display().to_string(),
+            ));
         }
         std::thread::sleep(Duration::from_millis(20));
     }
 }
 
 fn process_table_contains(pid: u32) -> io::Result<bool> {
-    let windows = std::env::var_os("SystemRoot")
-        .ok_or_else(|| io::Error::other("SystemRoot is missing"))?;
+    let windows =
+        std::env::var_os("SystemRoot").ok_or_else(|| io::Error::other("SystemRoot is missing"))?;
     let oracle = PathBuf::from(windows).join("System32/WindowsPowerShell/v1.0/powershell.exe");
     // Only a typed numeric PID is inserted, never paths/user text. The result is
     // deliberately invariant across Windows UI languages.
@@ -67,16 +70,26 @@ fn process_table_contains(pid: u32) -> io::Result<bool> {
         "if (Get-Process -Id {pid} -ErrorAction SilentlyContinue) {{ 'alive' }} else {{ 'gone' }}"
     );
     let output = Command::new(oracle)
-        .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", &script])
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            &script,
+        ])
         .stdin(Stdio::null())
         .output()?;
     if !output.status.success() {
-        return Err(io::Error::other(String::from_utf8_lossy(&output.stderr).into_owned()));
+        return Err(io::Error::other(
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ));
     }
     match String::from_utf8_lossy(&output.stdout).trim() {
         "alive" => Ok(true),
         "gone" => Ok(false),
-        other => Err(io::Error::other(format!("unexpected process-table response: {other:?}"))),
+        other => Err(io::Error::other(format!(
+            "unexpected process-table response: {other:?}"
+        ))),
     }
 }
 
@@ -84,7 +97,10 @@ fn wait_absent(pid: u32) -> io::Result<()> {
     let deadline = Instant::now() + Duration::from_secs(15);
     while process_table_contains(pid)? {
         if Instant::now() >= deadline {
-            return Err(io::Error::new(io::ErrorKind::TimedOut, format!("PID {pid} survived cleanup")));
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!("PID {pid} survived cleanup"),
+            ));
         }
         std::thread::sleep(Duration::from_millis(20));
     }
@@ -93,7 +109,10 @@ fn wait_absent(pid: u32) -> io::Result<()> {
 
 #[test]
 fn assign_after_spawn_leaves_preassignment_grandchild_alive() -> io::Result<()> {
-    let nonce = SystemTime::now().duration_since(UNIX_EPOCH).map_err(io::Error::other)?.as_nanos();
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(io::Error::other)?
+        .as_nanos();
     let root = std::env::temp_dir().join(format!("morid-job-race-{}-{nonce}", std::process::id()));
     fs::create_dir(&root)?;
     let backend = payload("race_backend", &root)?;
@@ -114,7 +133,10 @@ fn assign_after_spawn_leaves_preassignment_grandchild_alive() -> io::Result<()> 
     wait_absent(backend_pid)?;
     // This is the actual residual-property assertion: parent termination does
     // NOT kill a descendant that started outside this job before assignment.
-    assert!(process_table_contains(pid)?, "preassignment grandchild unexpectedly died");
+    assert!(
+        process_table_contains(pid)?,
+        "preassignment grandchild unexpectedly died"
+    );
     println!("residual race: backend {backend_pid} gone; preassignment grandchild {pid} alive");
     fs::write(fixture.root.join("stop"), b"stop")?;
     wait_absent(pid)?;
@@ -125,7 +147,9 @@ fn assign_after_spawn_leaves_preassignment_grandchild_alive() -> io::Result<()> 
 #[test]
 #[ignore = "explicit backend payload for assignment race test"]
 fn race_backend() -> io::Result<()> {
-    let root = PathBuf::from(std::env::var_os("MORID_RACE_ROOT").ok_or_else(|| io::Error::other("missing root"))?);
+    let root = PathBuf::from(
+        std::env::var_os("MORID_RACE_ROOT").ok_or_else(|| io::Error::other("missing root"))?,
+    );
     let mut grandchild = payload("race_grandchild", &root)?;
     let deadline = Instant::now() + Duration::from_secs(45);
     while !root.join("stop").exists() && Instant::now() < deadline {
@@ -139,8 +163,11 @@ fn race_backend() -> io::Result<()> {
 #[test]
 #[ignore = "explicit grandchild payload for assignment race test"]
 fn race_grandchild() -> io::Result<()> {
-    let root = PathBuf::from(std::env::var_os("MORID_RACE_ROOT").ok_or_else(|| io::Error::other("missing root"))?);
-    fs::write(root.join("grandchild.pid"), std::process::id().to_string())?;
+    let root = PathBuf::from(
+        std::env::var_os("MORID_RACE_ROOT").ok_or_else(|| io::Error::other("missing root"))?,
+    );
+    fs::write(root.join("grandchild.pid.tmp"), std::process::id().to_string())?;
+    fs::rename(root.join("grandchild.pid.tmp"), root.join("grandchild.pid"))?;
     let deadline = Instant::now() + Duration::from_secs(45);
     while !root.join("stop").exists() && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(20));

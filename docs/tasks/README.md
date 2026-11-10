@@ -56,11 +56,21 @@ statements into tasks, each of which the coder disproved from the code:
 | G4 told the coder to check the `reason` field of `log.txt` | the field is `program` | one exchange |
 | G6 blamed the capture host's locale for s20 losing its download folder | the cause is `settings.ini` being literal UTF-8 while Qt 5 reads non-escaped bytes as Latin-1 | a wrong task (T7 as first written), withdrawn and rewritten |
 | `\xHHHH` notation, and an instruction not to handle quoting | Qt writes lowercase unpadded `\x<hex>`, and does quote values containing `;`, `,`, `=` or edge spaces | two defects (G7, G8) shipped into a delivered helper; tasks T9, T10 |
+| "thin extension files inherit the rest from their family by `Name`" (Phase 2 task) | `legacy/src/engines.cpp:244-258` dispatches on the **exact file name** and applies one hand-written transformation per file in `engines/yt-dlp.cpp`. There is no family lookup | caught by the coder before writing code, because the task told them to stop if the mechanism differed; corrected in `extensions.md` §1 and the task |
 
-The pattern is the same in all three: a plausible mechanism was accepted because it explained the symptom, and
-the check that would have falsified it took a minute. A fourth case is the reviewer's, not the coder's fault by
-construction: the review *missed* G5 and G7 in previous rounds, which the next round then found. So the rule has a
-second half — **before accepting a round, try to break it**, and record what was tried.
+The pattern is the same in all four: a plausible mechanism was accepted because it explained the symptom, and the
+check that would have falsified it took a minute.
+
+The fourth one is worth separating from the first three, because it is the only one that **cost nothing**. It did not
+cost a round, a commit or a rebuild: the task said "if the mechanism differs, stop and report", the coder checked
+`legacy/` before writing a line, and the correction landed in the specification instead of in code that would have
+been rewritten. That sentence — name the claim, say where it came from, and tell the coder to stop if it is wrong —
+is cheaper than being right, and it is now standard in every task that describes a mechanism I have not read the
+source for.
+
+There is also a case that is the reviewer's rather than the manager's: in Phase 0 the review *missed* G5 and G7, which
+the next round then found. So the rule has a second half — **before accepting a round, try to break it**, and record
+what was tried.
 
 What the coder should do when a task contradicts the code: report the contradiction with the evidence and stop
 on that point. Do not implement a claim you can see is false, and do not silently correct it either.

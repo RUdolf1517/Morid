@@ -75,11 +75,11 @@ impl Job {
     /// supervisor must establish membership before backend code can spawn children.
     /// It must not claim containment merely because this call succeeded later.
     pub fn assign(&self, child: &Child) -> io::Result<()> {
+        let job = self.handle.as_raw_handle();
+        let process = child.as_raw_handle();
         // SAFETY: both job and process handles are borrowed from live Rust owners
         // for this call. The API does not take ownership of either handle.
-        let assigned = unsafe {
-            AssignProcessToJobObject(self.handle.as_raw_handle(), child.as_raw_handle())
-        };
+        let assigned = unsafe { AssignProcessToJobObject(job, process) };
         if assigned == 0 {
             Err(io::Error::last_os_error())
         } else {

@@ -75,12 +75,15 @@ mod tests {
                 "spawn::tests::spawn_payload",
                 "--nocapture",
             ]
-                .into_iter()
-                .map(OsString::from)
-                .collect(),
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
             cwd: cwd.clone(),
             env: vec![
-                ("MORID_SPAWN_SENTINEL".into(), "space Кириллица ; $ & |".into()),
+                (
+                    "MORID_SPAWN_SENTINEL".into(),
+                    "space Кириллица ; $ & |".into(),
+                ),
                 ("MORID_SPAWN_CWD".into(), cwd.into_os_string()),
             ],
         };

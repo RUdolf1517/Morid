@@ -256,3 +256,9 @@ the code that needed it. This section overrides the original values above where 
    path after that many milliseconds, which is how CI proves that a window opens and closes with a real exit code
    on Linux and macOS. Windows hosted runners lack the required OpenGL symbol; that specific
    initialization failure is a warning, not evidence of a window opening. Unset, nothing changes.
+8. **`morid-engine` changes its crate attribute in Phase 3** — from `#![forbid(unsafe_code)]` to
+   `#![deny(unsafe_code)]`, with `#![allow(unsafe_code)]` in two modules: the Unix process group and the Windows Job
+   Object ([D-019](decisions.md)). This is not the same kind of exception as item 5: there, the `forbid` was
+   impossible because Slint's macro expansion carries an inner `allow`; here, the mechanism genuinely needs the
+   platform call, and the exemption is drawn as narrowly as the requirement allows. Every other crate keeps
+   `forbid`, and `#![forbid(unsafe_code)]` in `morid-core` and `morid-ext` is unchanged.

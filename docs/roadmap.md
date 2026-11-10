@@ -213,6 +213,11 @@ fixtures.
 - The fake backend for tests ([testing](testing.md) §3), including one that spawns a child and ignores the first
   signal, so I5 is testable at all.
 
+**Decided before it started:** [D-019](decisions.md) — cancelling a process tree cannot be written without `unsafe`,
+so `morid-engine` drops to `#![deny(unsafe_code)]` with two narrowly allowed platform modules. Every other crate
+keeps `forbid`. This is the first requirement in the project that changed a standing rule instead of being bent to
+fit it.
+
 **Carried in from Phase 2:** `url_round_trips_byte_for_byte` must use the fixture URLs
 (`fixtures/scenarios/*/argv.json`), and the range-field token split must be checked against `s07` — both are named
 tests in [Task 4](tasks/phase-3-one-backend.md) §3.6, and both are acceptance criteria, not wishes.

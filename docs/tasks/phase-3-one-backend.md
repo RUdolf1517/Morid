@@ -193,6 +193,9 @@ Named, and visible in CI output:
 - `queue_respects_concurrency_limit` — limit 2, five jobs, never three at once, all five finish.
 - `cancel_kills_process_tree` (Linux, Windows) — the fake backend spawns a child and ignores SIGTERM; after cancel,
   **neither pid exists**.
+- `unsafe_stays_in_the_two_platform_modules` — a script check, run in CI next to the Phase 0 checks: the only files
+  containing `unsafe` are the two named modules and `morid-engine`'s crate root, and `#![forbid(unsafe_code)]` is
+  still present in every other crate. It fails if a third module appears.
 - `cancelled_job_keeps_files_unless_the_setting_says_otherwise`.
 - `backend_failure_maps_to_exit_code_3`, `missing_destination_maps_to_exit_code_6`.
 - `json_stream_is_one_object_per_line_and_versioned` — every line parses, every line has `type` and `v`, values
@@ -236,12 +239,32 @@ searched paths is a bug, not a state.
 
 ## 4. Constraints
 
-- **No `unsafe`.** `#![forbid(unsafe_code)]` stays everywhere. If `libc`/`windows-sys` appears to force it, that
-  is a finding to report, not a rule to bend — investigate before concluding it.
+- **`unsafe` is confined to two modules in one crate** — [D-019](../decisions.md), decided on the coder's report
+  that §3.1.6 could not be met under an unconditional `#![forbid(unsafe_code)]`. Cancelling a process *tree* needs
+  `setsid`/`killpg` on Unix and Job Objects on Windows, and every crate that exposes them exposes them as `unsafe`
+  or as a wrapper around `unsafe`; the ban was written before that was checked. The rule now:
+  - `morid-engine` replaces `#![forbid(unsafe_code)]` with `#![deny(unsafe_code)]` and exactly **two** modules carry
+    `#![allow(unsafe_code)]`: one for the Unix process group, one for the Windows Job Object. Every other crate
+    keeps `forbid` unchanged.
+  - Every `unsafe` block carries a `// SAFETY:` comment naming the invariant that makes it sound. An `unsafe` block
+    outside those two modules fails review, not a test — the review greps for it.
+  - The public API stays safe: no `unsafe` function, no raw handle, no `isize`/`*mut` in a signature across the
+    crate boundary. A caller cannot reach the `unsafe`.
+  - **Allowed mechanisms:** `libc` (`setsid`, `killpg`, `kill`) on Unix, `windows-sys`
+    (`CreateJobObjectW`, `SetInformationJobObject`, `AssignProcessToJobObject`, `TerminateJobObject`) on Windows,
+    and `std::os::unix::process::CommandExt::process_group` where it is enough. Anything else is a new dependency
+    and needs asking first.
+  - **Still forbidden:** `unsafe` in `morid-core`, `morid-ext`, `morid-store`, `morid-net`, `morid-cli`, `morid`,
+    `morid-gui`; `unsafe` in `morid-engine` outside the two modules; any `unsafe` whose justification is a comment
+    like "the handle is valid".
+  - The report must say which two modules, how many `unsafe` blocks in each, and paste the grep that shows nothing
+    else in the workspace.
 - **No async runtime.** Threads and channels (A1 in [roadmap](../roadmap.md) §8; if you choose otherwise, that is
   a decision to bring to me with a reason, not a silent change).
 - **No new dependency** beyond what [dependencies](../dependencies.md) accepts. `libc` and `windows-sys` are
-  accepted. Anything else: ask first.
+  accepted (§2.8, §2.9). A third-party wrapper such as a safe Job Object crate is **not** accepted: it would add a
+  supply-chain edge for the sake of hiding twenty lines we can see, and D-019 chose the visible version. Anything
+  else: ask first.
 - **No network in any test.** The fake backend and the fixtures are the only sources of bytes.
 - **No spawning outside `morid-engine`.** `grep -rn "std::process" crates/` names one crate.
 - **No panics on input or on process failure.** A backend that dies mid-line is a state, not an `unwrap`.
@@ -304,7 +327,8 @@ need something from another phase, **that is the more important finding** — re
    return value of `kill`.
 6. The `--json` stream is one object per line, versioned, and matches [cli](../cli.md) §5 for the events this
    phase emits. Paste the first and last line of a real run.
-7. `grep -rn "std::process" crates/` names `morid-engine` only.
+7. `grep -rn "std::process" crates/` names `morid-engine` only, and `grep -rn "unsafe" crates/` names only the two
+   modules of §4 plus the crate attribute in `morid-engine/src/lib.rs`.
 8. Phase 0 checks still pass in the same job (`Ran 30 tests`, `VERIFY_OK`).
 9. `url_round_trips_byte_for_byte_fixture_urls` exists and uses the fixture URLs.
 10. A real run and a real installation are demonstrated: paste `morid download` against the deterministic HTTP server

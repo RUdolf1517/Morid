@@ -32,7 +32,9 @@ Additional rules:
 - default features disabled unless a default feature is genuinely required;
 - no `build.rs` that downloads anything, generates code from the network, or compiles C — the build must work
   offline (`cargo build --offline`);
-- no `unsafe` in our code; `unsafe` in a dependency must be reviewed and justified;
+- no `unsafe` in our code, with the single reviewed exception recorded in [D-019](decisions.md) — two
+  platform-primitive modules in `morid-engine`; every other crate keeps `#![forbid(unsafe_code)]`. `unsafe` in a
+  dependency must be reviewed and justified;
 - the measured size delta goes into this document.
 
 A dependency that fails question 1 is rejected even if it is small and popular.
@@ -123,6 +125,10 @@ A dependency that fails question 1 is rejected even if it is small and popular.
 - **Configuration:** `[target.'cfg(unix)'.dependencies]`, so it is not in the Windows build at all.
 - **Licence:** MIT OR Apache-2.0.
 - **Alternative rejected:** `nix`, which wraps the same calls with more surface than needed.
+- **A safe wrapper was considered and rejected** ([D-019](decisions.md)): `win32job` and `process_control` are
+  `unsafe` inside, add a supply-chain edge, and `process_control`'s Unix half deliberately avoids process groups,
+  which is exactly what cancellation here needs. Twenty visible lines with `// SAFETY:` comments beat a dependency
+  that hides them.
 
 ### 2.9 `windows-sys` (Windows only) — Job Objects
 

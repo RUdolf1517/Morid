@@ -143,6 +143,34 @@ impl DownloadOptions {
     }
 }
 
+/// The legacy playlist field is an option string, not a numeric-range grammar.
+/// See legacy/src/playlistdownloader.cpp:1061–1069. Backend-specific validation
+/// belongs to the backend; parsing here is intentionally infallible.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaylistRange {
+    original: String,
+    tokens: Vec<String>,
+}
+
+impl PlaylistRange {
+    pub fn parse(input: &str) -> Self {
+        Self {
+            original: input.to_owned(),
+            tokens: DownloadOptions::parse(input).0,
+        }
+    }
+
+    /// Preserve spelling and whitespace independently of the argument tokens.
+    pub fn as_str(&self) -> &str {
+        &self.original
+    }
+
+    /// No implicit --playlist-items flag, normalization or numerical validation.
+    pub fn tokens(&self) -> &[String] {
+        &self.tokens
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Format(pub Vec<String>);
 impl Format {
@@ -262,6 +290,64 @@ mod tests {
             assert_eq!(Format::parse(input).0, expected, "format {input}");
         }
     }
+    #[test]
+    fn playlist_range_preserves_legacy_option_tokens() {
+        for (input, expected) in [
+            ("", vec![]),
+            (" \t ", vec![]),
+            ("--playlist-items 2-3", vec!["--playlist-items", "2-3"]),
+            (
+                "--playlist-items 1-3,7 --lazy-playlist",
+                vec!["--playlist-items", "1-3,7", "--lazy-playlist"],
+            ),
+            (
+                "--playlist-items \"1,3,5\" --match-title \"Загрузка видео\"",
+                vec![
+                    "--playlist-items",
+                    "1,3,5",
+                    "--match-title",
+                    "Загрузка видео",
+                ],
+            ),
+            (
+                "  --playlist-start 2   --playlist-end 3  ",
+                vec!["--playlist-start", "2", "--playlist-end", "3"],
+            ),
+        ] {
+            let range = PlaylistRange::parse(input);
+            assert_eq!(range.as_str(), input);
+            assert_eq!(range.tokens(), expected);
+            assert_eq!(range.tokens(), DownloadOptions::parse(input).0);
+        }
+    }
+
+    #[test]
+    fn playlist_range_does_not_invent_numeric_refusals() {
+        // These are opaque tokens here, not a claim that any backend accepts them.
+        for input in [
+            "1-3",
+            "1,3,5",
+            "1-3,7",
+            "3-",
+            "-3",
+            "0",
+            "3-1",
+            "1,,3",
+            "not-a-range",
+            "99999999999999999999999999999999999999",
+        ] {
+            let range = PlaylistRange::parse(input);
+            assert_eq!(range.as_str(), input);
+            assert_eq!(range.tokens(), [input]);
+        }
+        // Preserve even incomplete quoting exactly as the shared legacy tokenizer does.
+        let input = "--match-title \"unfinished title";
+        assert_eq!(
+            PlaylistRange::parse(input).tokens(),
+            DownloadOptions::parse(input).0
+        );
+    }
+
     #[test]
     fn engine_id_archive_name_is_stable() {
         assert_eq!(

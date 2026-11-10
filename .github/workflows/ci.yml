@@ -55,14 +55,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee clippy.log
+          cargo clippy --locked --workspace --all-targets --all-features -- -D warnings 2>&1 | tee clippy.log
           cargo clippy --manifest-path xtask/Cargo.toml --all-targets -- -D warnings 2>&1 | tee -a clippy.log
 
       - name: Test
         shell: bash
         run: |
           set -euo pipefail
-          cargo test --workspace --all-features 2>&1 | tee test.log
+          cargo test --locked --workspace --all-features 2>&1 | tee test.log
           cargo test -p morid-ext thin_files_resolve_by_file_name -- --nocapture --test-threads=1 2>&1 | tee variants.log
           cargo test -p morid-cli warning_demo_copy_of_ytdl_patched -- --nocapture --test-threads=1 2>&1 | tee warnings-demo.log
 
@@ -70,7 +70,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo build --release --workspace 2>&1 | tee build.log
+          cargo build --locked --release --workspace 2>&1 | tee build.log
 
       - name: Resolve all bundled engines without starting them
         shell: bash
@@ -110,7 +110,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo build --release --workspace --offline 2>&1 | tee offline.log
+          cargo build --locked --release --workspace --offline 2>&1 | tee offline.log
 
       - name: Version
         shell: bash
@@ -223,6 +223,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 tools/check_unsafe_scope.py
+          python3 -m unittest -v tools.test_unsafe_scope
           python3 -m unittest tools.capture.test_qt_ini_roundtrip 2>&1 | tee phase0-unittest.log
           ran=$(grep -o 'Ran [0-9]* test' phase0-unittest.log | grep -o '[0-9]*')
           echo "unittest reported ${ran} tests"

@@ -2246,8 +2246,10 @@ version = "0.1.0"
 name = "morid-engine"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "morid-core",
  "morid-ext",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -111,6 +111,11 @@ fn invalid_extension_never_spawns() {
             0,
             "{file}: invalid input must not reach executable lookup"
         );
+        if file == "minimum-9x.json" {
+            assert!(error
+                .to_string()
+                .contains("requires application 9.x; running 0.1.0"));
+        }
         println!("{error}");
     }
 }

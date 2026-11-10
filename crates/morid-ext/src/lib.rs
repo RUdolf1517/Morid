@@ -423,7 +423,10 @@ fn validate_identity(file: &str, raw: &Value) -> Result<(EngineId, u32), Error> 
         return Err(failure(
             file,
             4,
-            "requires a newer application; running 0.1.0",
+            format!(
+                "requires application {}; running 0.1.0",
+                required.unwrap_or_default()
+            ),
         ));
     }
     Ok((id, version))

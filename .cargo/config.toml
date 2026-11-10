@@ -1,0 +1,11 @@
+# MSRV-aware resolution.
+#
+# `rust-version = "1.85"` in the workspace manifest is a promise, and with
+# `resolver = "2"` plus the default `incompatible-rust-versions = "allow"` cargo
+# resolves transitive crates that need 1.87–1.90 and then refuses to build with
+# the pinned toolchain (CI run 42417224854: image 0.25.10 needs 1.88, zbus 5.19
+# needs 1.87, uuid 1.29 needs 1.89 …). `fallback` makes resolution keep the
+# promise. Recorded as a deviation from workspace-manifest.md §1, which does not
+# mention this file.
+[resolver]
+incompatible-rust-versions = "fallback"

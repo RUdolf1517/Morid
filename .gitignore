@@ -25,3 +25,14 @@ ${default}/
 # python bytecode from the capture tooling and its tests
 __pycache__/
 *.pyc
+
+# translations are generated from the .ts sources at build time; a stale binary
+# catalogue must not be committed silently
+*.qm
+
+# the size report is produced by CI, not tracked
+size-report.txt
+
+# xtask is its own workspace and has no dependencies, so its lock file is noise
+/xtask/Cargo.lock
+/xtask/target/

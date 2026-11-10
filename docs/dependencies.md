@@ -168,6 +168,28 @@ Reconsider only if the scheduler demonstrably needs it.
 
 ---
 
+## 2.1 Rejected: an INI parsing crate
+
+`configparser`, `ini` and similar crates are refused, and this is not a size judgement — they cannot do the job.
+
+The file is `settings.ini`, written by the reference program through `QSettings` on **Qt 5 with no
+`setIniCodec` call**. Qt documents the result precisely: "no codec is used, and non-ASCII characters are encoded
+using standard INI escape sequences", generating "pure ASCII files". A `DownloadFolder` of `/x/Загрузки` is
+therefore on disk as `/x/\x417\x430...` — one `\x<hex>` per UTF-16 code unit, inside an INI dialect that no
+general-purpose parser implements.
+
+Reading that file with a byte-oriented INI crate yields a path with literal backslashes in it; writing it back as
+UTF-8 produces a file the original cannot read. Either way the user's download folder is lost. This is why
+D-016 made the encoding a compatibility requirement rather than a preference.
+
+**What is used instead:** a reader and writer for Qt's INI dialect, inside `morid-store`, with the `\x<hex>` rule,
+the `%XX`/`%UXXXX` key-escaping rule, `[Section]` grouping, `;`/`#` comments and Qt's writer quirks. It is
+perhaps 200 lines plus tests — smaller than the argument needed to justify a dependency that still would not
+work. The test fixture is a real `settings.ini` produced by the reference program containing a non-ASCII path
+([data-compat](data-compat.md) §3.0).
+
+---
+
 ## 3. Logging
 
 No logging crate in the dependency set for now. What is needed is: a ring buffer of lines per job, a file for
@@ -215,7 +237,7 @@ Required by [D-008](decisions.md): the size is measured and published, not gated
 
 | Date | Commit | `morid-gui` (Linux x86_64, release) | `morid` (Linux x86_64, release) | Note |
 | --- | --- | --- | --- | --- |
-| — | — | — | — | no build exists yet |
+| CI run 42459576443 | `4b3ae528` | 5,749,160 bytes (5.48 MiB) | 326,040 bytes (0.31 MiB) | Skeleton only; [three-platform CI](https://github.com/RUdolf1517/Morid/actions/runs/42459576443) |
 
 For reference, the program being replaced ships as a Qt bundle: a Qt6 Windows installer is in the tens of
 megabytes before backends are counted. The Rust target is expected to be in single-digit megabytes for the

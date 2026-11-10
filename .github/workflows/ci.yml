@@ -59,13 +59,47 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo test --workspace --all-features 2>&1 | tee test.log
+          cargo test --workspace --all-features -- --nocapture 2>&1 | tee test.log
 
       - name: Build release
         shell: bash
         run: |
           set -euo pipefail
           cargo build --release --workspace 2>&1 | tee build.log
+
+      - name: Resolve all bundled engines without starting them
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          ./target/release/morid engines > engines.txt 2> engines-warnings.txt || status=$?
+          test "$status" = 0 || test "$status" = 4
+          cat engines.txt
+          cat engines-warnings.txt
+          status=0
+          ./target/release/morid engines --json > engines.jsonl 2> engines-json-warnings.txt || status=$?
+          test "$status" = 0 || test "$status" = 4
+          python3 - <<'PYCODE'
+          import json
+          from pathlib import Path
+          rows = Path("engines.jsonl").read_text().splitlines()
+          assert len(rows) == 17, len(rows)
+          assert all(isinstance(record := json.loads(row), dict) and record["resolved"] for row in rows)
+          print(rows[0])
+          print(rows[-1])
+          print("JSONL lines:", len(rows))
+          PYCODE
+          {
+            echo '### Engine resolution (${{ matrix.os }})'
+            echo '```text'
+            cat engines.txt engines-warnings.txt
+            echo '```'
+            echo '```jsonl'
+            head -n 1 engines.jsonl
+            tail -n 1 engines.jsonl
+            echo '```'
+            echo "JSONL lines: $(wc -l < engines.jsonl)"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build offline from the warm cache
         shell: bash
@@ -212,3 +246,28 @@ jobs:
         run: |
           set -euo pipefail
           cargo audit 2>&1 | tee audit.log
+
+      - name: Phase 2 evidence
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import subprocess
+          def emit(title, text):
+              text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::notice title={title}::{text}")
+          for name in ["engines.txt", "engines-warnings.txt", "size-report.txt", "phase0-unittest.log", "phase0-verify.log"]:
+              path = Path(name)
+              if path.exists(): emit(name, path.read_text(errors="replace")[-12000:])
+          path = Path("test.log")
+          if path.exists(): emit("named-tests", "\n".join(line for line in path.read_text(errors="replace").splitlines() if line.startswith("test ") or "rule " in line or "warning-demo" in line))
+          path = Path("engines.jsonl")
+          if path.exists():
+              rows = path.read_text().splitlines()
+              emit("jsonl", f"lines={len(rows)}\n{rows[0]}\n{rows[-1]}" if rows else "empty")
+          emit("lock-diff", subprocess.run(["git", "diff", "--", "Cargo.lock"], capture_output=True, text=True).stdout)
+          for name in ["clippy.log", "build.log"]:
+              path = Path(name)
+              if path.exists() and "error" in (text := path.read_text(errors="replace")): emit(name, text[-5000:])
+          PYCODE

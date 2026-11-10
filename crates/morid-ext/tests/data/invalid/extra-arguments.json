@@ -1,0 +1,17 @@
+{
+  "Name": "probe",
+  "Version": "4",
+  "Cmd": {
+    "Generic": {
+      "amd64": {
+        "Name": "probe",
+        "Args": [
+          "probe"
+        ]
+      }
+    }
+  },
+  "ExtraArguments": [
+    "--ignored"
+  ]
+}

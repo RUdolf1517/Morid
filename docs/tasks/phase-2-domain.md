@@ -13,8 +13,8 @@ extension files this repository ships plus the negative cases that must be refus
 
 At the end of this task:
 
-- `morid-core` knows what a URL is, what a format spec is, how option tokens are spelled, how a playlist range is
-  written, and how versions compare. It has no I/O, no processes, no network, no time, no randomness.
+- `morid-core` knows what a URL is, what a format spec is, how option tokens are spelled, how the playlist range
+  field is split into tokens, and how versions compare. It has no I/O, no processes, no network, no time, no randomness.
 - `morid-ext` reads an extension file, validates it in the documented order, resolves the command for the current
   platform and architecture, evaluates `ControlJsonStructure`, and reports what it decided.
 - `morid-cli` gains one command — `morid engines` — that prints the resolution result for every bundled file. It is
@@ -73,8 +73,13 @@ not be one. See [README](README.md), "Rule for the manager".
 3. **`DownloadOptions`** — the user's option string. Parsing is **platform-independent**: quote handling for the
    platform's own shell grammar belongs to the caller (§3.2), and the fixtures are the specification of what the
    result must be.
-4. **`PlaylistRange`** — `1-3`, `1,3,5`, `1-3,7`, open-ended forms. Refuse what the original refuses, accept what it
-   accepts; when in doubt, the fixture argv from Phase 0 is the answer.
+4. ~~`PlaylistRange`~~ — **withdrawn, do not build a range validator.** The original has no range grammar: the
+   playlist tab's field is free text split by `util::splitPreserveQuotes` and appended as-is
+   (`legacy/src/playlistdownloader.cpp:1061-1069`; see [../extensions.md](../extensions.md) §5.4). What this phase
+   owes is therefore **only the token split**, which is the `DownloadOptions` work of point 3 applied to that field:
+   the same parser, the same platform-independent quoting, checked against fixture `s07-playlist-item-range`
+   (`--playlist-items` and `2-3` as two separate tokens). No `1-3` parsing, no open-ended form, no rejection rule.
+   A type named `PlaylistRange` that validates ranges would reject input the original accepts — do not add one.
 5. **`EngineId`** — the `Name` of an extension, plus the archive-file naming the original derives from it
    (`archiveFile-<Name>.txt`). This is a data contract: renaming an engine is a migration.
 6. **Version comparison** — dotted numeric, tolerant of the suffixes the shipped files use (`2.0.0`, `2.x`, `1.0`,
@@ -141,7 +146,9 @@ In the crates, plus one integration test that runs the CLI:
   `win7_keys_are_not_used`, `executable_missing_means_needs_installation_not_invalid`.
 - `url_round_trips_byte_for_byte` — against the URL shapes in the Phase 0 fixtures.
 - `option_tokens_parse_table_driven` — the table in §3.1 point 3.
-- `playlist_range_accepts_and_refuses` — the documented forms and the closest invalid neighbours.
+- `playlist_range_tokens_match_fixture` — the range field becomes exactly the tokens in
+  `fixtures/scenarios/s07-playlist-item-range/argv.json`, including a quoted value and a value with a space, and an
+  empty field contributes nothing. **No rejection cases**: the original rejects nothing (see point 4 above).
 - `control_json_structure_evaluates` — positive and negative, including a malformed structure, and a table over the
   three documented forms (`&&`, `||`, `lhs`-only) plus the predicate order when a side carries two predicates.
 - `error_variants_map_to_documented_exit_codes` — every `Error` variant to its code, exhaustively, in one match.

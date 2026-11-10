@@ -49,7 +49,7 @@ suffix. A criterion with no test says so in the row; an untested row is a gap, n
 | F-06 | `bundled_presets_load_and_count` | I3 |
 | F-10/F-11 | `list_roundtrip_through_saved_file` | I3 |
 | F-13 | `scheduler_respects_concurrency_limit` | — |
-| F-20/F-21 | `playlist_parse_and_range_arguments` | I1, I2 |
+| F-20/F-21 | `playlist_parse_and_range_arguments` (range field is tokens, never validated — [extensions](extensions.md) §5.4) | I1, I2 |
 | F-23 | `archive_is_never_rewritten` | I3 |
 | F-30…F-33 | `all_shipped_extensions_load`, `invalid_extension_never_spawns`, `min_version_2x_is_accepted`, `min_version_9x_is_refused` | I4, I10 |
 | F-34 | `update_rejects_bad_hash_and_keeps_binary` | I9 |

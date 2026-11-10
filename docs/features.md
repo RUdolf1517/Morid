@@ -60,7 +60,7 @@ always means "has a passing test that proves the acceptance criterion", never "s
 | ID | Feature | In the original | Depends on | Priority | Status | Acceptance criterion |
 | --- | --- | --- | --- | --- | --- | --- |
 | F-20 | Fetch a playlist's entries | `playlistdownloader::parseJson`, `CanDownloadPlaylist` | backend | P0 | not started | Parsed entry list equals the captured original result for the fixture playlist |
-| F-21 | Item range selection | `--playlist-items`, `PlaylistItemsArgument` | backend | P0 | not started | Range strings produce identical arguments; invalid ranges rejected with a message |
+| F-21 | Item range selection | playlist tab range field, `splitPreserveQuotes` | backend | P0 | partly in Phase 2 | The range field produces identical argv tokens; **no validation** — the original has none, a bad value reaches the backend and its message is shown ([extensions](extensions.md) §5.4) |
 | F-22 | Download selected / recursive | `download`, `downloadRecursively` | scheduler | P0 | not started | Per-row state transitions match; a cancelled parent leaves no children running |
 | F-23 | Download archive (`--download-archive`) | `enginePaths::archiveFileArgument` | archive file | P0 | not started | A second run skips already-downloaded entries; archive format identical to the original's |
 | F-24 | `--break-on-existing` / `--skip-on-existing` | `archiveData` (`legacy/src/utility.h:654`) | archive | P1 | not started | Behaviour and stop condition match the original on the fixture playlist |

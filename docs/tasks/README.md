@@ -79,15 +79,23 @@ statements into tasks, each of which the coder disproved from the code:
 | G6 blamed the capture host's locale for s20 losing its download folder | the cause is `settings.ini` being literal UTF-8 while Qt 5 reads non-escaped bytes as Latin-1 | a wrong task (T7 as first written), withdrawn and rewritten |
 | `\xHHHH` notation, and an instruction not to handle quoting | Qt writes lowercase unpadded `\x<hex>`, and does quote values containing `;`, `,`, `=` or edge spaces | two defects (G7, G8) shipped into a delivered helper; tasks T9, T10 |
 | "thin extension files inherit the rest from their family by `Name`" (Phase 2 task) | `legacy/src/engines.cpp:244-258` dispatches on the **exact file name** and applies one hand-written transformation per file in `engines/yt-dlp.cpp`. There is no family lookup | caught by the coder before writing code, because the task told them to stop if the mechanism differed; corrected in `extensions.md` §1 and the task |
+| `\|\|` is "not implemented by the original", and `PlaylistRange` is a range grammar with rejection rules (Phase 2 task and spec) | `engines.cpp:1574` implements `\|\|` and `gallery-dl.json` ships it; the range field is free text split by `splitPreserveQuotes` and never validated (`playlistdownloader.cpp:1061-1069`) | caught by the coder; both corrected in `extensions.md` §5.1 / §5.4 and the task; the validator requirement was **withdrawn** rather than specified |
 
-The pattern is the same in all four: a plausible mechanism was accepted because it explained the symptom, and the
+The pattern is the same in all five: a plausible mechanism was accepted because it explained the symptom, and the
 check that would have falsified it took a minute.
 
-The fourth one is worth separating from the first three, because it is the only one that **cost nothing** — and it is
-also the last one of its kind, because the owner has since changed how tasks are written (above). It did not
-cost a round, a commit or a rebuild: the task said "if the mechanism differs, stop and report", the coder checked
-`legacy/` before writing a line, and the correction landed in the specification instead of in code that would have
-been rewritten. That sentence — name the claim, say where it came from, and tell the coder to stop if it is wrong —
+The fourth and fifth are worth separating from the first three, because they are the ones that **cost nothing** — and
+the fifth is the last of its kind, because the owner has since changed how tasks are written (above). The fifth is
+also the clearest illustration of why that change was needed: the wrong claim was not a detail I had mis-remembered
+from a file I had read, it was a **requirement I had invented** — a range validator the original does not have. Had
+the coder implemented what the task asked, Morid would have rejected playlist ranges that the original accepts, and
+no test would have caught it, because the test would have been written from the same invented rule. That is the
+asymmetry worth remembering: an invented mechanism costs a round, an invented requirement can cost the compatibility
+promise (D-003) without anyone noticing.
+
+Neither cost a round, a commit or a rebuild: the task said "if the mechanism differs, stop and report", the coder
+checked `legacy/` before writing a line, and the correction landed in the specification instead of in code that would
+have been rewritten. That sentence — name the claim, say where it came from, and tell the coder to stop if it is wrong —
 is cheaper than being right, and it is now standard in every task that describes a mechanism I have not read the
 source for.
 

@@ -160,8 +160,8 @@ Placeholders available in `Args`:
 | `DefaultSubstitlesCmdOptions` | string[] | Arguments for retrieving the subtitle list. **The misspelling is part of the contract** and appears in five files |
 | `DefaultSubtitleDownloadOptions` | string[] | Arguments for downloading/embedding subtitles |
 | `OptionsArgument` | string | The flag that introduces a format, e.g. `-f` for yt-dlp, `-s` for get-sauce. It makes a bare `mp4` in the options field mean `-f mp4` |
-| `PlaylistItemsArgument` | string | The flag for an item range, e.g. `--playlist-items` |
-| `PlayListIdArguments` | string[] | **Distinct from `PlaylistItemsArgument`**: fixed arguments that make a backend return playlist ids only. Present in five shipped files; the original reads it, and a reader that ignores it gets a full listing where the caller wanted ids. |
+| `PlaylistItemsArgument` | string | The flag that introduces an item range, e.g. `--playlist-items`. **Read by the original but never used**: it is stored in `engines.cpp:1033` and the only accessor (`engines.h:1596`) has no callers. The range reaches argv through the playlist tab's own options instead (§5.4). Keep it as data, do not build argv from it. |
+| `PlayListIdArguments` | string[] | **Distinct from `PlaylistItemsArgument`**: fixed arguments that make a backend return playlist ids only. Shipped only by `aria2c.json`, and empty (`[]`). Note the honest limit: the original writes the key (`aria2c.cpp:76`, `wget.cpp:164`) but **never reads it** — `grep -rn PlayListIdArguments legacy/src` finds no reader. Morid keeps it as passive data and does not act on it; a non-empty value would be an unimplemented behaviour, so it is preserved and reported rather than interpreted. |
 | `BatchFileArgument` | string | The flag that reads URLs from a file, e.g. `-a` |
 | `VersionArgument` | string | The flag that prints the backend version |
 | `CookieArgument` | string | Flag to read cookies from a browser, e.g. `--cookies-from-browser` |
@@ -172,7 +172,7 @@ Placeholders available in `Args`:
 | `SkipLineWithText` | string[] | Lines containing any of these are dropped entirely |
 | `SplitLinesBy` | string[] | Line terminators for this backend: `["\n"]` or `["\n","\r"]` |
 | `ReplaceOutputWithProgressReport` | bool | Do not parse output for progress; show elapsed time instead (get-sauce, lux) |
-| `ShowListTableBoundary` | bool | The backend's list output is a table with a boundary line; the parser uses it to know where the table starts. |
+| `ShowListTableBoundary` | object | **Not a bool.** Both the shipped file and the code that writes it use an empty object: `aria2c.json` has `{}`, and `aria2c.cpp:34` and `wget.cpp:131` insert `QJsonObject()`. Nothing in the original reads the key. Treat it as an unknown-shape placeholder: accept any value, act on none, and do not describe it as a boolean. |
 | `ExtraOptions` / `ExtraOptionsFlatpakAppImage` / `ExtraOptionsWin7` | string[] | Arguments added only on that packaging/platform |
 | `ExtraArguments` / `ExtraArgumentsFlatpak` / `ExtraArgumentsWin7` | string[] | **Not recognised** — a mis-spelling in the shipped set, see §4.1. Warning, never silently accepted. |
 
@@ -266,6 +266,29 @@ Four behaviours are code, not schema, and pretending otherwise would be dishones
 ([architecture](architecture.md) §3.2): yt-dlp `-o` template rewriting, gallery-dl's JSON stream,
 svtplay-dl's file-name tracking, get-sauce's banner handling. These are selected by engine name through a
 closed enum with a budget of seven variants.
+
+
+### 5.4 Playlist item ranges are not validated by the original
+
+The range field in the playlist tab is **free text that is split into argv tokens, not parsed as a range**
+(`legacy/src/playlistdownloader.cpp:1061-1069`): the text is handed to `util::splitPreserveQuotes`, appended to the
+command line after the engine's list options, and saved to the range history as typed. On Qt ≥ 5.15
+`splitPreserveQuotes` is `QProcess::splitCommand` (`legacy/src/util.hpp:92-147`), so the field takes quotes and
+spaces; on older Qt it is a hand-written splitter with different quote handling.
+
+Consequences, stated plainly because they look like an omission:
+
+- there is **no** range grammar in the original — no `1-3` versus `3-1` check, no "open-ended" form, no rejection
+  with a message. `1-3`, `1,3,5`, `abc`, `--yes-playlist` and an empty string all come out the same way: split, or
+  absent;
+- therefore Morid does **not** introduce a range validator. A user who types rubbish gets the backend's own error,
+  exactly as before. A helpful pre-check would reject input the original passes through, which is a compatibility
+  break dressed as a feature (D-003, D-016 in spirit);
+- what Morid does own is the **token split**, and that is `DownloadOptions` parsing, not a range type: quoting rules
+  platform-independent, the result compared byte for byte against the Phase 0 fixture `s07-playlist-item-range`
+  (`--playlist-items` `2-3` as two tokens);
+- `F-21` keeps its "invalid ranges rejected with a message" wording only as the backend's message. If a later phase
+  wants a friendly message, it belongs in the interface layer as a hint, not in `morid-core` as a rule.
 
 ---
 

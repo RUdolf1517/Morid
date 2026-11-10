@@ -1,0 +1,14 @@
+{
+  "Name": "probe",
+  "Version": "4",
+  "Cmd": {
+    "Windows": {
+      "win7amd64": {
+        "Name": "probe",
+        "Args": [
+          "probe"
+        ]
+      }
+    }
+  }
+}

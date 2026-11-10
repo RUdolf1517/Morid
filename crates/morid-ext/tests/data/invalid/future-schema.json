@@ -1,0 +1,14 @@
+{
+  "Name": "probe",
+  "Version": "5",
+  "Cmd": {
+    "Generic": {
+      "amd64": {
+        "Name": "probe",
+        "Args": [
+          "probe"
+        ]
+      }
+    }
+  }
+}

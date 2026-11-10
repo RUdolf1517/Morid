@@ -20,7 +20,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # macos-latest (ARM64) could not acquire a hosted runner in run
+        # 42879040127. Keep macOS 26 coverage on the available x64 pool;
+        # aarch64 command selection is still covered by the resolver tests.
+        os: [ubuntu-latest, macos-26-intel, windows-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -60,12 +63,48 @@ jobs:
         run: |
           set -euo pipefail
           cargo test --workspace --all-features 2>&1 | tee test.log
+          cargo test -p morid-ext thin_files_resolve_by_file_name -- --nocapture --test-threads=1 2>&1 | tee variants.log
+          cargo test -p morid-cli warning_demo_copy_of_ytdl_patched -- --nocapture --test-threads=1 2>&1 | tee warnings-demo.log
 
       - name: Build release
         shell: bash
         run: |
           set -euo pipefail
           cargo build --release --workspace 2>&1 | tee build.log
+
+      - name: Resolve all bundled engines without starting them
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          ./target/release/morid engines > engines.txt 2> engines-warnings.txt || status=$?
+          test "$status" = 0 || test "$status" = 4
+          cat engines.txt
+          cat engines-warnings.txt
+          status=0
+          ./target/release/morid engines --json > engines.jsonl 2> engines-json-warnings.txt || status=$?
+          test "$status" = 0 || test "$status" = 4
+          python3 - <<'PYCODE'
+          import json
+          from pathlib import Path
+          rows = Path("engines.jsonl").read_text().splitlines()
+          assert len(rows) == 17, len(rows)
+          assert all(isinstance(record := json.loads(row), dict) and record["resolved"] for row in rows)
+          print(rows[0])
+          print(rows[-1])
+          print("JSONL lines:", len(rows))
+          PYCODE
+          {
+            echo '### Engine resolution (${{ matrix.os }})'
+            echo '```text'
+            cat engines.txt engines-warnings.txt
+            echo '```'
+            echo '```jsonl'
+            head -n 1 engines.jsonl
+            tail -n 1 engines.jsonl
+            echo '```'
+            echo "JSONL lines: $(wc -l < engines.jsonl)"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build offline from the warm cache
         shell: bash
@@ -212,3 +251,62 @@ jobs:
         run: |
           set -euo pipefail
           cargo audit 2>&1 | tee audit.log
+
+      - name: Verify crate boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          import subprocess
+          checks = [
+              ["grep", "-rn", "--exclude-dir=morid-engine", "std::process", "crates/"],
+              ["grep", "-rn", r"std::fs\|std::net\|SystemTime\|rand", "crates/morid-core/"],
+          ]
+          for command in checks:
+              result = subprocess.run(command, text=True, capture_output=True)
+              print("$", " ".join(command))
+              print(result.stdout, end="")
+              print("exit code:", result.returncode)
+              assert result.returncode == 1, result.stderr or result.stdout
+          PYCODE
+
+      - name: Phase 2 evidence
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          def emit(title, text):
+              text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::notice title={title}::{text}")
+          for name in ["engines.txt", "engines-warnings.txt", "size-report.txt", "phase0-unittest.log", "phase0-verify.log", "variants.log", "warnings-demo.log"]:
+              path = Path(name)
+              if path.exists(): emit(name, path.read_text(errors="replace")[-12000:])
+          path = Path("test.log")
+          if path.exists(): emit("named-tests", "\n".join(line for line in path.read_text(errors="replace").splitlines() if line.startswith("test ") or "rule " in line or "warning-demo" in line or ": warning:" in line))
+          path = Path("engines.jsonl")
+          if path.exists():
+              rows = path.read_text().splitlines()
+              emit("jsonl", f"lines={len(rows)}\n{rows[0]}\n{rows[-1]}" if rows else "empty")
+          for name in ["clippy.log", "build.log"]:
+              path = Path(name)
+              if path.exists() and "error" in (text := path.read_text(errors="replace")): emit(name, text[-5000:])
+          PYCODE
+
+      - name: Upload Phase 2 verification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-evidence-${{ matrix.os }}
+          path: |
+            test.log
+            variants.log
+            warnings-demo.log
+            engines.txt
+            engines.jsonl
+            engines-warnings.txt
+            size-report.txt
+            phase0-unittest.log
+            phase0-verify.log
+            clippy.log
+          if-no-files-found: error

@@ -4,3 +4,6 @@
 //! Must not contain: knowledge of widgets, or of specific engines beyond their data.
 
 #![forbid(unsafe_code)]
+
+// Exit status is the only process API exposed in Phase 2. No spawning API.
+pub use std::process::ExitCode;

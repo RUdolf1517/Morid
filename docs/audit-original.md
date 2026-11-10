@@ -114,7 +114,10 @@ the key limit on "the Rust version reads the same JSON and works".
 
 ### 2.5 The extension schema (the de facto contract)
 
-Collected from all 17 files in `extensions/`: 34 distinct keys.
+Collected from all 17 files in `extensions/`: **40** distinct keys. (An earlier draft of this line said 34 and
+omitted six that the files do contain: `ControlJsonStructure`, `DownloadUrlWin7`, `ExtraArguments`,
+`ExtraArgumentsFlatpak`, `ExtraArgumentsWin7`, `PlayListIdArguments`, `ShowListTableBoundary`. Corrected 8 November
+2026 by counting the files; [extensions](extensions.md) §1 has the authoritative list.)
 
 ```
 ArchiveContainsFolder, AutoUpdate, BackendPath, BatchFileArgument, CanDownloadPlaylist,
@@ -127,6 +130,9 @@ RemoveText, ReplaceOutputWithProgressReport, RequiredMinimumVersionOfMediaDownlo
 SkipLineWithText, SplitLinesBy, SupportingEngine, UpdatableSupportingEngine,
 UserName, Version, VersionArgument, VersionStringLine, VersionStringPosition
 ```
+
+*(This list is the audit's original, therefore incomplete — the missing six are named in extensions.md §1 and the
+files are the source of truth.)*
 
 `Cmd` is nested by OS (`Generic`, `Windows`, `MacOS`) and architecture (`amd64`, `x86`, `aarch64`, `win7amd64`,
 `win7x86`) — 34 combinations occur.
@@ -350,7 +356,7 @@ build works offline, no `unsafe` in our code.
 | R2 | Backend output format changes break parsing | high | high | rules are data (`ControlJsonStructure`); fixtures per rule; a nightly manual diff job |
 | R3 | GUI parity: tables, thumbnails, context menus, tray | medium | medium | functional parity first, pixel parity never promised; gaps published |
 | R4 | RTL and localisation | medium | medium | decision D-002: text correct, layout not mirrored; stated publicly |
-| R5 | Compatibility with third-party extensions (34 keys, 5 schema versions, dead keys) | high | high | schema frozen as a versioned public contract; all 17 files in the test set |
+| R5 | Compatibility with third-party extensions (40 keys, 5 schema versions, dead keys) | high | high | schema frozen as a versioned public contract; all 17 files in the test set |
 | R6 | `RequiredMinimumVersionOfMediaDownloader` ties extensions to a product version | high | medium | D-004 soft check with clear diagnostics |
 | R7 | All endpoints point at upstream | certain | high | D-010 and D-014: extensions local, backends from their own projects, application endpoint ours |
 | R8 | Windows 7/8 support | removed | — | D-005: not supported, recorded in [platforms.md](platforms.md) |

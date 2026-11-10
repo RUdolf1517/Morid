@@ -38,6 +38,16 @@ Rules:
   version and the running version. This is a deliberate difference from the original, which compares against
   its own compiled version and would reject every existing extension once Morid renumbers.
 
+**Thin files.** Three shipped files (`yt-dlp-aria2c.json`, `yt-dlp-ffmpeg.json`, `yt-dlp-nightly.json`) carry only
+`Name` and `Version` and nothing else. They are variants that inherit the rest from the yt-dlp family by `Name`
+reference, and a reader that requires `Cmd` in every file rejects them: validation rule 5 of §8 would fail on a file
+the original accepts. The reader must resolve a thin file by looking up its family base before deciding that no
+command exists.
+
+**How many keys there are.** The documentation elsewhere says "34 keys"; the 17 shipped files use **40** distinct
+keys. The 34 is a count from an early draft and was never right. Do not plan against a number — the reader must
+accept any key it knows, warn about the ones it does not (§8 rule 7), and the test iterates the files, not a list.
+
 Schema history, as observed in the shipped files:
 
 | Version | Files | What changed |
@@ -66,6 +76,8 @@ decorative. Morid will branch on it where it matters and say so here.
 | `SupportingEngine` / `UpdatableSupportingEngine` | bool | no | This is a helper (ffmpeg, deno, python, bsdtar), not a downloader the user picks |
 | `ArchiveContainsFolder` | bool | no | The downloaded archive contains a directory; extraction must be followed by a rename |
 | `BackendPath` | string | no | Where the executable lives. `${default}` / `${BackendPath}` mean "the application's bin directory". |
+| `UserName` | string | no | Credential for a backend that takes one on the command line. **Never logged** (I7); see §4.2. |
+| `Password` | string | no | As `UserName`. Stored in the extension file, which is why §4.2 exists. |
 
 Notes that are contractual because user data depends on them:
 
@@ -87,7 +99,8 @@ Notes that are contractual because user data depends on them:
 }
 ```
 
-Lookup order: the platform-specific block (`Windows` / `MacOS`), then `Generic`. Within a block the
+`Cmd` is the structure above: **platform → architecture → `{Name, Args}`**. Lookup order: the platform-specific
+block (`Windows` / `MacOS`), then `Generic`. Within a block the
 architecture key, then a fallback. Architecture keys observed in the shipped files:
 `amd64`, `x86`, `aarch64`, `win7amd64`, `win7x86`.
 
@@ -95,7 +108,8 @@ architecture key, then a fallback. Architecture keys observed in the shipped fil
 ([D-005](decisions.md)). A file that only defines `win7*` keys for Windows is reported as unsupported on the
 supported Windows platforms rather than silently falling back to an x86 build that may not run.
 
-`Args[0]` is the executable name; the rest are its fixed arguments. A name is resolved as: an absolute path,
+`Args[0]` is the executable name; the rest are its fixed arguments (`Args` and `Name` inside `Cmd` are the only
+keys at that level; both are required). A name is resolved as: an absolute path,
 then the application's bin directory, then `PATH`. Note the `stdbuf -o L yt-dlp` form used by
 `yt-dlp-aria2c-native.json`: the executable name and the program name differ, and the version reader must use
 `Name`, not `Args[0]`.
@@ -122,6 +136,7 @@ Placeholders available in `Args`:
 | `DefaultSubtitleDownloadOptions` | string[] | Arguments for downloading/embedding subtitles |
 | `OptionsArgument` | string | The flag that introduces a format, e.g. `-f` for yt-dlp, `-s` for get-sauce. It makes a bare `mp4` in the options field mean `-f mp4` |
 | `PlaylistItemsArgument` | string | The flag for an item range, e.g. `--playlist-items` |
+| `PlayListIdArguments` | string[] | **Distinct from `PlaylistItemsArgument`**: fixed arguments that make a backend return playlist ids only. Present in five shipped files; the original reads it, and a reader that ignores it gets a full listing where the caller wanted ids. |
 | `BatchFileArgument` | string | The flag that reads URLs from a file, e.g. `-a` |
 | `VersionArgument` | string | The flag that prints the backend version |
 | `CookieArgument` | string | Flag to read cookies from a browser, e.g. `--cookies-from-browser` |
@@ -132,7 +147,21 @@ Placeholders available in `Args`:
 | `SkipLineWithText` | string[] | Lines containing any of these are dropped entirely |
 | `SplitLinesBy` | string[] | Line terminators for this backend: `["\n"]` or `["\n","\r"]` |
 | `ReplaceOutputWithProgressReport` | bool | Do not parse output for progress; show elapsed time instead (get-sauce, lux) |
+| `ShowListTableBoundary` | bool | The backend's list output is a table with a boundary line; the parser uses it to know where the table starts. |
 | `ExtraOptions` / `ExtraOptionsFlatpakAppImage` / `ExtraOptionsWin7` | string[] | Arguments added only on that packaging/platform |
+| `ExtraArguments` / `ExtraArgumentsFlatpak` / `ExtraArgumentsWin7` | string[] | **Not recognised** — a mis-spelling in the shipped set, see §4.1. Warning, never silently accepted. |
+
+### 4.2 Credentials inside extension files
+
+Three shipped files carry `UserName` / `Password` as plain strings. That is the original's design and it is a
+security problem we inherit rather than introduce:
+
+- the values must never reach a log line, the history file or the console stream (invariant I7), and a test exists
+  for it in Phase 3, not later;
+- the reader treats them as opaque strings — no trimming, no shell escaping beyond what argv needs;
+- they are **not** migrated out of the extension file into a keyring in this project: that would break the contract
+  that an extension file written for the original keeps working. Recorded as O9 in
+  [migration](migration.md) §6.1.
 
 ### 4.1 A defect in the shipped set that Morid must decide about
 
@@ -251,7 +280,8 @@ In order, and the message a user sees must name which one failed:
 2. `Name` present and non-empty.
 3. `Version` ≤ supported schema version.
 4. `RequiredMinimumVersionOfMediaDownloader` satisfied (D-004 rules).
-5. At least one command resolves for the current platform and architecture.
+5. At least one command resolves for the current platform and architecture — **after** resolving a thin file's
+   family base (§1); a file with no `Cmd` of its own is not automatically invalid.
 6. The resolved executable exists, or the extension is marked "needs installation" rather than broken.
 7. Unknown keys → warning, not failure.
 8. `ExtraArguments*` present → warning pointing at §4.1.

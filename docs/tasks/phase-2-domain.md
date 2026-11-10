@@ -45,6 +45,19 @@ There is no downloader here and no window. Resist both.
 7. [../fixtures/README.md](../../fixtures/README.md) — the fixtures from Phase 0. They are argv goldens for later
    phases; this phase does not consume them, but do not break the Phase 0 checks that CI now runs.
 
+
+### 2.1 Who establishes what
+
+This task describes three transformations of extension files. Those three are **claims with their source named**, not
+instructions to be obeyed: the source is `legacy/src/engines.cpp` and `legacy/src/engines/yt-dlp.cpp`, and it is
+authoritative. Read it, implement what it does, and if this task or [../extensions.md](../extensions.md) §1 describes
+it differently, the code is right — report the difference with the lines and stop on that point.
+
+Everything else here is stated as a contract: which crate holds what, which behaviour the user must see, which
+invariant must survive, what the acceptance criteria check. Where the contract does not pin down the mechanism, the
+choice is yours; say what you chose and why in the hand-back. Do not wait for a description of the C++ — there will
+not be one. See [README](README.md), "Rule for the manager".
+
 ---
 
 ## 3. What to produce

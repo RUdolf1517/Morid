@@ -42,11 +42,33 @@ manager resolves it, and the correction is the same text on both sides, so it is
 
 ---
 
-## Rule for the manager: verify before specifying
+## Rule for the manager: specify outcomes, let the coder read the source
 
-Every technical claim written into a task must come from the artefact — source, output of a run, or a documented
-API contract — and not from the manager's recollection. When a claim cannot be checked, the task says so and asks
-the coder to establish it instead of asserting it.
+The manager's job in a task is to say **what the result must be** — behaviour, interface, invariants, acceptance
+criteria — and to say **where the answer lives**, naming the file and the section or function. It is not the
+manager's job to read the old C++ and translate it into instructions.
+
+That division is a correction from the owner (10 November 2026), and it is a reaction to the record below, which
+has one shape: the manager read a symptom, inferred a mechanism, and wrote the inference into a task as fact. Four
+times. Each time the artefact was a minute away and would have said something else. Reading the source more
+carefully would have made the manager a slower, more confident version of the same mistake: the tasks would have
+grown into paraphrases of C++, and a paraphrase of 40 000 lines is not a specification, it is a place to hide
+errors.
+
+So the division of labour is:
+
+- **Manager:** the contract. What the behaviour must be from the user's side, which interface it appears through,
+  which invariant it must not break, what is checked and how. "`morid-ext` resolves the command for this platform;
+  the three thin files behave as the original behaves; here is the criterion that proves it."
+- **Coder:** the mechanism. Read `legacy/`, follow the exact dispatch, and implement what the code does — not what
+  a plausible description of the code says. When the result of reading is surprising, report it and it becomes a
+  correction to the document.
+- **Both:** the criterion must be falsifiable from outside the implementation. "Same as the original" is not a
+  criterion unless there is a test that would fail if it were not.
+
+A task may still contain a technical claim. When it does, it carries its source inline and says what to do if the
+source disagrees — as Phase 2 §3.2 does with the three transformations. That is not the manager asserting a
+mechanism; it is the manager naming one and handing the check to the person who is going to read the file anyway.
 
 This rule exists because of a record, not a principle. In Phase 0 the manager wrote three wrong technical
 statements into tasks, each of which the coder disproved from the code:
@@ -61,7 +83,8 @@ statements into tasks, each of which the coder disproved from the code:
 The pattern is the same in all four: a plausible mechanism was accepted because it explained the symptom, and the
 check that would have falsified it took a minute.
 
-The fourth one is worth separating from the first three, because it is the only one that **cost nothing**. It did not
+The fourth one is worth separating from the first three, because it is the only one that **cost nothing** — and it is
+also the last one of its kind, because the owner has since changed how tasks are written (above). It did not
 cost a round, a commit or a rebuild: the task said "if the mechanism differs, stop and report", the coder checked
 `legacy/` before writing a line, and the correction landed in the specification instead of in code that would have
 been rewritten. That sentence — name the claim, say where it came from, and tell the coder to stop if it is wrong —

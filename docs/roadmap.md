@@ -69,8 +69,10 @@ one file: `settings.ini`. The result is a Qt INI dialect — values and keys, re
 
 The slowness has one cause worth recording: **the manager specified three wrong mechanisms in a row** (the field name
 in a log record, the locale in s20, the escape notation and the quoting rules), and each wrong mechanism cost a round.
-Fixing that — checking against the source before writing a claim into a task — cut the rounds to one finding each
-after round 4. This is the rule now written into [tasks/README.md](tasks/README.md).
+A fourth followed in the Phase 2 task. All four had the same origin — a mechanism inferred and written down as fact —
+and the answer adopted on 10 November 2026 is not "read the source harder" but the opposite: tasks specify the
+**contract** (behaviour, interface, acceptance criterion) and point at the file; the coder reads the old code and
+implements what it does. See [tasks/README.md](tasks/README.md), "Rule for the manager".
 
 Nothing in this repository runs automatically, and that is a decision rather than a gap: D-017 defers both checks to
 the Phase 1 workflow, which Phase 1's exit criteria require to run them and to report the test count. The four uncaptured cases are real observations,

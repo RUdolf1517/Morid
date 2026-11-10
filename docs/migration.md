@@ -47,7 +47,7 @@ What *is* carried over deliberately:
 
 | Carried over exactly | Because |
 | --- | --- |
-| The extension JSON schema, all 34 keys | It is a public contract; users and third parties have files ([extensions](extensions.md)) |
+| The extension JSON schema, all 40 keys used by the shipped files | It is a public contract; users and third parties have files ([extensions](extensions.md)) |
 | User data file formats | A returning user must find everything intact ([data-compat](data-compat.md)) |
 | The generated argument vectors | The backends are the same; a different argv is a different download |
 | The UI structure: five tabs, the same sub-tabs | Habit is part of compatibility |
@@ -214,6 +214,7 @@ documented, because "we silently improved it" is how a replacement becomes untru
 
 ---
 
+| O9 | `UserName` / `Password` are stored as plain strings inside three extension files. | `extensions/` | Inherited, not introduced. Morid treats them as opaque, never logs them (I7), and does **not** move them to a keyring: an extension file written for the original must keep working. See [extensions](extensions.md) §4.2. |
 | O8 | The "Resetting download folder to default" message **never appears** in the application log, even when the reset happens: `settings::downloadFolder()` passes a default-constructed `sLogger` whose `add()` is a no-op without a `Logger*` (`legacy/src/settings.cpp:1631`). The reset is observable only through the resulting working directory and the rewritten `DownloadFolder` value. | s20, `f187923` | Do not use the log line as evidence of anything. Morid should log its own equivalent properly — this is one of the defects not to reproduce (D-016 note). |
 
 ## 7. Equivalence, precisely defined

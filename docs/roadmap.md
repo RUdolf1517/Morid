@@ -236,7 +236,7 @@ command line as the C++ version?* If the answer is no, everything after this poi
 | Risk | Mitigation |
 | --- | --- |
 | Line splitting differs from QProcess's `readyRead` chunking, so a progress line arrives in two pieces | the fake backend writes in hostile chunk sizes, including mid-UTF-8-sequence splits |
-| Cancellation leaves an orphan on Windows | Job objects with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (A5), tested with the child-spawning fake backend |
+| Cancellation leaves an orphan on Windows | Job objects with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (A5), tested with the child-spawning fake backend. **Known sharp edge:** assign-after-spawn is not race-free — a process started between `spawn` and `AssignProcessToJobObject` sits outside the job. The phase must either close that window (`CREATE_SUSPENDED` + assign + resume, which needs the `unsafe` D-019 allows) or state the residual race and test it; Phase 3's report on the primitive as delivered says assign-after-spawn, which is why this risk is still open |
 | The golden fixtures do not cover an option combination the CLI offers | the planner is built from `ArgPolicy` and the extension data, not from a scenario table; an option combination with no golden is **reported**, and the review deliberately dry-runs one (Task 4 §8) |
 
 ---

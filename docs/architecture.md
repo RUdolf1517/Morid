@@ -177,11 +177,16 @@ Notes that come from the original's actual behaviour and must not be "improved" 
 - Each job is a `tokio`-free structure: a `std::thread` per running backend is acceptable and simpler than an
   async runtime for a program whose work is dominated by child processes and line parsing. **Decision pending
   in Phase 3** — see [roadmap](roadmap.md) §"Open engineering choices".
-- Cancellation sends a termination request to the **process tree**: `setsid`/process group on Unix,
-  `CreateJobObject` with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` on Windows. A cancelled job is not "the process
-  was signalled"; it is "no descendant of the job is alive".
+- Cancellation sends a termination request to the **process tree**. A cancelled job is not "the process was
+  signalled"; it is "no descendant of the job is alive". The mechanism per platform is Phase 3's to choose
+  ([tasks/phase-3-one-backend.md](tasks/phase-3-one-backend.md) §3.1 item 6); on Unix a process group is enough,
+  and `CommandExt::process_group(0)` creates it without `unsafe` or `pre_exec`.
 - On Windows the original shells out to `taskkill`. That is a security and reliability liability (argument
-  quoting, missing binary, locale); job objects replace it.
+  quoting, missing binary, locale), and job objects replace it — **but job objects only contain what they contain.**
+  A process started between `spawn` and `AssignProcessToJobObject` is outside the job, and so is anything it
+  created first. Race-free containment needs the child created suspended and assigned before its first instruction
+  runs, which is `unsafe` and is why [D-019](decisions.md) exists. A design that assigns after spawn and calls
+  itself tree containment is wrong, however well it passes a test that waits for the child to appear first.
 
 ---
 

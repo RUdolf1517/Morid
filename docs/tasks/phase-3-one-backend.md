@@ -72,10 +72,23 @@ why.
 5. **Progress values.** The generic reader extracts percent, total, speed, ETA and file name from the line.
    For this phase, only the yt-dlp shape is required — the `--progress-template` string in the goldens is the
    contract, and the parser may be specific to it **if** a test says so and the generic path is where it lives.
-6. **Cancel.** Process group on Unix (`setsid` + `killpg`), Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` on
-   Windows. `libc` and `windows-sys` are already accepted dependencies for exactly this
-   ([dependencies](../dependencies.md) §2.8, §2.9). **A cancelled job is not "the signal was sent"; it is "no
-   descendant is alive"** — and the test proves it by checking the process table.
+6. **Cancel.** The requirement is one sentence and it does not name a mechanism: after cancellation **no
+   descendant of the backend is alive**. `libc` and `windows-sys` are accepted for it
+   ([dependencies](../dependencies.md) §2.8, §2.9), `CommandExt::process_group` is the safe API where it is
+   enough, and how the tree is contained on each platform is yours to choose — see the note below on Windows,
+   which is the part that is not a matter of taste. **A cancelled job is not "the signal was sent"; it is "no
+   descendant is alive"**, and the test proves it by checking the process table.
+
+   **Known hard part, stated so the round is not spent discovering it.** On Windows, containing descendants is not
+   "create a job, spawn, assign": a process that starts between `spawn` and `AssignProcessToJobObject` is outside
+   the job, and a descendant it creates before assignment escapes it entirely. The original has the same class of
+   problem and solves it the crude way (`taskkill /F /T /PID`, rejected in §2.9 for quoting and localisation
+   reasons, not because it fails to kill). You are not required to reproduce the defect, and you are not required to
+   keep a design that is documented as insufficient. If race-free containment needs something this phase does not
+   have — an `unsafe` `CREATE_SUSPENDED` + assign + resume sequence through `pre_exec`, a different crate, or a
+   documented, tested residual race — **say which, with the evidence, and stop on that point**; that is the same
+   rule as everywhere else in this task. What is not acceptable is a primitive described in a comment as
+   insufficient while the branch moves on, because the phase's criterion 5 will then be met on paper only.
 7. **Exit state.** `ExitState { code, signal, cancelled, duration }`, mapped to a typed `Error` variant. A
    backend that fails to start is `FailedToStart`, not `code = -1`.
 

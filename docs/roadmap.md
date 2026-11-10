@@ -214,11 +214,14 @@ fixtures.
   signal, so I5 is testable at all.
 
 **Carried in from Phase 2:** `url_round_trips_byte_for_byte` must use the fixture URLs
-(`fixtures/scenarios/*/argv.json`), and the range-field token split must be checked against `s07`.
+(`fixtures/scenarios/*/argv.json`), and the range-field token split must be checked against `s07` — both are named
+tests in [Task 4](tasks/phase-3-one-backend.md) §3.6, and both are acceptance criteria, not wishes.
 
-**Estimate:** 12–16 days. **Exit criteria:** `--dry-run` argv equals the golden fixture for every Phase 0 scenario
-that uses yt-dlp; a cancelled job leaves no descendant on Linux and Windows; every documented exit code is produced
-by a test; no test touches the network.
+**Estimate:** 12–16 days. **Exit criteria:** `--dry-run` argv equals the golden for every scenario **Task 4 §5 puts
+in scope** — 15 yt-dlp cases, not all 40, because the rest need the playlist planner, the store, the proxy
+construction or another backend, and pretending otherwise would be a criterion that cannot be met in this phase —
+a cancelled job leaves no descendant on Linux and Windows; every documented exit code is produced by a test; no
+test touches the network; a release binary finds `extensions/` outside a checkout (A6).
 
 This is the phase that answers the question the whole project rests on: *can the Rust version produce the same
 command line as the C++ version?* If the answer is no, everything after this point changes.
@@ -229,7 +232,7 @@ command line as the C++ version?* If the answer is no, everything after this poi
 | --- | --- |
 | Line splitting differs from QProcess's `readyRead` chunking, so a progress line arrives in two pieces | the fake backend writes in hostile chunk sizes, including mid-UTF-8-sequence splits |
 | Cancellation leaves an orphan on Windows | Job objects with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (A5), tested with the child-spawning fake backend |
-| The golden fixtures do not cover an option combination the CLI offers | the CLI refuses combinations with no golden rather than guessing; the gap goes to Phase 0 follow-up |
+| The golden fixtures do not cover an option combination the CLI offers | the planner is built from `ArgPolicy` and the extension data, not from a scenario table; an option combination with no golden is **reported**, and the review deliberately dry-runs one (Task 4 §8) |
 
 ---
 
@@ -402,11 +405,12 @@ These are implementation choices, not product decisions; each is settled in the 
 | A3 | Own INI parser versus a crate | 4 | own parser |
 | A4 | gettext versus bundled catalogs | 7 | gettext |
 | A5 | Job object strategy on Windows | 3 | `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` |
-| A6 | How the CLI locates bundled `extensions/` outside a checkout | 3 | resolve beside the binary, then the data directory; today it is `CARGO_MANIFEST_DIR`, which ships nothing |
+| A6 | How the CLI locates bundled `extensions/` outside a checkout | 3 | **decided:** beside the binary, then the per-user data directory; `CARGO_MANIFEST_DIR` in release builds is forbidden ([tasks/phase-3-one-backend.md](tasks/phase-3-one-backend.md) §3.7) |
 
-A6 is new and is the one choice that cannot be deferred past Phase 3: `morid engines` currently finds its data
-through a compile-time path that exists only in a developer's checkout. That is acceptable for a phase that only
-reports, and unacceptable for a binary a user installs.
+A6 cannot be deferred past Phase 3 and is no longer an open choice: **Task 4 fixes the search order** and requires
+a release binary to be demonstrated from outside a checkout. The reason it cannot slide: `morid engines` currently
+finds its data through a compile-time path that exists only in a developer's checkout. That is acceptable for a
+phase that only reports, and unacceptable for a binary a user installs.
 
 ---
 

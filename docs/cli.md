@@ -83,6 +83,13 @@ morid download https://example.test/v/abc --dry-run
 `--dry-run` is the debugging tool for compatibility: its output is the exact argument vector, and the test suite
 compares it with fixtures captured from the original program.
 
+**Settings override, until Phase 4** (`--settings <file.json>`, accepted by `list` and `download`): a flat JSON object
+whose keys are the settings names the command planner reads, applied over the built-in defaults, before any
+explicit flag overrides them. It exists so `--dry-run` can be pointed at the settings a golden was captured with,
+and so scripted use does not need a GUI configuration. **It is not a second configuration format and not a
+replacement for `settings.ini`**: Phase 4 reads the real file ([data-compat](data-compat.md)), and this flag stays
+as the testing and scripting surface.
+
 Exit codes: `0` downloaded, `1` usage error, `3` backend failure, `5` cancelled (SIGINT), `6` destination not
 writable.
 

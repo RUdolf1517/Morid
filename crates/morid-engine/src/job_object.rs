@@ -71,9 +71,11 @@ impl Job {
         Ok(Self { handle })
     }
 
-    /// Primitive only: this does not make spawn-then-assign race-free. A future
-    /// supervisor must establish membership before backend code can spawn children.
-    /// It must not claim containment merely because this call succeeded later.
+    /// Assign-after-spawn deliberately has a residual escape window: descendants
+    /// already running before this call are not retroactively enrolled. The test
+    /// `assign_after_spawn_leaves_preassignment_grandchild_alive` forces that
+    /// window and checks the survivor in the Windows process table, then cleans
+    /// it up. This API is not a whole-tree cancellation guarantee (criterion 5).
     pub fn assign(&self, child: &Child) -> io::Result<()> {
         let job = self.handle.as_raw_handle();
         let process = child.as_raw_handle();

@@ -191,6 +191,16 @@ mod tests {
     }
 
     #[test]
+    fn empty_predicate_arrays_follow_any_and_all_semantics() {
+        assert!(!Control::parse(&json!({"lhs":{"containsAny":[]}}))
+            .expect("any")
+            .matches("text"));
+        assert!(Control::parse(&json!({"lhs":{"containsAll":[]}}))
+            .expect("all")
+            .matches("text"));
+    }
+
+    #[test]
     fn predicate_priority_is_legacy_order_not_conjunction() {
         let keys = [
             "startsWith",
@@ -225,6 +235,28 @@ mod tests {
                     .matches("x"),
                 "first key {key}"
             );
+            if index + 1 < keys.len() {
+                let first_value = if key.starts_with("containsA") {
+                    json!(["absent"])
+                } else {
+                    json!("absent")
+                };
+                let next = keys[index + 1];
+                let next_value = if next.starts_with("containsA") {
+                    json!(["x"])
+                } else {
+                    json!("x")
+                };
+                let mut side = serde_json::Map::new();
+                side.insert((*key).to_owned(), first_value);
+                side.insert(next.to_owned(), next_value);
+                assert!(
+                    !Control::parse(&json!({"lhs":side}))
+                        .expect("valid")
+                        .matches("x"),
+                    "first present {key} must decide even when false"
+                );
+            }
         }
     }
 }

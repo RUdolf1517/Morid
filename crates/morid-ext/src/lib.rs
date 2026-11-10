@@ -285,8 +285,13 @@ pub fn read(
         }
     };
     let (id, schema_version) = validate_identity(file, &raw)?;
-    let known: Known = serde_json::from_value(raw.clone())
-        .map_err(|_| failure(file, 5, "malformed Cmd or argument policy"))?;
+    let known: Known = serde_json::from_value(raw.clone()).map_err(|_| {
+        failure(
+            file,
+            5,
+            "malformed known field (Cmd, arguments or metadata)",
+        )
+    })?;
     // Reject malformed commands, including unselected blocks, rather than hiding bad data.
     for block in known.commands.values() {
         for command in block.values() {

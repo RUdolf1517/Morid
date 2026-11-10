@@ -244,3 +244,69 @@ fn control_error_names_file_and_rule() {
     };
     assert!(error.to_string().contains("bad-control.json: rule 5:"));
 }
+
+#[test]
+fn shipped_argument_policy_keeps_ids_distinct_from_range_flag() {
+    let engine = read_path(
+        &root().join("aria2c.json"),
+        &Target::current(),
+        &EmptySearch::new(),
+    )
+    .expect("aria2c");
+    assert_eq!(
+        engine.policy.playlist_ids,
+        engine.raw["PlayListIdArguments"]
+            .as_array()
+            .expect("ids")
+            .iter()
+            .map(|value| value.as_str().expect("argument").to_owned())
+            .collect::<Vec<_>>()
+    );
+    for platform in ["Generic", "MacOS", "Windows"] {
+        let engine = read_path(
+            &root().join("yt-dlp-ffmpeg.json"),
+            &Target {
+                platform,
+                arch: "amd64",
+            },
+            &EmptySearch::new(),
+        )
+        .expect("variant");
+        assert!(engine
+            .policy
+            .download
+            .ends_with(&["--downloader".to_owned(), "ffmpeg".to_owned()]));
+        assert_eq!(engine.policy.options_argument, "-f");
+        assert_eq!(engine.policy.playlist_items_argument, "--playlist-items");
+    }
+}
+
+#[test]
+fn engine_with_interpreter_still_needs_the_backend_script() {
+    struct InterpreterOnly;
+    impl Executables for InterpreterOnly {
+        fn bin_dir(&self) -> &Path {
+            Path::new("/bin")
+        }
+        fn find(&self, name: &str) -> Option<PathBuf> {
+            if name == "python3" {
+                Some(PathBuf::from("/bin/python3"))
+            } else {
+                None
+            }
+        }
+    }
+    let engine = read_path(
+        &root().join("safaribooks.json"),
+        &Target {
+            platform: "Generic",
+            arch: "amd64",
+        },
+        &InterpreterOnly,
+    )
+    .expect("valid definition");
+    assert!(
+        engine.executable.is_none(),
+        "interpreter alone is not an installed backend"
+    );
+}

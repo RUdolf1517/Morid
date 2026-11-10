@@ -122,6 +122,13 @@ The workflow now also runs the Phase 0 checks and asserts their test count, whic
 
 ### Phase 2 — Domain and extension schema
 
+**Status: in progress, not submitted as complete.** The Phase 2 branch implements domain values,
+extension reading/resolution, the three filename transformations, progress expressions and the
+`engines` CLI. `PlaylistRange` is blocked pending clarification: the original forwards the
+playlist field as option tokens (`legacy/src/playlistdownloader.cpp:1061–1069`) rather than
+validating a numeric range. Its refusal grammar must not be invented. The original 10–14
+person-day task estimate is not yet replaced by a completed-work estimate.
+
 **Deliverable:** all 17 bundled extensions load, validate and resolve to a command, with no process started.
 
 - `morid-core`: URL handling, option-token parsing, playlist ranges, version comparison, `Error`.

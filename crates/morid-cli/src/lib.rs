@@ -82,7 +82,9 @@ pub fn run(
                 target.arch,
                 record["selected_arch"].as_str().unwrap_or("?"),
                 record["command"],
-                record["verdict"].as_str().unwrap_or("invalid")
+                record["error"]
+                    .as_str()
+                    .unwrap_or_else(|| record["verdict"].as_str().unwrap_or("invalid"))
             )
             .map_err(output_error)?;
         }

@@ -1,25 +1,50 @@
 # Roadmap
 
 Related: [features](features.md) · [migration](migration.md) · [architecture](architecture.md) ·
-[decisions](decisions.md) · [testing](testing.md)
+[decisions](decisions.md) · [testing](testing.md) · [tasks](tasks/README.md)
 
 The roadmap is ordered by **risk**, not by visibility. The riskiest thing in this project is not the interface:
 it is that nobody can prove the reimplementation behaves like the program it replaces. So the first phase
 produces nothing a user can see, and the phases that follow build the core before the window.
 
-Two rules govern the order:
+Three rules govern the order:
 
 1. **Nothing is reimplemented before its expected behaviour is recorded.** A feature built against a guess has to
    be rebuilt.
-2. **No phase starts before the previous one is accepted.** Acceptance means the phase's criteria are met and
-   stated, not that the work "looks done".
+2. **No phase starts before the previous one is accepted.** Acceptance means the phase's criteria are met, checked
+   by running them, and written down — not that the work "looks done".
+3. **A phase is a contract, not a transcription.** The task states what must be true afterwards and where the
+   answer lives; the coder establishes the mechanism from `legacy/`. This is [D-018](decisions.md), and it exists
+   because the alternative was tried and produced four wrong mechanisms in a row (see §6).
 
 Estimates are person-days for one experienced Rust developer, including tests and documentation. They are
-planning aids, not commitments.
+planning aids, not commitments, and they are **not retro-fitted** when a phase runs long.
 
 ---
 
-## 1. Decisions already made
+## 1. Where the project stands, 10 November 2026
+
+| Phase | Estimate | Status | Evidence |
+| --- | --- | --- | --- |
+| 0 Reference behaviour | 5–8 | **accepted 7 Nov 2026** | PR #2 (`8fba615`); 36 of 40 cases, 7 backends, `VERIFY_OK` |
+| 1 Skeleton | 5–7 | **accepted 8 Nov 2026** | PR #4 (`b6c2a58`), [CI 42461122995](https://github.com/RUdolf1517/Morid/actions/runs/42461122995) |
+| 2 Domain and extensions | 10–14 | **accepted 10 Nov 2026** | PR #8 (`fe97a75`), [CI 42881799249](https://github.com/RUdolf1517/Morid/actions/runs/42881799249) |
+| 3 One backend, end to end | 12–16 | **next — task not yet written** | — |
+| 4–8 | 10–20 each | not started | — |
+
+**What exists in code:** eight crates that compile on three platforms; a Qt-INIdialect settings reader/writer with
+30 tests and a seeded fuzz; `morid-core` (URL, format, option tokens, playlist-range tokens, versions, typed errors);
+`morid-ext` (17 extensions read, validated in the documented order, three thin-file transformations, `ControlJsonStructure`,
+command selection, warnings); `morid engines` and `--json`. **29 tests** in four suites. Nothing spawns a process
+and nothing touches the network.
+
+**Days spent: ≈12** against estimates of 20–29 for the same three phases. The gap is not speed — these three
+phases are readers and scaffolding, and the expensive ones are 3–8. The variance is recorded here rather than
+retro-fitted into the table.
+
+---
+
+## 2. Decisions already made
 
 | Decision | Choice | Why |
 | --- | --- | --- |
@@ -38,12 +63,32 @@ planning aids, not commitments.
 | Documentation language | English | D-012 |
 | Self-update | notice only | D-013 |
 | Backend update endpoints | the backends' own projects, not ours | D-014 |
+| `settings.ini` dialect | Qt 5 escaping reproduced exactly | D-016 |
+| Phase 0 checks | manual until Phase 1's workflow | D-017, delivered |
+| How tasks are written | contract + source pointer; mechanism from `legacy/` | D-018 |
 
 ---
 
-## 2. Phases
+## 3. How a phase runs
 
-Estimates are for the work, not for the waiting.
+The same shape every time, so that "accepted" means something:
+
+1. **Task written** in `docs/tasks/` by the manager, as a contract (§[D-018](decisions.md)): goal, what to produce,
+   constraints, acceptance criteria, what to report, which documents change.
+2. **Work on its own branch**, PR opened, CI green on three platforms.
+3. **Hand-back** with output, not summaries: test names, commands, sizes, known problems, and every place where the
+   task contradicted the code.
+4. **Review by breaking it**: read the code, not the report; re-run the criterion the phase exists for; try one
+   mutation that should fail. Acceptance is a comment on the PR with a criterion-by-criterion table.
+5. **Documents updated by the manager**, then merged with a merge commit — the history of decisions is the point.
+
+A phase that ends with an unproven criterion ends with a **recorded gap**, not with a green tick. Phase 2 shipped
+one: `url_round_trips_byte_for_byte` tests invented URLs rather than the fixture shapes, and it is written down as
+unmet in [tasks/phase-2-domain.md](tasks/phase-2-domain.md) §3.4.
+
+---
+
+## 4. Phases
 
 ### Phase 0 — Reference behaviour (no Rust code)
 
@@ -62,21 +107,17 @@ Estimates are for the work, not for the waiting.
 **Status 5 November 2026:** delivered as `fixtures/` (PR #2, commit `8fba615`) — 36 of 40 cases captured with
 wrapper transcripts, seven backends of raw output, an anonymised data directory reloaded by the original
 program, and a comparator. Goldens were then made independent of the capture host (`b344cdc`), the verifier was
-given teeth (`f187923`), and both late findings of round 2 were closed. **Accepted 7 November 2026.** Six review rounds, seven commits from the coder, and the last four rounds were about
-one file: `settings.ini`. The result is a Qt INI dialect — values and keys, reader and writer — reproduced from
-`qsettings.cpp` and proved by round trip against a port of Qt's own reader, 30 stdlib tests plus a seeded fuzz, with
-`VERIFY_OK` over 36 captured cases and 7 backends.
+given teeth (`f187923`), and both late findings of round 2 were closed. **Accepted 7 November 2026.** Six review
+rounds, seven commits from the coder, and the last four rounds were about one file: `settings.ini`. The result is a
+Qt INI dialect — values and keys, reader and writer — reproduced from `qsettings.cpp` and proved by round trip
+against a port of Qt's own reader, 30 stdlib tests plus a seeded fuzz, with `VERIFY_OK` over 36 captured cases and
+7 backends.
 
-The slowness has one cause worth recording: **the manager specified three wrong mechanisms in a row** (the field name
-in a log record, the locale in s20, the escape notation and the quoting rules), and each wrong mechanism cost a round.
-A fourth followed in the Phase 2 task. All four had the same origin — a mechanism inferred and written down as fact —
-and the answer adopted on 10 November 2026 is not "read the source harder" but the opposite: tasks specify the
-**contract** (behaviour, interface, acceptance criterion) and point at the file; the coder reads the old code and
-implements what it does. See [tasks/README.md](tasks/README.md), "Rule for the manager".
+The slowness had one cause: **the manager specified wrong mechanisms as fact**, three times in Phase 0 and once
+more in the Phase 2 task. The answer adopted on 10 November is not "read the source harder" but the opposite —
+tasks state the **contract** and point at the file. See [tasks/README.md](tasks/README.md), "Rule for the manager".
 
-Nothing in this repository runs automatically, and that is a decision rather than a gap: D-017 defers both checks to
-the Phase 1 workflow, which Phase 1's exit criteria require to run them and to report the test count. The four uncaptured cases are real observations,
-not omissions: see [migration](migration.md) §6.
+The four uncaptured cases are real observations, not omissions: see [migration](migration.md) §6.
 
 **Exit criteria:** a reviewer can take any scenario and see both argument vectors; every backend that Morid will
 support has at least one captured output.
@@ -84,11 +125,6 @@ support has at least one captured output.
 ---
 
 ### Phase 1 — Skeleton
-
-**Implementation status:** accepted and merged (PR #4, `b6c2a58`). Green on all three platforms:
-[CI 42461122995](https://github.com/RUdolf1517/Morid/actions/runs/42461122995). The Windows runner cannot initialize
-OpenGL, so GUI opening there remains unproven. The Phase 0 suite has **30** tests; CI asserts that count rather than
-a number written down here.
 
 **Deliverable:** a workspace that builds, tests and reports size on three platforms, with no features.
 
@@ -102,14 +138,9 @@ a number written down here.
 - Licence files reviewed: `LICENSE`, `LICENSE.txt`, `GPLv2`, `GPLv3`, `THIRD-PARTY.md`, and a note on which is
   normative (audit defect D7).
 
-**Estimate:** 5–7 days. **Exit criteria:** green CI on three platforms; `cargo build --offline` works;
-`morid --version` prints a version; size is reported; **and the same workflow runs the Phase 0 checks** —
-`python3 -m unittest tools.capture.test_qt_ini_roundtrip` and `tools/capture/verify_fixtures.py` — because D-017
-deferred them to here rather than dropping them.
+**Estimate:** 5–7 days.
 
----
-
-**Status 8 November 2026:** delivered in PR #4 (`b6c2a58`) and green on all three platforms — run
+**Status 8 November 2026:** accepted in PR #4 (`b6c2a58`), green on all three platforms — run
 [42461122995](https://github.com/RUdolf1517/Morid/actions/runs/42461122995). Eleven of the twelve criteria met as
 written; two of those by an equivalent rather than literally (criterion 8 used a disallowed-licence probe crate;
 criterion 10 builds the CLI for musl instead of proving a C-toolchain-free GUI build). Two deviations accepted and
@@ -118,37 +149,47 @@ recorded in [tasks/phase-1-skeleton.md](tasks/phase-1-skeleton.md) §7a: `deny.t
 `version = "1"` resolves to an edition-2024 release the pinned 1.85 compiler cannot build. Windows GUI launch stays
 unproven: the hosted runner has no `glCreateShader`.
 
-The workflow now also runs the Phase 0 checks and asserts their test count, which is what D-017 deferred here.
+**Exit criteria:** green CI on three platforms; `cargo build --offline` works; `morid --version` prints a version;
+size is reported; **and the same workflow runs the Phase 0 checks** — that is what D-017 deferred here, and it
+runs.
+
+---
 
 ### Phase 2 — Domain and extension schema
-
-**Implementation status:** accepted 10 November 2026 (PR #8, `564284b4`). Green on Linux, Windows and macOS:
-[CI 42881799249](https://github.com/RUdolf1517/Morid/actions/runs/42881799249). 29 tests in four suites, 17 extensions
-resolved and 17 JSON objects on every platform, both crate-boundary greps empty, no `unsafe`, no process spawned by
-any test. The macOS job ran on `macos-26-intel`: GitHub could not acquire a hosted ARM64 runner
-(`The job was not acquired by Runner`), so aarch64 command selection is proved by the resolver tests, not by a native
-run — the difference is stated rather than glossed.
 
 **Deliverable:** all 17 bundled extensions load, validate and resolve to a command, with no process started.
 
 - `morid-core`: URL handling, option-token parsing (including the playlist range field, which is option text and not
   a range grammar — [extensions](extensions.md) §5.4), version comparison, `Error`.
-- `morid-ext`: the extension schema (40 keys in the shipped files — see [extensions](extensions.md) §1), the validation order of [extensions](extensions.md) §8, command selection per
-  OS/architecture, `ControlJsonStructure` evaluation, unknown-key warnings, the `ExtraArguments` defect handled
-  as documented.
+- `morid-ext`: the extension schema (40 keys in the shipped files — [extensions](extensions.md) §1), the validation
+  order of §8, command selection per OS/architecture, `ControlJsonStructure` evaluation, unknown-key warnings, the
+  `ExtraArguments` defect handled as documented.
 - Round-trip: every bundled file parses and reports what it resolved to.
 
-**Estimate:** 10–14 days; the work took one working session after the specification settled, because the phase is a
-reader, not a downloader. **Exit criteria:** the negative fixtures of [testing](testing.md) §2 pass (I4, I10);
-no `unsafe`; no process is spawned by any test.
+**Estimate:** 10–14 days; it took one working session after the specification settled, because the phase is a
+reader, not a downloader.
 
-**Specification errors this phase exposed.** The manager wrote four wrong mechanisms into the task and the spec: three
-were disproved by the coder from `legacy/` before writing code, and the fourth by the manager while reviewing the
-result. All four are in [tasks/README.md](tasks/README.md) with their cost. Two are worth naming here because they changed the specification rather than a line of code:
-`ControlJsonStructure` does support `||` and a connector-less `lhs` form, and the playlist range field is free text
-that neither Morid nor the original validates. A third — `yt-dlp-aria2c` "replaces the Generic command" — was wrong in
-the opposite direction: the transformation publishes nothing, an **absent** argument, which no "contains" assertion
-would have caught.
+**Status 10 November 2026:** accepted in PR #8 (`fe97a75`), green on Linux, Windows and macOS —
+[CI 42881799249](https://github.com/RUdolf1517/Morid/actions/runs/42881799249). 29 tests in four suites, 17
+extensions resolved and 17 JSON objects on every platform, both crate-boundary greps empty, no `unsafe`, no process
+spawned by any test. The macOS job ran on `macos-26-intel`: GitHub could not acquire a hosted ARM64 runner
+(`The job was not acquired by Runner`), so aarch64 command selection is proved by the resolver tests, not by a
+native run — the difference is stated rather than glossed.
+
+**One criterion not met.** `url_round_trips_byte_for_byte` rounds-trips invented URLs (`example.test`, `magnet:`,
+an IDN host) instead of the shapes the Phase 0 fixtures contain. It proves the type is transparent and nothing
+about the URLs Morid will receive. Recorded as a gap in [tasks/phase-2-domain.md](tasks/phase-2-domain.md) §3.4 and
+in [testing](testing.md) §2; closing it is the first item of Phase 3.
+
+**Specification errors this phase exposed.** Four in one task — three disproved by the coder from `legacy/` before
+writing code, one by the manager at review: thin files dispatch by exact file name, not by inheriting from a family;
+`ControlJsonStructure` does support `||` and a connector-less `lhs`; the playlist range field is free text that
+neither program validates; and `yt-dlp-aria2c` publishes no transformation at all, so `Cmd` is unchanged — an
+**absent** argument, which no "contains" assertion would have caught. All four are in
+[tasks/README.md](tasks/README.md) with their cost.
+
+**Exit criteria:** the negative fixtures of [testing](testing.md) §2 pass (I4, I10); no `unsafe`; no process is
+spawned by any test. **All met.**
 
 ---
 
@@ -157,16 +198,30 @@ would have caught.
 **Deliverable:** `morid list` and `morid download` work against a real yt-dlp, and the argv matches the golden
 fixtures.
 
-- `morid-engine`: spawn, stream, split lines, classify, emit events, cancel a process tree.
+- `morid-engine`: spawn, stream, split lines (per `SplitLinesBy`), strip `RemoveText`, drop `SkipLineWithText`,
+  classify, emit events, cancel a **process tree**.
 - `morid`: the service layer, the queue, the concurrency limit, job state.
-- `morid-cli`: `list`, `download`, `--dry-run`, `--json`, exit codes.
-- The fake backend for tests ([testing](testing.md) §3).
+- `morid-cli`: `list`, `download`, `--dry-run`, `--json`, exit codes 0/2/3/5/6.
+- The fake backend for tests ([testing](testing.md) §3), including one that spawns a child and ignores the first
+  signal, so I5 is testable at all.
 
-**Estimate:** 12–16 days. **Exit criteria:** `--dry-run` argv equals the golden fixture for every Phase 0
-scenario that uses yt-dlp; a cancelled job leaves no descendant; exit codes of [cli](cli.md) §3 are covered.
+**Carried in from Phase 2:** `url_round_trips_byte_for_byte` must use the fixture URLs
+(`fixtures/scenarios/*/argv.json`), and the range-field token split must be checked against `s07`.
+
+**Estimate:** 12–16 days. **Exit criteria:** `--dry-run` argv equals the golden fixture for every Phase 0 scenario
+that uses yt-dlp; a cancelled job leaves no descendant on Linux and Windows; every documented exit code is produced
+by a test; no test touches the network.
 
 This is the phase that answers the question the whole project rests on: *can the Rust version produce the same
 command line as the C++ version?* If the answer is no, everything after this point changes.
+
+**Risks, named now:**
+
+| Risk | Mitigation |
+| --- | --- |
+| Line splitting differs from QProcess's `readyRead` chunking, so a progress line arrives in two pieces | the fake backend writes in hostile chunk sizes, including mid-UTF-8-sequence splits |
+| Cancellation leaves an orphan on Windows | Job objects with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (A5), tested with the child-spawning fake backend |
+| The golden fixtures do not cover an option combination the CLI offers | the CLI refuses combinations with no golden rather than guessing; the gap goes to Phase 0 follow-up |
 
 ---
 
@@ -174,13 +229,18 @@ command line as the C++ version?* If the answer is no, everything after this poi
 
 **Deliverable:** a real Media Downloader data directory imports without loss, and the round trip works.
 
-- `morid-store`: settings (INI), presets, URL rules, per-engine defaults, subscriptions, archive handling
-  (**never rewriting it**), history (tolerant read of the concatenated-JSON file).
+- `morid-store`: settings (the Qt dialect of D-016), presets, URL rules, per-engine defaults, subscriptions,
+  archive handling (**never rewriting it**), history (tolerant read of the concatenated-JSON file).
 - `morid import` / `morid export`, with a report.
 - The round-trip test of [data-compat](data-compat.md) §6.
 
 **Estimate:** 10–14 days. **Exit criteria:** F-68 done; unknown settings keys preserved; the original program can
-read what Morid exports.
+read what Morid exports — checked by actually opening the exported directory with `legacy/`'s build, not by
+inspecting the bytes.
+
+**The lesson of Phase 0 applies here in full:** this phase is one file format after another, and each format has a
+detail that is silent when wrong. Every rule must come from `legacy/` or from a fixture, and every rule must have a
+test that fails when the rule is inverted.
 
 ---
 
@@ -190,12 +250,13 @@ read what Morid exports.
 
 - `morid-net`: release metadata, download, size + SHA-256 verification, archive unpacking with path-traversal
   refusal.
-- Extension installation/removal, supporting engines (ffmpeg, deno, quickjs-ng, python, bsdtar).
+- Version reading (`VersionArgument`, `VersionStringLine`/`Position`) — deferred from Phase 2, F-32.
+- Extension installation/removal, supporting engines (ffmpeg, deno, quickjs-ng, python, bsdtar), F-35 and F-38.
 - The endpoint split of [D-014](decisions.md) — backends from their own projects, the application's own update
   check pointing at Morid, and **no** extension download at all (D-010).
 
-**Estimate:** 10–14 days. **Exit criteria:** F-34, F-35, F-38 done; a corrupted download leaves the old binary
-intact; no request is made to a project that is not a backend's own release page.
+**Estimate:** 10–14 days. **Exit criteria:** F-32, F-34, F-35, F-38 done; a corrupted download leaves the old
+binary intact; no request is made to a project that is not a backend's own release page.
 
 ---
 
@@ -207,7 +268,11 @@ intact; no request is made to a project that is not a backend's own release page
 - Every `BackendKind` variant added here is counted against the budget of seven
   ([architecture](architecture.md) §3.2); an eighth requires a decision record.
 
-**Estimate:** 15–20 days. **Exit criteria:** F-30…F-39 done; each backend has fixtures; the budget is respected.
+**Estimate:** 15–20 days. **Exit criteria:** F-36, F-37, F-39 done and the rest of F-30…F-39 closed; each backend
+has fixtures; the budget is respected.
+
+This is the point at which the console interface is feature-complete: `morid` alone is a usable replacement for a
+user who lives in a terminal or a script.
 
 ---
 
@@ -245,19 +310,19 @@ unfinished screen.
 
 ---
 
-## 3. Totals and what they mean
+## 5. Totals and what they mean
 
-| Phase | Estimate | Cumulative |
-| --- | --- | --- |
-| 0 Reference behaviour | 5–8 | 5–8 |
-| 1 Skeleton | 5–7 | 10–15 |
-| 2 Domain + extensions | 10–14 | 20–29 |
-| 3 One backend | 12–16 | 32–45 |
-| 4 User data | 10–14 | 42–59 |
-| 5 Network + installation | 10–14 | 52–73 |
-| 6 Remaining backends | 15–20 | 67–93 |
-| 7 Interface | 30–45 | 97–138 |
-| 8 Parity + release | 15–20 | 112–158 |
+| Phase | Estimate | Cumulative | Status |
+| --- | --- | --- | --- |
+| 0 Reference behaviour | 5–8 | 5–8 | accepted |
+| 1 Skeleton | 5–7 | 10–15 | accepted |
+| 2 Domain + extensions | 10–14 | 20–29 | accepted |
+| 3 One backend | 12–16 | 32–45 | next |
+| 4 User data | 10–14 | 42–59 | — |
+| 5 Network + installation | 10–14 | 52–73 | — |
+| 6 Remaining backends | 15–20 | 67–93 | — |
+| 7 Interface | 30–45 | 97–138 | — |
+| 8 Parity + release | 15–20 | 112–158 | — |
 
 **112–158 person-days is not a schedule.** It excludes review time, the owner's decisions, and the fact that the
 estimates were made before a line of code existed. The number's usefulness is in its shape: the interface is
@@ -266,9 +331,39 @@ roughly a third, not the bulk, and the parts that make it trustworthy are the ot
 The first usable console release (after Phase 6) is roughly two thirds of the total. That is the milestone worth
 watching: at that point the risky part is done and the interface is "just" a lot of work.
 
+**Where the estimate has already been wrong.** Phases 0–2 were estimated at 20–29 days and took about 12. That is
+not evidence that the rest will run at half the estimate: those phases produced readers and scaffolding, while
+Phases 3–6 produce behaviour that has to match a program nobody documented. The honest reading is that the
+estimate for 0–2 was too high because it assumed a C++ reading effort that D-018 replaced with "ask the coder to
+read it", and that Phases 3–7 have no equivalent saving available.
+
 ---
 
-## 4. Deliberately deferred
+## 6. What went wrong, kept because it predicts the next phase
+
+Four specification errors in Phase 2, three caught by the coder before a line of code was written. The pattern in
+all of them: **a mechanism inferred from data and written down as fact.**
+
+| Written | Reality | What it cost |
+| --- | --- | --- |
+| thin files inherit their family by `Name` | dispatch is by exact file name, `engines.cpp:244-258` | one exchange, no code |
+| `\|\|` is not implemented by the original | `engines.cpp:1574` implements it and `gallery-dl.json` ships it | one exchange, no code |
+| the playlist range is a validated grammar | free text split by `splitPreserveQuotes`, `playlistdownloader.cpp:1061` | one exchange, no code — but the requirement was **withdrawn**, not specified |
+| `yt-dlp-aria2c` replaces the Generic command | `json.add` without `done()` publishes nothing; `Cmd` is unchanged | found at review; would have survived any "contains" test |
+
+Two conclusions, both applied:
+
+- **the contract belongs to the manager, the mechanism to the coder** ([D-018](decisions.md)); a task that
+  paraphrases C++ moves errors one level down, where nobody checks them;
+- **an invented requirement is worse than an invented mechanism.** A wrong mechanism costs a round. A wrong
+  requirement — a validator the original does not have — costs the compatibility promise, and the test written from
+  it would have passed.
+
+Full record: [tasks/README.md](tasks/README.md).
+
+---
+
+## 7. Deliberately deferred
 
 Each item is a documented gap, not a forgotten wish.
 
@@ -284,10 +379,11 @@ Each item is a documented gap, not a forgotten wish.
 | Universal macOS binary | doubles the largest artefact | if users ask |
 | Fuzzing, property tests, coverage gates | see [testing](testing.md) §5 | if Morid ever parses a file format |
 | A database for history | would break the round-trip promise | never |
+| Native ARM64 CI | GitHub could not acquire the runner on 10 Nov 2026 | revisit when the hosted pool has capacity; until then aarch64 is covered by resolver tests |
 
 ---
 
-## 5. Open engineering choices
+## 8. Open engineering choices
 
 These are implementation choices, not product decisions; each is settled in the phase that needs it.
 
@@ -298,14 +394,24 @@ These are implementation choices, not product decisions; each is settled in the 
 | A3 | Own INI parser versus a crate | 4 | own parser |
 | A4 | gettext versus bundled catalogs | 7 | gettext |
 | A5 | Job object strategy on Windows | 3 | `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` |
+| A6 | How the CLI locates bundled `extensions/` outside a checkout | 3 | resolve beside the binary, then the data directory; today it is `CARGO_MANIFEST_DIR`, which ships nothing |
+
+A6 is new and is the one choice that cannot be deferred past Phase 3: `morid engines` currently finds its data
+through a compile-time path that exists only in a developer's checkout. That is acceptable for a phase that only
+reports, and unacceptable for a binary a user installs.
 
 ---
 
-## 6. How this document is kept honest
+## 9. How this document is kept honest
 
 - A phase's status is written here only after its exit criteria are met, with the evidence (a CI run, a test
   name, a report).
+- **A criterion that is not met is written down as not met**, next to the ones that were. Phase 2 shipped one and
+  it is in §4 rather than in a footnote.
 - Estimates are not retro-fitted. If a phase takes three times the estimate, the number stays and the variance is
   noted, because a roadmap that quietly matches reality teaches nobody anything.
 - When a decision changes, the phase affected is named explicitly in [decisions](decisions.md), so this document
   can be updated in the same commit.
+- Counts and statuses are checked against the files they describe before being written here. The previous version
+  of [features](features.md) §8 said 44/22/14/4 for a list of 72 rows; that number had never been counted, and it
+  was found while writing this document.

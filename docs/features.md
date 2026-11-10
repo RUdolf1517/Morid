@@ -6,9 +6,11 @@ Related: [audit](audit-original.md) · [architecture](architecture.md) · [roadm
 Every feature of the original program, with an ID, where it lives in `legacy/`, what it depends on, how
 important it is for the replacement, its migration status, and how we will know it works.
 
-**Read the status column honestly: nothing is implemented.** There is no Rust code yet. The status of every
-feature is `not started`; the column exists so that it can be updated one row at a time and so that "done"
-always means "has a passing test that proves the acceptance criterion", never "someone wrote something".
+**Read the status column honestly.** As of 10 November 2026 Phases 0–2 are accepted: there is a workspace, a
+domain layer, an extension reader and a read-only `engines` command. Four rows are therefore `done` or `partly`
+— the extension reader, the command selection, the version check and the range field — and everything that
+downloads, stores or draws is still `not started`. "Done" means "a test in CI proves the acceptance criterion",
+never "someone wrote something".
 
 ## Priority scale
 
@@ -72,10 +74,10 @@ always means "has a passing test that proves the acceptance criterion", never "s
 
 | ID | Feature | In the original | Depends on | Priority | Status | Acceptance criterion |
 | --- | --- | --- | --- | --- | --- | --- |
-| F-30 | Read an extension JSON | `engines::engine` ctor (`legacy/src/engines.cpp:~1000-1120`) | — | P0 | not started | All 17 files in `extensions/` parse; a file with an unknown key parses and warns, a file with a missing `Name` fails with a precise message |
-| F-31 | Select the command by OS and architecture | `Cmd`, `addJsonCmd` | — | P0 | not started | On each supported platform the selected executable and arguments match a table-driven expectation |
+| F-30 | Read an extension JSON | `engines::engine` ctor (`legacy/src/engines.cpp:~1000-1120`) | — | P0 | done (Phase 2) | All 17 files in `extensions/` parse; a file with an unknown key parses and warns, a file with a missing `Name` fails with a precise message |
+| F-31 | Select the command by OS and architecture | `Cmd`, `addJsonCmd` | — | P0 | done (Phase 2) | On each supported platform the selected executable and arguments match a table-driven expectation |
 | F-32 | Read a backend's version | `VersionArgument`, `VersionStringLine/Position` | process | P0 | not started | Correct versions extracted for yt-dlp, gallery-dl, wget, aria2c fixture outputs |
-| F-33 | Enforce a minimum compatible version | `RequiredMinimumVersionOfMediaDownloader` (`legacy/src/engines.cpp:264`) | — | P0 | not started | `2.x` satisfies the check ([D-004](decisions.md)); a `9.x` requirement refuses with a message naming the required version |
+| F-33 | Enforce a minimum compatible version | `RequiredMinimumVersionOfMediaDownloader` (`legacy/src/engines.cpp:264`) | — | P0 | done (Phase 2) | `2.x` satisfies the check ([D-004](decisions.md)); a `9.x` requirement refuses with a message naming the required version |
 | F-34 | Update a backend binary | `networkAccess::download`, `AutoUpdate` | `morid-net` | P0 | not started | Download verified by size and SHA-256; a hash mismatch aborts and leaves the previous binary intact |
 | F-35 | Install / remove an extension | `configure` (Extensions sub-tab) | `morid-ext`, filesystem | P0 | not started | Install and remove work; removal of a bundled engine is refused where the original refuses |
 | F-36 | Engine variants (yt-dlp-aria2c, -ffmpeg, -nightly) | `extensions/*.json` + `configure.cpp` | — | P1 | not started | All variants appear in the menu and produce their own argument sets |
@@ -115,7 +117,7 @@ always means "has a passing test that proves the acceptance criterion", never "s
 | --- | --- | --- | --- | --- | --- |
 | C-01 | `morid list <url>` prints formats | `morid-core`, `morid-ext` | P0 | not started | Human-readable and `--json` forms both stable; documented in [cli.md](cli.md) |
 | C-02 | `morid download <url>` | scheduler | P0 | not started | Downloads to the configured folder; `--dry-run` prints argv without running |
-| C-03 | `morid engines` | `morid-ext` | P0 | not started | Lists installed engines with versions |
+| C-03 | `morid engines` | `morid-ext` | P0 | partly in Phase 2 | Resolution half done: every bundled extension printed with platform, selected architecture, argv and verdict, `--json` as one object per line ([cli](cli.md) §2.3). Version reading and `--update/--install/--remove` are Phase 5 |
 | C-04 | `morid import <dir>` | `morid-store` | P1 | not started | Imports a Media Downloader data directory |
 | C-05 | Exit codes | — | P0 | not started | Every documented code is produced by a test |
 | C-06 | `--json` event stream | event model | P1 | not started | One JSON object per line, schema documented and versioned |
@@ -139,10 +141,16 @@ always means "has a passing test that proves the acceptance criterion", never "s
 
 | Priority | Count | Meaning for planning |
 | --- | --- | --- |
-| P0 | 44 | Everything in this row blocks "usable replacement" |
-| P1 | 22 | Parity; may ship with a named gap in a first release, but not in 1.0 |
-| P2 | 14 | Later releases |
+| P0 | 38 | Everything in this row blocks "usable replacement" |
+| P1 | 20 | Parity; may ship with a named gap in a first release, but not in 1.0 |
+| P2 | 10 | Later releases |
 | P3 / not carried | 4 | F-41, F-53, F-66, F-73 — each has a decision record |
+| **Total** | **72** | 68 `F-` rows and 4 `C-` rows |
+
+The first version of this table said 44 / 22 / 14 / 4, which adds up to 84 and was never true: it was written
+before the rows were, and nobody counted afterwards. Recounted on 10 November 2026 by parsing this file. The
+lesson is the same one the rest of the project keeps relearning — a number in prose is worth nothing until
+something checks it. If these counts matter for planning, they should be produced by a script, not by memory.
 
 Two rows are not migrations and are marked as such: **F-26** (automatic subscription checking) and the whole
 `C-` section (console interface) are additions. They must not be counted as "already in the original" when

@@ -23,7 +23,12 @@ pub struct FailedToStart {
 
 impl fmt::Display for FailedToStart {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "failed to start {}: {}", self.program.display(), self.source)
+        write!(
+            f,
+            "failed to start {}: {}",
+            self.program.display(),
+            self.source
+        )
     }
 }
 impl std::error::Error for FailedToStart {
@@ -64,7 +69,12 @@ mod tests {
         let cwd = std::env::current_dir()?;
         let spec = SpawnSpec {
             program: std::env::current_exe()?,
-            args: ["--ignored", "--exact", "spawn::tests::spawn_payload", "--nocapture"]
+            args: [
+                "--ignored",
+                "--exact",
+                "spawn::tests::spawn_payload",
+                "--nocapture",
+            ]
                 .into_iter()
                 .map(OsString::from)
                 .collect(),
@@ -92,7 +102,9 @@ mod tests {
             cwd: std::env::current_dir()?,
             env: vec![],
         };
-        let failure = spec.spawn().expect_err("path below an executable cannot start");
+        let failure = spec
+            .spawn()
+            .expect_err("path below an executable cannot start");
         assert_eq!(failure.program, spec.program);
         Ok(())
     }
@@ -100,9 +112,24 @@ mod tests {
     #[test]
     #[ignore = "explicit child payload for spawn test"]
     fn spawn_payload() -> io::Result<()> {
-        assert_eq!(std::env::var("MORID_SPAWN_SENTINEL").as_deref(), Ok("space Кириллица ; $ & |"));
-        assert_eq!(std::env::current_dir()?.as_os_str(), std::env::var_os("MORID_SPAWN_CWD").expect("parent supplied cwd"));
-        assert_eq!(std::env::args_os().skip(1).collect::<Vec<_>>(), ["--ignored", "--exact", "spawn::tests::spawn_payload", "--nocapture"].map(OsString::from));
+        assert_eq!(
+            std::env::var("MORID_SPAWN_SENTINEL").as_deref(),
+            Ok("space Кириллица ; $ & |")
+        );
+        assert_eq!(
+            std::env::current_dir()?.as_os_str(),
+            std::env::var_os("MORID_SPAWN_CWD").expect("parent supplied cwd")
+        );
+        assert_eq!(
+            std::env::args_os().skip(1).collect::<Vec<_>>(),
+            [
+                "--ignored",
+                "--exact",
+                "spawn::tests::spawn_payload",
+                "--nocapture"
+            ]
+            .map(OsString::from)
+        );
         let mut input = Vec::new();
         std::io::stdin().read_to_end(&mut input)?;
         assert!(input.is_empty(), "stdin must be EOF");

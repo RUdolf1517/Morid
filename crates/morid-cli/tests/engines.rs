@@ -74,7 +74,15 @@ fn warning_demo_copy_of_ytdl_patched() {
     assert!(
         diagnostics.contains("ytdl-patched.json: warning: FutureFeature: unknown key preserved")
     );
-    assert!(diagnostics.contains("ytdl-patched.json: warning: ExtraArguments: ignored spelling"));
-    println!("warning-demo:\n{diagnostics}");
+    for key in [
+        "ExtraArguments",
+        "ExtraArgumentsFlatpak",
+        "ExtraArgumentsWin7",
+    ] {
+        assert!(diagnostics.contains(&format!(
+            "ytdl-patched.json: warning: {key}: ignored spelling"
+        )));
+    }
+    println!("warning-demo (rule 7: unknown keys; rule 8: ExtraArguments*):\n{diagnostics}");
     std::fs::remove_dir_all(directory).expect("cleanup copy");
 }

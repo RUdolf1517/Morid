@@ -102,19 +102,9 @@ impl ThinFile {
                 } else {
                     "aria2c"
                 }));
-                if self == Self::Aria2c {
-                    let cmd = object
-                        .get_mut("Cmd")
-                        .and_then(Value::as_object_mut)
-                        .ok_or("base Cmd must be an object")?;
-                    cmd.insert(
-                        "Generic".to_owned(),
-                        json!({
-                            "amd64":{"Name":"yt-dlp","Args":["stdbuf","-o","L","yt-dlp"]},
-                            "x86":{"Name":"yt-dlp","Args":["stdbuf","-o","L","yt-dlp"]}
-                        }),
-                    );
-                }
+                // addJsonCmd::add only changes the helper's m_obj. cmdAria2C
+                // never calls done(), so the returned object's Cmd stays intact.
+                // legacy/src/engines/yt-dlp.cpp:402–436; utility.h:1187–1189.
             }
         }
         // Preserve extra thin-file data for warnings; never interpret it as an override.
@@ -138,6 +128,7 @@ mod tests {
     #[test]
     fn thin_files_resolve_by_file_name() {
         let base = base();
+        let original_base = base.clone();
         for (file, name, tail) in [
             ("yt-dlp-ffmpeg.json", "yt-dlp-ffmpeg", "ffmpeg"),
             ("yt-dlp-aria2c.json", "yt-dlp-aria2c", "aria2c"),
@@ -154,16 +145,12 @@ mod tests {
                 .clone();
             expected.extend([json!("--downloader"), json!(tail)]);
             assert_eq!(result["DefaultDownLoadCmdOptions"], json!(expected));
-            assert_eq!(result["Cmd"]["Windows"], base["Cmd"]["Windows"]);
-            assert_eq!(result["Cmd"]["MacOS"], base["Cmd"]["MacOS"]);
-            if tail == "aria2c" {
-                assert_eq!(
-                    result["Cmd"]["Generic"]["amd64"]["Args"],
-                    json!(["stdbuf", "-o", "L", "yt-dlp"])
-                );
-            } else {
-                assert_eq!(result["Cmd"], base["Cmd"]);
-            }
+            assert_eq!(result["Cmd"], base["Cmd"]);
+            assert_eq!(base, original_base, "transformation mutated the base");
+            println!(
+                "variant-evidence: {}",
+                json!({"name":name,"Cmd":result["Cmd"],"DefaultDownLoadCmdOptions":result["DefaultDownLoadCmdOptions"]})
+            );
         }
         let result = ThinFile::Nightly
             .apply(
@@ -205,6 +192,29 @@ mod tests {
             result["Cmd"]["Windows"]["win7x86"]["Name"],
             "yt-dlp_x86_win7.exe"
         );
+        assert_eq!(
+            base, original_base,
+            "nightly transformation mutated the base"
+        );
+        println!(
+            "variant-evidence: {}",
+            json!({"name":result["Name"],"Cmd":result["Cmd"],"DefaultDownLoadCmdOptions":result["DefaultDownLoadCmdOptions"]})
+        );
+    }
+
+    #[test]
+    fn aria2c_preserves_complete_base_cmd() {
+        let mut base = base();
+        // Protect unselected architectures/blocks too, not just today's platforms.
+        base["Cmd"]["FuturePlatform"] =
+            json!({"future-arch":{"Name":"custom","Args":["custom","--keep-me"]}});
+        base["Cmd"]["Generic"]["amd64"]["Args"] = json!(["custom-wrapper", "yt-dlp"]);
+        let original = base.clone();
+        let result = ThinFile::Aria2c
+            .apply(&base, &json!({"Name":"yt-dlp-aria2c","Version":"3"}))
+            .expect("aria2c");
+        assert_eq!(result["Cmd"], base["Cmd"]);
+        assert_eq!(base, original);
     }
 
     #[test]

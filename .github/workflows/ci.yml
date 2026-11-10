@@ -49,7 +49,17 @@ jobs:
           # prints its own usage text and exits 1 for both documented spellings
           # (testing.md §7). `git ls-files` decides which files are ours.
           rustfmt --version | tee format.log
-          git ls-files -z '*.rs' | xargs -0 rustfmt --edition 2021 --check 2>&1 | tee -a format.log
+          if ! git ls-files -z '*.rs' | xargs -0 rustfmt --edition 2021 --check 2>&1 | tee -a format.log; then
+            # Keep the actual diff available through check annotations as well
+            # as logs (log storage may be unreachable from a restricted client).
+            python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("format.log").read_text()
+          escaped = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          print("::error title=rustfmt diff::" + escaped)
+          PYCODE
+            exit 1
+          fi
 
       - name: Lint
         shell: bash

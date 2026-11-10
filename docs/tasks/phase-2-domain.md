@@ -74,10 +74,15 @@ There is no downloader here and no window. Resist both.
 1. **The reader.** `serde` for the known keys plus `serde_json::Value` kept alongside, so unknown keys are
    **preserved and reported as a warning** and never fatal ([extensions](../extensions.md) §8 rule 7). A struct that
    silently drops them fails the task.
-2. **Thin files.** Three shipped files carry only `Name` and `Version` and inherit the rest from the yt-dlp family by
-   name reference. Resolve the family base **before** concluding that no command exists; a reader that requires `Cmd`
-   in every file rejects files the original accepts. If the family mechanism is not what you find in the files, stop
-   and report — do not invent inheritance.
+2. **Thin files — by exact file name, not by inheritance.** Three shipped files carry only `Name` and `Version`
+   (`yt-dlp-nightly`, `yt-dlp-ffmpeg`, `yt-dlp-aria2c`). The original dispatches on the file name
+   (`legacy/src/engines.cpp:244-258`), loads `yt-dlp.json` as the base, and applies one hard-coded transformation per
+   file (`legacy/src/engines/yt-dlp.cpp`): nightly replaces the whole `Cmd` and the update URL; ffmpeg and aria2c
+   append `--downloader <x>`; aria2c also replaces the Generic command with `stdbuf -o L yt-dlp`.
+   [../extensions.md](../extensions.md) §1 states the exact difference per file. A generic "resolve the family by
+   `Name`" mechanism is **wrong** and was the first version of this task; it would produce working-looking commands
+   with the wrong arguments. Implement the three transformations explicitly, keyed by file name, and make each one a
+   test with its expected argv-visible effect.
 3. **Validation, in the documented order**, with a message naming which rule failed and the file:
    1 valid JSON · 2 `Name` · 3 `Version` ≤ supported · 4 `RequiredMinimumVersionOfMediaDownloader` (D-004) ·
    5 a command resolves for this platform/arch, after thin-file resolution · 6 executable present, else "needs
@@ -170,6 +175,11 @@ trips two rules cannot prove which one ran.
 8. `cargo tree -p morid-cli` still contains neither `slint` nor `morid-gui`.
 9. Unknown keys and `ExtraArguments*` produce warnings that name the file and the key; demonstrate on a copy of
    `ytdl-patched.json`, which has both, and show the warning in `morid engines` output.
+9a. The three thin files resolve through their named transformations, not through a family lookup: show, for each of
+   `yt-dlp-nightly`, `yt-dlp-ffmpeg` and `yt-dlp-aria2c`, the resolved command and the `DefaultDownLoadCmdOptions`
+   they end up with, and confirm the generic `yt-dlp.json` base is unchanged by having been used. A negative control
+   is required: a fourth file with only `Name` and `Version` (not one of the three) must be reported invalid, not
+   resolved.
 10. Every `Error` variant has a test that maps it to a documented exit code.
 
 ---

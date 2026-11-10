@@ -38,11 +38,36 @@ Rules:
   version and the running version. This is a deliberate difference from the original, which compares against
   its own compiled version and would reject every existing extension once Morid renumbers.
 
-**Thin files.** Three shipped files (`yt-dlp-aria2c.json`, `yt-dlp-ffmpeg.json`, `yt-dlp-nightly.json`) carry only
-`Name` and `Version` and nothing else. They are variants that inherit the rest from the yt-dlp family by `Name`
-reference, and a reader that requires `Cmd` in every file rejects them: validation rule 5 of §8 would fail on a file
-the original accepts. The reader must resolve a thin file by looking up its family base before deciding that no
-command exists.
+**Thin files — and the mechanism is not inheritance.** Three shipped files carry only `Name` and `Version`:
+
+```json
+{ "Name": "yt-dlp-nightly", "Version": "4" }
+```
+
+The reader must **not** infer that a thin file inherits "its family" — that is what this document said until it was
+checked against `legacy/src/engines.cpp:244-258`, and it is wrong. The original dispatches on the **exact file name**,
+loads `yt-dlp.json` as the base, and then applies one hard-coded transformation from
+`legacy/src/engines/yt-dlp.cpp`:
+
+| File | Transformation of the `yt-dlp.json` base |
+| --- | --- |
+| `yt-dlp-nightly.json` | `Name`; `DownloadUrl` → the nightly-builds GitHub endpoint; `Cmd` replaced on all three platforms with nightly binary names (`yt-dlp-nightly`, `yt-dlp_x86-nightly.exe`, `yt-dlp-nightly_macos`, plus the Win7 names); the thin file's own `Version`, `AutoUpdate` and `BackendPath` override the base when present |
+| `yt-dlp-ffmpeg.json` | `Name`; `--downloader ffmpeg` appended to `DefaultDownLoadCmdOptions` |
+| `yt-dlp-aria2c.json` | `Name`; `--downloader aria2c` appended to `DefaultDownLoadCmdOptions`; the Generic command becomes `stdbuf -o L yt-dlp` |
+
+Consequences a reader must respect:
+
+- **A table entry keyed by `Name` is not equivalent to this.** The dispatch is by file name, and the three
+  transformations differ in *what* they change — one replaces the whole `Cmd`, two append two arguments.
+- **A missing `Cmd` in a thin file is not an error**, but "resolve the family" is not a rule either: only these three
+  names have a base, and anything else without `Cmd` is invalid.
+- **Treating the transformations as configuration is the honest implementation.** They cannot be expressed in the
+  shipped JSON, which is exactly why the original hard-codes them. Morid does the same, keyed by file name, and the
+  table above is the specification of the difference.
+
+There is one more name-based special case, in the engine list rather than in a transformation: `youtube-dl.json` is
+removed from the list the original enumerates (`legacy/src/engines.cpp:820`). No shipped file of that name exists, so
+it changes nothing today; it is recorded so that a future `youtube-dl.json` is not silently offered as an engine.
 
 **How many keys there are.** The documentation elsewhere says "34 keys"; the 17 shipped files use **40** distinct
 keys. The 34 is a count from an early draft and was never right. Do not plan against a number — the reader must
@@ -280,8 +305,9 @@ In order, and the message a user sees must name which one failed:
 2. `Name` present and non-empty.
 3. `Version` ≤ supported schema version.
 4. `RequiredMinimumVersionOfMediaDownloader` satisfied (D-004 rules).
-5. At least one command resolves for the current platform and architecture — **after** resolving a thin file's
-   family base (§1); a file with no `Cmd` of its own is not automatically invalid.
+5. At least one command resolves for the current platform and architecture — **after** applying the file-name
+   transformation of §1 if this is one of the three named thin files. A file with no `Cmd` of its own and no
+   transformation is invalid; it is not "resolved through the family".
 6. The resolved executable exists, or the extension is marked "needs installation" rather than broken.
 7. Unknown keys → warning, not failure.
 8. `ExtraArguments*` present → warning pointing at §4.1.

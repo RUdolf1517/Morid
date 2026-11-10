@@ -49,7 +49,7 @@ Two constraints shape everything below:
 
 | Crate | Responsibility | Must not contain |
 | --- | --- | --- |
-| `morid-core` | Domain types and rules: `Url`, `Format`, `DownloadOptions`, `EngineId`, `JobState`, `Error`, option-token parsing, playlist range parsing, version comparison | file I/O, processes, network, time, randomness |
+| `morid-core` | Domain types and rules: `Url`, `Format`, `DownloadOptions`, `EngineId`, `JobState`, `Error`, option-token parsing (including the playlist range field), version comparison | file I/O, processes, network, time, randomness |
 | `morid-ext` | Reading and validating the extension JSON (40 keys in the shipped set, schema 1–4), selecting the command for the current OS/arch, evaluating `ControlJsonStructure` rules | networking, spawning |
 | `morid-engine` | Spawning a backend, reading stdout/stderr, applying an engine's parse rules, emitting progress/metadata/destination events, cancelling a whole process tree | knowledge of widgets, knowledge of specific engines beyond their data |
 | `morid-store` | Settings (INI-compatible), presets, URL rules, per-engine defaults, subscriptions, archive files, download history, one-time import of a Media Downloader data directory | processes, network (except through an injected trait) |

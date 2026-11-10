@@ -124,7 +124,8 @@ The workflow now also runs the Phase 0 checks and asserts their test count, whic
 
 **Deliverable:** all 17 bundled extensions load, validate and resolve to a command, with no process started.
 
-- `morid-core`: URL handling, option-token parsing, playlist ranges, version comparison, `Error`.
+- `morid-core`: URL handling, option-token parsing (including the playlist range field, which is option text and not
+  a range grammar — [extensions](extensions.md) §5.4), version comparison, `Error`.
 - `morid-ext`: the extension schema (40 keys in the shipped files — see [extensions](extensions.md) §1), the validation order of [extensions](extensions.md) §8, command selection per
   OS/architecture, `ControlJsonStructure` evaluation, unknown-key warnings, the `ExtraArguments` defect handled
   as documented.

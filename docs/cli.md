@@ -105,6 +105,15 @@ newer binary using the extension's `DownloadUrl` and verifies size and SHA-256
 
 Exit codes: `0` success, `3` download or verification failed, `4` unknown engine name.
 
+**As delivered in Phase 2** the command is read-only and covers only the resolution half: `morid engines` prints one
+line per bundled extension (file, name, schema version, platform/arch and the architecture actually selected, the
+resolved argv, and the verdict `ready` or `needs installation`), and `morid engines --json` prints the same as one
+JSON object per line with `--json` accepting no other argument. `--update`, `--install` and `--remove` arrive in a
+later phase ([roadmap](roadmap.md) Phase 5); until then the exit codes are `0` when every file resolved and the
+backend is present, `4` when at least one is unavailable or invalid, and `1` for a usage error. The distinction that
+matters: **a missing backend is not a failure of the extension** — it is reported as `needs installation` and keeps
+the file in the list ([extensions](extensions.md) §8 rule 6).
+
 ### 2.4 `morid import <dir>` / `morid export <dir>`
 
 Import a Media Downloader data directory, or produce one

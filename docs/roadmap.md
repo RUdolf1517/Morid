@@ -122,24 +122,33 @@ The workflow now also runs the Phase 0 checks and asserts their test count, whic
 
 ### Phase 2 — Domain and extension schema
 
-**Status: in progress, not submitted as complete.** The Phase 2 branch implements domain values,
-extension reading/resolution, the three filename transformations, progress expressions and the
-`engines` CLI. The owner confirmed that `PlaylistRange` preserves the original playlist
-field and forwards its option tokens (`legacy/src/playlistdownloader.cpp:1061–1069`),
-without introducing a numeric refusal grammar. Tests cover pass-through and the absence
-of invented numeric validation. The original 10–14 person-day task estimate is not yet
-replaced by a completed-work estimate.
+**Implementation status:** accepted 10 November 2026 (PR #8, `564284b4`). Green on Linux, Windows and macOS:
+[CI 42881799249](https://github.com/RUdolf1517/Morid/actions/runs/42881799249). 29 tests in four suites, 17 extensions
+resolved and 17 JSON objects on every platform, both crate-boundary greps empty, no `unsafe`, no process spawned by
+any test. The macOS job ran on `macos-26-intel`: GitHub could not acquire a hosted ARM64 runner
+(`The job was not acquired by Runner`), so aarch64 command selection is proved by the resolver tests, not by a native
+run — the difference is stated rather than glossed.
 
 **Deliverable:** all 17 bundled extensions load, validate and resolve to a command, with no process started.
 
-- `morid-core`: URL handling, option-token parsing, playlist ranges, version comparison, `Error`.
+- `morid-core`: URL handling, option-token parsing (including the playlist range field, which is option text and not
+  a range grammar — [extensions](extensions.md) §5.4), version comparison, `Error`.
 - `morid-ext`: the extension schema (40 keys in the shipped files — see [extensions](extensions.md) §1), the validation order of [extensions](extensions.md) §8, command selection per
   OS/architecture, `ControlJsonStructure` evaluation, unknown-key warnings, the `ExtraArguments` defect handled
   as documented.
 - Round-trip: every bundled file parses and reports what it resolved to.
 
-**Estimate:** 10–14 days. **Exit criteria:** the negative fixtures of [testing](testing.md) §2 pass (I4, I10);
+**Estimate:** 10–14 days; the work took one working session after the specification settled, because the phase is a
+reader, not a downloader. **Exit criteria:** the negative fixtures of [testing](testing.md) §2 pass (I4, I10);
 no `unsafe`; no process is spawned by any test.
+
+**Specification errors this phase exposed.** The manager wrote four wrong mechanisms into the task and the spec: three
+were disproved by the coder from `legacy/` before writing code, and the fourth by the manager while reviewing the
+result. All four are in [tasks/README.md](tasks/README.md) with their cost. Two are worth naming here because they changed the specification rather than a line of code:
+`ControlJsonStructure` does support `||` and a connector-less `lhs` form, and the playlist range field is free text
+that neither Morid nor the original validates. A third — `yt-dlp-aria2c` "replaces the Generic command" — was wrong in
+the opposite direction: the transformation publishes nothing, an **absent** argument, which no "contains" assertion
+would have caught.
 
 ---
 

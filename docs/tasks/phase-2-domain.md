@@ -1,6 +1,6 @@
 # Task 3 for the coder — Phase 2: domain, extension schema, and command resolution
 
-**Status:** ready to issue · **Issued:** 8 November 2026 · **Estimated:** 10–14 person-days
+**Status:** **accepted 10 November 2026** (PR #8, `564284b4`) · **Issued:** 8 November 2026 · **Estimated:** 10–14 person-days
 **Requires:** Task 1 (`phase-0-fixtures.md`) and Task 2 (`phase-1-skeleton.md`) accepted and merged.
 **Produces:** all 17 bundled extensions load, validate and resolve to a command — and nothing is ever spawned.
 
@@ -13,8 +13,8 @@ extension files this repository ships plus the negative cases that must be refus
 
 At the end of this task:
 
-- `morid-core` knows what a URL is, what a format spec is, how option tokens are spelled, how a playlist range is
-  written, and how versions compare. It has no I/O, no processes, no network, no time, no randomness.
+- `morid-core` knows what a URL is, what a format spec is, how option tokens are spelled, how the playlist range
+  field is split into tokens, and how versions compare. It has no I/O, no processes, no network, no time, no randomness.
 - `morid-ext` reads an extension file, validates it in the documented order, resolves the command for the current
   platform and architecture, evaluates `ControlJsonStructure`, and reports what it decided.
 - `morid-cli` gains one command — `morid engines` — that prints the resolution result for every bundled file. It is
@@ -73,8 +73,13 @@ not be one. See [README](README.md), "Rule for the manager".
 3. **`DownloadOptions`** — the user's option string. Parsing is **platform-independent**: quote handling for the
    platform's own shell grammar belongs to the caller (§3.2), and the fixtures are the specification of what the
    result must be.
-4. **`PlaylistRange`** — `1-3`, `1,3,5`, `1-3,7`, open-ended forms. Refuse what the original refuses, accept what it
-   accepts; when in doubt, the fixture argv from Phase 0 is the answer.
+4. ~~`PlaylistRange`~~ — **withdrawn, do not build a range validator.** The original has no range grammar: the
+   playlist tab's field is free text split by `util::splitPreserveQuotes` and appended as-is
+   (`legacy/src/playlistdownloader.cpp:1061-1069`; see [../extensions.md](../extensions.md) §5.4). What this phase
+   owes is therefore **only the token split**, which is the `DownloadOptions` work of point 3 applied to that field:
+   the same parser, the same platform-independent quoting, checked against fixture `s07-playlist-item-range`
+   (`--playlist-items` and `2-3` as two separate tokens). No `1-3` parsing, no open-ended form, no rejection rule.
+   A type named `PlaylistRange` that validates ranges would reject input the original accepts — do not add one.
 5. **`EngineId`** — the `Name` of an extension, plus the archive-file naming the original derives from it
    (`archiveFile-<Name>.txt`). This is a data contract: renaming an engine is a migration.
 6. **Version comparison** — dotted numeric, tolerant of the suffixes the shipped files use (`2.0.0`, `2.x`, `1.0`,
@@ -91,11 +96,16 @@ not be one. See [README](README.md), "Rule for the manager".
    (`yt-dlp-nightly`, `yt-dlp-ffmpeg`, `yt-dlp-aria2c`). The original dispatches on the file name
    (`legacy/src/engines.cpp:244-258`), loads `yt-dlp.json` as the base, and applies one hard-coded transformation per
    file (`legacy/src/engines/yt-dlp.cpp`): nightly replaces the whole `Cmd` and the update URL; ffmpeg and aria2c
-   append `--downloader <x>`; aria2c also replaces the Generic command with `stdbuf -o L yt-dlp`.
+   append `--downloader <x>`; aria2c **calls `json.add` for Generic/Windows/MacOS and never calls `done()`**, so
+   nothing is published and the base `Cmd` survives unchanged (`utility.cpp:1218-1240`) — the intended
+   `stdbuf -o L yt-dlp` never reaches the JSON. This is the one place where the code and a plain reading of it
+   disagree, and the difference is an argument that is **absent**, so prove it by asserting equality with the base
+   `Cmd`, not by looking for `stdbuf`.
    [../extensions.md](../extensions.md) §1 states the exact difference per file. A generic "resolve the family by
    `Name`" mechanism is **wrong** and was the first version of this task; it would produce working-looking commands
    with the wrong arguments. Implement the three transformations explicitly, keyed by file name, and make each one a
-   test with its expected argv-visible effect.
+   test with its expected argv-visible effect. Criterion 9a already carries both files' `Cmd`; the aria2c assertion
+   must be `assert_eq!(resolved.Cmd, base.Cmd)`, not "contains `--downloader aria2c`".
 3. **Validation, in the documented order**, with a message naming which rule failed and the file:
    1 valid JSON · 2 `Name` · 3 `Version` ≤ supported · 4 `RequiredMinimumVersionOfMediaDownloader` (D-004) ·
    5 a command resolves for this platform/arch, after thin-file resolution · 6 executable present, else "needs
@@ -139,9 +149,14 @@ In the crates, plus one integration test that runs the CLI:
 - `min_version_2x_is_accepted`, `min_version_9x_is_refused` — D-004.
 - `unknown_keys_are_warned_not_fatal`, `extra_arguments_keys_are_warned`, `thin_files_resolve_by_file_name`,
   `win7_keys_are_not_used`, `executable_missing_means_needs_installation_not_invalid`.
-- `url_round_trips_byte_for_byte` — against the URL shapes in the Phase 0 fixtures.
+- `url_round_trips_byte_for_byte` — against the URL shapes in the Phase 0 fixtures. **As delivered this criterion was
+  not met:** the test exists and asserts a round trip, but its inputs are invented (`example.test`, `magnet:`, an
+  IDN host) rather than the shapes the fixtures contain, so it proves the type is transparent and nothing about the
+  URLs Morid will actually receive. Recorded as a gap, not accepted on the name of the test.
 - `option_tokens_parse_table_driven` — the table in §3.1 point 3.
-- `playlist_range_accepts_and_refuses` — the documented forms and the closest invalid neighbours.
+- `playlist_range_tokens_match_fixture` — the range field becomes exactly the tokens in
+  `fixtures/scenarios/s07-playlist-item-range/argv.json`, including a quoted value and a value with a space, and an
+  empty field contributes nothing. **No rejection cases**: the original rejects nothing (see point 4 above).
 - `control_json_structure_evaluates` — positive and negative, including a malformed structure, and a table over the
   three documented forms (`&&`, `||`, `lhs`-only) plus the predicate order when a side carries two predicates.
 - `error_variants_map_to_documented_exit_codes` — every `Error` variant to its code, exhaustively, in one match.

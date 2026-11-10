@@ -104,9 +104,13 @@ not be one. See [README](README.md), "Rule for the manager".
 4. **Command selection.** platform block (`Windows`/`MacOS`) before `Generic`; architecture key within it; `win7*`
    keys never used (D-005). Placeholders `${default}`, `${BackendPath}`, `${CommandName}` resolved as documented.
    Name resolution order: absolute path → application bin directory → `PATH`.
-5. **`ControlJsonStructure`.** An expression over `startsWith`, `contains`, `endsWith` and a `Connector` (`&&`, `||`),
-   evaluated against an output line. It is data, not code: no parsing of arbitrary expressions beyond the documented
-   shape. A malformed structure is a validation failure naming the file, not a panic.
+5. **`ControlJsonStructure`.** An expression evaluated against an output line: one predicate per side (`startsWith`,
+   `endsWith`, `contains`, `containsAny`, `containsAll`), combined by `&&` or `||`, or — with no `Connector` — a single
+   `lhs`. It is data, not code: no parsing of arbitrary expressions beyond the documented
+   [shape](../extensions.md#51-progress-rules). A malformed structure is a validation failure naming the file, not a
+   panic, and not a rule that quietly never matches. All three shipped forms exist in `extensions/` and must be
+   exercised: `&&` (seven files), `||` (`gallery-dl.json`), no connector with `lhs` only (`svtplay-dl.json`,
+   `wget.json`).
 6. **`ArgPolicy`** — the rule set that decides which default arguments apply and where the user's options go
    (`DownloadOptionsAsLast`). You are **not** building the final argv in this phase; you are building the policy that
    Phase 3 will use, and a test proves it resolves the right pieces for a given extension and platform.
@@ -138,12 +142,14 @@ In the crates, plus one integration test that runs the CLI:
 - `url_round_trips_byte_for_byte` — against the URL shapes in the Phase 0 fixtures.
 - `option_tokens_parse_table_driven` — the table in §3.1 point 3.
 - `playlist_range_accepts_and_refuses` — the documented forms and the closest invalid neighbours.
-- `control_json_structure_evaluates` — positive and negative, including a malformed structure.
+- `control_json_structure_evaluates` — positive and negative, including a malformed structure, and a table over the
+  three documented forms (`&&`, `||`, `lhs`-only) plus the predicate order when a side carries two predicates.
 - `error_variants_map_to_documented_exit_codes` — every `Error` variant to its code, exhaustively, in one match.
 
 **Negative fixtures you must add** (small files under `crates/morid-ext/tests/data/invalid/`): not JSON · no `Name` ·
 `Version` above supported · `RequiredMinimumVersionOfMediaDownloader` `9.x` · `win7`-only file on a supported Windows
-target · malformed `Cmd` · malformed `ControlJsonStructure` · `ExtraArguments` present. Each is one rule; a fixture that
+target · malformed `Cmd` · malformed `ControlJsonStructure` (a connector other than `&&`/`||`) · `ExtraArguments`
+present. Each is one rule; a fixture that
 trips two rules cannot prove which one ran.
 
 ### 3.5 What must not change

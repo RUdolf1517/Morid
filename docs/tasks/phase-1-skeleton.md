@@ -123,7 +123,7 @@ Requirements:
 them):
 
 ```
-python3 -m unittest tools.capture.test_qt_ini_roundtrip     # 16 tests, stdlib only
+python3 -m unittest tools.capture.test_qt_ini_roundtrip     # stdlib only; the count grows with each task
 python3 tools/capture/verify_fixtures.py                    # prints VERIFY_OK
 ```
 
@@ -133,7 +133,9 @@ Two things about them that are the whole point of putting them here:
   an environment problem;
 - the first one is **not** a formality: without `tools/__init__.py` and `tools/capture/__init__.py`, discovery runs
   zero tests and exits 0. If a workflow step can pass while running nothing, it will. Assert that the run reports
-  16 tests, not merely exit 0 — count them in the step's output.
+  the real number of tests, not merely exit 0 — count them in the step's output. Do not hard-code a number you
+  read here: it was 16 when this was written and 30 by the end of Phase 0. Assert that the count is greater than
+  zero and that it matches what the suite reports.
 
 If `verify_fixtures.py` cannot run on the runner for a reason you can demonstrate, say so in the pull request and
 propose the narrowest alternative that still executes both checks; do not silently skip them.
@@ -194,8 +196,8 @@ than reporting a missing criterion.
     hiding `cc`/`gcc` and building, or explain precisely why that test cannot be performed in your environment
     and what you did instead.
 11. Total CI wall-clock per platform is under 15 minutes; the actual times are reported.
-12. The workflow runs the Phase 0 checks and **reports 16 tests**, not just exit 0: paste the step where the count
-    appears. A run that discovers nothing must fail the job — demonstrate the guard by pointing the step at an
+12. The workflow runs the Phase 0 checks and **reports the test count**, not just exit 0: paste the step where the
+    count appears. A run that discovers nothing must fail the job — demonstrate the guard by pointing the step at an
     empty test pattern locally and showing it fails.
 
 ---
@@ -230,6 +232,52 @@ specification where reality differed, with the reason stated).
 Updated by the manager after review: everything else, including
 [../testing.md](../testing.md) §7 if the CI shape changed, and
 [../building.md](../building.md) if the build procedure changed.
+
+---
+
+## 7a. Review verdict — round 1, `b6c2a58` / PR #4 (8 November 2026)
+
+Checked by reading the workflow and manifests and by querying the runs through the API. No local Rust here either, so
+the build evidence is the three green jobs — said plainly rather than implied otherwise.
+
+**Green, and it is real:** run [42461122995](https://github.com/RUdolf1517/Morid/actions/runs/42461122995) —
+`checks (ubuntu-latest)`, `checks (macos-latest)`, `checks (windows-latest)`, all `success`, on `b6c2a58`.
+
+| Criterion | Verdict |
+| --- | --- |
+| 1 build on three platforms, `--offline` from warm cache | met |
+| 2 five checks locally and in CI | met in CI; local runs unverifiable here (no Rust), stated by the coder |
+| 3 `--version`, GUI window on three platforms | **partly** — Windows cannot open a window: the hosted runner lacks `glCreateShader`. Downgraded to a warning; the report says "window opening on Windows is NOT proven" instead of hiding it |
+| 4 `cargo tree -p morid-cli` free of `slint`/`morid-gui` | met, and enforced: the step fails if either appears, rather than pasting a tree |
+| 5 `git log --follow` on the moved C++ | met |
+| 6 one workflow, no root `src/` | met |
+| 7 `Cargo.lock` committed, `target/` ignored | met |
+| 8 break `deny.toml` | **equivalent, not literal** — a probe crate with a disallowed licence failed `cargo-deny` on all three OS, then was reverted. Proves enforcement; the criterion asked for an edit to the policy file. Accepted |
+| 9 size report, non-gating | met |
+| 10 build without a C compiler | **partly** — the GNU target fails at linking host build scripts; musl CLI with `rust-lld` builds, 410424 bytes. GUI without C tools not proven. Honest partial, accepted |
+| 11 under 15 minutes per platform | met |
+| 12 Phase 0 checks in CI, **count reported** | met, and this is the criterion that matters: the step asserts `Ran 30 tests` and then `VERIFY_OK`. Asserted, not printed — a discovery bug that runs nothing fails the job. My text said 16 because that was the count when I wrote it; 30 is correct and the workflow checks the real number |
+
+**Two deviations accepted, with reasons that hold:**
+
+- **`deny.toml`: `unmaintained = "workspace"`.** Unmaintained advisories no longer fail the build for transitive
+  crates (Slint's tree carries several: `zvariant`, `zbus_names`, `ttf-parser`, `rustybuzz`, `pin-utils`).
+  Vulnerabilities still fail; `cargo audit` still prints the unmaintained ones without gating. The coder flags this as
+  a policy change needing review and says explicitly that D-008 is not its authority — correct, D-008 is about size.
+  **This is a real weakening of the gate and is accepted for Phase 1 only**; it must be revisited once the
+  dependency tree is no longer largely a UI toolkit's.
+- **Slint pinned `~1.13`, and no `std-widgets`.** Both were wrong in my specification, and the coder proved it
+  against crates.io: `std-widgets` is not among slint's published features, and `version = "1"` resolves to 1.18.1,
+  which is edition 2024 and needs a compiler newer than the pinned 1.85.
+  [../workspace-manifest.md](../workspace-manifest.md) is corrected to `~1.13` with the reason.
+
+**Recorded because it is the right posture:** the hand-back says "acceptance is for the reviewer to decide, not
+asserted by this report" — the opposite of the earlier rounds, where a report implied success the build had not
+reached.
+
+**One thing the reviewer owes this branch:** the task text named a fixed test count (16) in three places. The number
+was true when written and is now 30. The workflow asserts the real number, so nothing is broken — but the text should
+stop naming a count that changes. Fixed below.
 
 ---
 

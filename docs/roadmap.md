@@ -102,6 +102,17 @@ deferred them to here rather than dropping them.
 
 ---
 
+**Status 8 November 2026:** delivered in PR #4 (`b6c2a58`) and green on all three platforms — run
+[42461122995](https://github.com/RUdolf1517/Morid/actions/runs/42461122995). Eleven of the twelve criteria met as
+written; two of those by an equivalent rather than literally (criterion 8 used a disallowed-licence probe crate;
+criterion 10 builds the CLI for musl instead of proving a C-toolchain-free GUI build). Two deviations accepted and
+recorded in [tasks/phase-1-skeleton.md](tasks/phase-1-skeleton.md) §7a: `deny.toml` stops failing on transitive
+*unmaintained* advisories — vulnerabilities still fail — and Slint is pinned `~1.13` because the specification's
+`version = "1"` resolves to an edition-2024 release the pinned 1.85 compiler cannot build. Windows GUI launch stays
+unproven: the hosted runner has no `glCreateShader`.
+
+The workflow now also runs the Phase 0 checks and asserts their test count, which is what D-017 deferred here.
+
 ### Phase 2 — Domain and extension schema
 
 **Deliverable:** all 17 bundled extensions load, validate and resolve to a command, with no process started.

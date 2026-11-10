@@ -51,12 +51,18 @@ ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] 
 tar = { version = "0.4", default-features = false }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 zip = { version = "4", default-features = false, features = ["deflate"] }
-slint = { version = "1", default-features = false, features = [
+# Two values here were wrong in the first version of this specification, and crates.io
+# settled both (Phase 1, PR #4):
+#   * `std-widgets` does not exist in slint 1.x at all — the 33 published features of
+#     slint 1.13.1 do not include it; widgets are built in. Removed.
+#   * `version = "1"` resolves to 1.18.1, which is edition 2024 and needs a newer
+#     compiler than the 1.85 this workspace pins. `~1.13` is the newest line whose
+#     MSRV is exactly 1.85, which is what the pin is for.
+slint = { version = "~1.13", default-features = false, features = [
     "std",
     "compat-1-2",
     "renderer-femtovg",
     "backend-winit",
-    "std-widgets",
 ] }
 
 [profile.release]

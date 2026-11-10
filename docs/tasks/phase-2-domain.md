@@ -96,11 +96,16 @@ not be one. See [README](README.md), "Rule for the manager".
    (`yt-dlp-nightly`, `yt-dlp-ffmpeg`, `yt-dlp-aria2c`). The original dispatches on the file name
    (`legacy/src/engines.cpp:244-258`), loads `yt-dlp.json` as the base, and applies one hard-coded transformation per
    file (`legacy/src/engines/yt-dlp.cpp`): nightly replaces the whole `Cmd` and the update URL; ffmpeg and aria2c
-   append `--downloader <x>`; aria2c also replaces the Generic command with `stdbuf -o L yt-dlp`.
+   append `--downloader <x>`; aria2c **calls `json.add` for Generic/Windows/MacOS and never calls `done()`**, so
+   nothing is published and the base `Cmd` survives unchanged (`utility.cpp:1218-1240`) — the intended
+   `stdbuf -o L yt-dlp` never reaches the JSON. This is the one place where the code and a plain reading of it
+   disagree, and the difference is an argument that is **absent**, so prove it by asserting equality with the base
+   `Cmd`, not by looking for `stdbuf`.
    [../extensions.md](../extensions.md) §1 states the exact difference per file. A generic "resolve the family by
    `Name`" mechanism is **wrong** and was the first version of this task; it would produce working-looking commands
    with the wrong arguments. Implement the three transformations explicitly, keyed by file name, and make each one a
-   test with its expected argv-visible effect.
+   test with its expected argv-visible effect. Criterion 9a already carries both files' `Cmd`; the aria2c assertion
+   must be `assert_eq!(resolved.Cmd, base.Cmd)`, not "contains `--downloader aria2c`".
 3. **Validation, in the documented order**, with a message naming which rule failed and the file:
    1 valid JSON · 2 `Name` · 3 `Version` ≤ supported · 4 `RequiredMinimumVersionOfMediaDownloader` (D-004) ·
    5 a command resolves for this platform/arch, after thin-file resolution · 6 executable present, else "needs

@@ -64,6 +64,15 @@ Consequences a reader must respect:
 - **Treating the transformations as configuration is the honest implementation.** They cannot be expressed in the
   shipped JSON, which is exactly why the original hard-codes them. Morid does the same, keyed by file name, and the
   table above is the specification of the difference.
+- **`yt-dlp-aria2c` barely changes `Cmd` at all, and that is not obvious from a summary.** It calls
+  `json.add(...)` for Generic, Windows and MacOS but — unlike `cmdNightly` at `yt-dlp.cpp:374` — never calls
+  `json.done()`, and `addJsonCmd` publishes nothing without `done()` (`utility.cpp:1218-1240`). The nightly's
+  arguments are `Args: [<same executable>]` (`utility.h:1145-1150`); the aria2c overrides carry
+  `Args: ["stdbuf","-o","L","yt-dlp"]`. Net effect: the base `Cmd` survives untouched, including the plain
+  `yt-dlp` name on Windows and macOS. An implementation that applies the three overrides — the obvious reading of
+  the `json.add` calls, and the reading this document carried on its first pass — produces a different command line
+  than the original on every platform. The observable difference is the **absence** of an argument, which no test
+  that only checks for presence will catch.
 
 There is one more name-based special case, in the engine list rather than in a transformation: `youtube-dl.json` is
 removed from the list the original enumerates (`legacy/src/engines.cpp:820`). No shipped file of that name exists, so

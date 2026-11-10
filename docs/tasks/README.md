@@ -80,24 +80,28 @@ statements into tasks, each of which the coder disproved from the code:
 | `\xHHHH` notation, and an instruction not to handle quoting | Qt writes lowercase unpadded `\x<hex>`, and does quote values containing `;`, `,`, `=` or edge spaces | two defects (G7, G8) shipped into a delivered helper; tasks T9, T10 |
 | "thin extension files inherit the rest from their family by `Name`" (Phase 2 task) | `legacy/src/engines.cpp:244-258` dispatches on the **exact file name** and applies one hand-written transformation per file in `engines/yt-dlp.cpp`. There is no family lookup | caught by the coder before writing code, because the task told them to stop if the mechanism differed; corrected in `extensions.md` §1 and the task |
 | `\|\|` is "not implemented by the original", and `PlaylistRange` is a range grammar with rejection rules (Phase 2 task and spec) | `engines.cpp:1574` implements `\|\|` and `gallery-dl.json` ships it; the range field is free text split by `splitPreserveQuotes` and never validated (`playlistdownloader.cpp:1061-1069`) | caught by the coder; both corrected in `extensions.md` §5.1 / §5.4 and the task; the validator requirement was **withdrawn** rather than specified |
+| `yt-dlp-aria2c` "replaces the Generic command with `stdbuf -o L yt-dlp`" (spec and task, two rounds) | `cmdAria2C` adds the overrides but never calls `json.done()`, so nothing is published and the base `Cmd` is used as-is (`utility.cpp:1218-1240`) | found by the manager while checking the coder's implementation against `yt-dlp.cpp:402-436`; the difference is an **absent** argument, so it would have survived any test that looks for presence |
 
-The pattern is the same in all five: a plausible mechanism was accepted because it explained the symptom, and the
+The pattern is the same in all six: a plausible mechanism was accepted because it explained the symptom, and the
 check that would have falsified it took a minute.
 
-The fourth and fifth are worth separating from the first three, because they are the ones that **cost nothing** — and
-the fifth is the last of its kind, because the owner has since changed how tasks are written (above). The fifth is
-also the clearest illustration of why that change was needed: the wrong claim was not a detail I had mis-remembered
-from a file I had read, it was a **requirement I had invented** — a range validator the original does not have. Had
-the coder implemented what the task asked, Morid would have rejected playlist ranges that the original accepts, and
-no test would have caught it, because the test would have been written from the same invented rule. That is the
-asymmetry worth remembering: an invented mechanism costs a round, an invented requirement can cost the compatibility
-promise (D-003) without anyone noticing.
+The last three are worth separating from the first three, because none of them cost a round, a commit or a rebuild:
+the task said "if the mechanism differs, stop and report", the coder checked `legacy/` before writing a line, and the
+correction landed in the specification instead of in code that would have been rewritten. That sentence — name the
+claim, say where it came from, and tell the coder to stop if it is wrong — is cheaper than being right.
 
-Neither cost a round, a commit or a rebuild: the task said "if the mechanism differs, stop and report", the coder
-checked `legacy/` before writing a line, and the correction landed in the specification instead of in code that would
-have been rewritten. That sentence — name the claim, say where it came from, and tell the coder to stop if it is wrong —
-is cheaper than being right, and it is now standard in every task that describes a mechanism I have not read the
-source for.
+The fifth is the clearest illustration of why the owner changed how tasks are written (above). It was not a detail
+mis-remembered from a file I had read; it was a **requirement I had invented** — a range validator the original does
+not have. Had the coder implemented what the task asked, Morid would have rejected playlist ranges that the original
+accepts, and no test would have caught it, because the test would have been written from the same invented rule. That
+is the asymmetry worth remembering: an invented mechanism costs a round, an invented requirement can cost the
+compatibility promise (D-003) without anyone noticing.
+
+The sixth is the one that should worry me most, and it is the opposite kind. It was a claim I had written twice, in
+two rounds, having read the surrounding code — and it was wrong in a way no test of the obvious sort would find,
+because the truth was the **absence** of an argument rather than its presence. The lesson is not "read more"; it is
+that a claim about what code does is worth exactly as much as the assertion that would fail if it were otherwise,
+and "contains X" is not that assertion. State the equality, not the presence.
 
 There is also a case that is the reviewer's rather than the manager's: in Phase 0 the review *missed* G5 and G7, which
 the next round then found. So the rule has a second half — **before accepting a round, try to break it**, and record

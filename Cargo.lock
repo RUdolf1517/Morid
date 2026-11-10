@@ -2232,6 +2232,10 @@ name = "morid-cli"
 version = "0.1.0"
 dependencies = [
  "morid",
+ "morid-core",
+ "morid-engine",
+ "morid-ext",
+ "serde_json",
 ]
 
 [[package]]
@@ -2251,6 +2255,8 @@ name = "morid-ext"
 version = "0.1.0"
 dependencies = [
  "morid-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

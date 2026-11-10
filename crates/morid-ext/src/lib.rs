@@ -151,21 +151,21 @@ impl Executables for SearchPath {
                 .chain(self.paths.iter().map(|dir| dir.join(name)))
                 .collect()
         };
-        for candidate in candidates {
+        candidates.into_iter().find_map(|candidate| {
             if usable(&candidate) {
                 return Some(candidate);
             }
             #[cfg(windows)]
-            if candidate.extension().is_none() {
-                for ext in ["exe", "cmd", "bat", "com"] {
-                    let path = candidate.with_extension(ext);
-                    if usable(&path) {
-                        return Some(path);
-                    }
+            {
+                if candidate.extension().is_none() {
+                    return ["exe", "cmd", "bat", "com"]
+                        .into_iter()
+                        .map(|ext| candidate.with_extension(ext))
+                        .find(|path| usable(path));
                 }
             }
-        }
-        None
+            None
+        })
     }
 }
 

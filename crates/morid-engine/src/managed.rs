@@ -71,12 +71,14 @@ impl ManagedChild {
                 return Ok(status);
             }
             if started.elapsed() >= timeout {
-                return Err(io::Error::new(io::ErrorKind::TimedOut, "tree death not observed"));
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "tree death not observed",
+                ));
             }
             std::thread::sleep(Duration::from_millis(10));
         }
     }
-
 }
 
 impl Drop for ManagedChild {

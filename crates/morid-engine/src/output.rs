@@ -10,7 +10,11 @@ pub struct Splitter {
 impl Splitter {
     pub fn new(separators: &[String]) -> Self {
         Self {
-            separators: separators.iter().filter(|s| !s.is_empty()).map(|s| s.as_bytes().to_vec()).collect(),
+            separators: separators
+                .iter()
+                .filter(|s| !s.is_empty())
+                .map(|s| s.as_bytes().to_vec())
+                .collect(),
             pending: Vec::new(),
         }
     }
@@ -24,10 +28,19 @@ impl Splitter {
             let suffix = &self.pending[cursor..];
             // Delay a possible multi-byte separator until the next chunk. Longest
             // matching delimiter wins (e.g. CRLF before CR), independent of order.
-            if self.separators.iter().any(|s| s.len() > suffix.len() && s.starts_with(suffix)) {
+            if self
+                .separators
+                .iter()
+                .any(|s| s.len() > suffix.len() && s.starts_with(suffix))
+            {
                 break;
             }
-            let found = self.separators.iter().filter(|s| suffix.starts_with(s)).map(Vec::len).max();
+            let found = self
+                .separators
+                .iter()
+                .filter(|s| suffix.starts_with(s))
+                .map(Vec::len)
+                .max();
             if let Some(length) = found {
                 lines.push(String::from_utf8_lossy(&self.pending[start..cursor]).into_owned());
                 cursor += length;
@@ -51,7 +64,13 @@ impl Splitter {
         let mut start = 0;
         while cursor < self.pending.len() {
             let suffix = &self.pending[cursor..];
-            if let Some(length) = self.separators.iter().filter(|s| suffix.starts_with(s)).map(Vec::len).max() {
+            if let Some(length) = self
+                .separators
+                .iter()
+                .filter(|s| suffix.starts_with(s))
+                .map(Vec::len)
+                .max()
+            {
                 lines.push(String::from_utf8_lossy(&self.pending[start..cursor]).into_owned());
                 cursor += length;
                 start = cursor;
@@ -92,7 +111,12 @@ pub struct Classifier {
 
 impl Classifier {
     pub fn new(remove: Vec<String>, skip: Vec<String>, control: Control) -> Self {
-        Self { remove, skip, control, current_progress: None }
+        Self {
+            remove,
+            skip,
+            control,
+            current_progress: None,
+        }
     }
 
     pub fn classify(&mut self, input: &str) -> Option<Classified> {
@@ -117,7 +141,13 @@ impl Classifier {
 // human console text. Unknown/NA values remain absent; filename may contain spaces.
 fn yt_dlp_progress(line: String) -> Progress {
     fn number(line: &str, key: &str) -> Option<f64> {
-        let value = line.split_once(key)?.1.split_whitespace().next()?.parse::<f64>().ok()?;
+        let value = line
+            .split_once(key)?
+            .1
+            .split_whitespace()
+            .next()?
+            .parse::<f64>()
+            .ok()?;
         value.is_finite().then_some(value)
     }
     let downloaded = number(&line, "downloaded_bytes:");

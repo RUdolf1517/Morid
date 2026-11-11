@@ -184,13 +184,15 @@ fn payload_root() -> io::Result<PathBuf> {
 #[ignore = "explicit fake backend; starts grandchild without a containment handshake"]
 fn backend() -> io::Result<()> {
     let root = payload_root()?;
-    let mut child = Leader(Command::new(std::env::current_exe()?)
-        .args(["--ignored", "--exact", "grandchild", "--nocapture"])
-        .env("MORID_CANCEL_ROOT", &root)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?);
+    let mut child = Leader(
+        Command::new(std::env::current_exe()?)
+            .args(["--ignored", "--exact", "grandchild", "--nocapture"])
+            .env("MORID_CANCEL_ROOT", &root)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?,
+    );
     let deadline = Instant::now() + Duration::from_secs(60);
     while !root.join("stop").exists() && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(20));

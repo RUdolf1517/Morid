@@ -78,6 +78,12 @@ jobs:
           cargo test -p morid-ext thin_files_resolve_by_file_name -- --nocapture --test-threads=1 2>&1 | tee variants.log
           cargo test -p morid-cli warning_demo_copy_of_ytdl_patched -- --nocapture --test-threads=1 2>&1 | tee warnings-demo.log
 
+      - name: Contained cancellation acceptance (process table)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked -p morid-engine --test cancel_tree -- --nocapture 2>&1 | tee cancel-tree.log
+
       - name: Windows preassignment escape property (not criterion 5)
         if: runner.os == 'Windows'
         shell: bash
@@ -300,7 +306,7 @@ jobs:
           def emit(title, text):
               text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
               print(f"::notice title={title}::{text}")
-          for name in ["engines.txt", "engines-warnings.txt", "size-report.txt", "phase0-unittest.log", "phase0-verify.log", "variants.log", "warnings-demo.log", "windows-race.log", "test.log"]:
+          for name in ["engines.txt", "engines-warnings.txt", "size-report.txt", "phase0-unittest.log", "phase0-verify.log", "variants.log", "warnings-demo.log", "windows-race.log", "cancel-tree.log", "test.log"]:
               path = Path(name)
               if path.exists(): emit(name, path.read_text(errors="replace")[-12000:])
           path = Path("test.log")

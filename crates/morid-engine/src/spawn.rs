@@ -42,6 +42,16 @@ impl SpawnSpec {
     /// stdin is EOF, stdout/stderr are independent pipes. No shell is involved.
     /// This low-level API alone makes no Windows tree-containment guarantee.
     pub fn spawn(&self) -> Result<Child, FailedToStart> {
+        let mut command = self.command();
+        #[cfg(unix)]
+        crate::process_group::configure(&mut command);
+        command.spawn().map_err(|source| FailedToStart {
+            program: self.program.clone(),
+            source,
+        })
+    }
+
+    pub(crate) fn command(&self) -> Command {
         let mut command = Command::new(&self.program);
         command
             .args(&self.args)
@@ -50,12 +60,7 @@ impl SpawnSpec {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        #[cfg(unix)]
-        crate::process_group::configure(&mut command);
-        command.spawn().map_err(|source| FailedToStart {
-            program: self.program.clone(),
-            source,
-        })
+        command
     }
 }
 

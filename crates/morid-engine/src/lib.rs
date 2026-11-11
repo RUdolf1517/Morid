@@ -10,6 +10,7 @@ pub use std::process::ExitCode;
 
 #[cfg(windows)]
 pub mod job_object;
+pub mod managed;
 #[cfg(unix)]
 pub mod process_group;
 pub mod spawn;

@@ -4,12 +4,20 @@
 use std::io;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::process::Child;
+use std::os::windows::process::CommandExt;
+use windows_sys::Win32::Foundation::{ERROR_NO_MORE_FILES, INVALID_HANDLE_VALUE};
+use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Thread32First, Thread32Next, THREADENTRY32, TH32CS_SNAPTHREAD,
+};
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
     SetInformationJobObject, TerminateJobObject, JOBOBJECT_BASIC_LIMIT_INFORMATION,
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
 };
-use windows_sys::Win32::System::Threading::IO_COUNTERS;
+use windows_sys::Win32::System::Threading::{
+    GetProcessIdOfThread, OpenThread, ResumeThread, CREATE_SUSPENDED, IO_COUNTERS,
+    THREAD_QUERY_LIMITED_INFORMATION, THREAD_SUSPEND_RESUME,
+};
 
 /// A non-inheritable, uniquely owned job. OwnedHandle closes it safely on every
 /// error path and on drop; KILL_ON_JOB_CLOSE applies to its process members.
@@ -71,6 +79,22 @@ impl Job {
         Ok(Self { handle })
     }
 
+    /// Start without executing backend code until membership is established.
+    /// On every setup failure, terminate and reap the still-suspended child.
+    pub fn spawn(&self, spec: &crate::spawn::SpawnSpec) -> io::Result<Child> {
+        let mut command = spec.command();
+        command.creation_flags(CREATE_SUSPENDED);
+        let mut child = command.spawn()?;
+        let prepared = self.assign(&child).and_then(|()| resume_initial_thread(&child));
+        if let Err(error) = prepared {
+            if let Err(cleanup) = child.kill().and_then(|()| child.wait().map(|_| ())) {
+                return Err(io::Error::other(format!("{error}; suspended-child cleanup: {cleanup}")));
+            }
+            return Err(error);
+        }
+        Ok(child)
+    }
+
     /// Assign-after-spawn deliberately has a residual escape window: descendants
     /// already running before this call are not retroactively enrolled. The test
     /// `assign_after_spawn_leaves_preassignment_grandchild_alive` forces that
@@ -101,6 +125,78 @@ impl Job {
             Ok(())
         }
     }
+}
+
+/// The child is still suspended and unreaped; it cannot itself create another
+/// thread. Reject ambiguous snapshots rather than resuming an arbitrary thread.
+fn resume_initial_thread(child: &Child) -> io::Result<()> {
+    // SAFETY: snapshot flags are valid constants; no pointers are passed. The
+    // returned snapshot is checked for INVALID_HANDLE_VALUE before ownership.
+    let raw = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
+    if raw == INVALID_HANDLE_VALUE {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: successful snapshot creation transfers a unique closeable handle;
+    // this is its sole ownership conversion, and OwnedHandle closes every path.
+    let snapshot = unsafe { OwnedHandle::from_raw_handle(raw) };
+    let mut entry = THREADENTRY32 {
+        dwSize: std::mem::size_of::<THREADENTRY32>() as u32,
+        cntUsage: 0,
+        th32ThreadID: 0,
+        th32OwnerProcessID: 0,
+        tpBasePri: 0,
+        tpDeltaPri: 0,
+        dwFlags: 0,
+    };
+    // SAFETY: snapshot remains live; entry is initialized, aligned and sized
+    // for THREADENTRY32. The API writes only synchronously to that struct.
+    let mut found = unsafe { Thread32First(snapshot.as_raw_handle(), &mut entry) };
+    let mut thread_id = None;
+    loop {
+        if found == 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() != Some(ERROR_NO_MORE_FILES as i32) {
+                return Err(error);
+            }
+            break;
+        }
+        if entry.th32OwnerProcessID == child.id() {
+            if thread_id.replace(entry.th32ThreadID).is_some() {
+                return Err(io::Error::other("suspended child has multiple threads"));
+            }
+        }
+        entry.dwSize = std::mem::size_of::<THREADENTRY32>() as u32;
+        // SAFETY: same owned snapshot and initialized entry as above; the API
+        // does not retain the entry pointer between calls.
+        found = unsafe { Thread32Next(snapshot.as_raw_handle(), &mut entry) };
+    }
+    let id = thread_id.ok_or_else(|| io::Error::other("suspended child thread not found"))?;
+    let rights = THREAD_SUSPEND_RESUME | THREAD_QUERY_LIMITED_INFORMATION;
+    // SAFETY: id came from a checked snapshot entry, not a guessed process id;
+    // no pointers are passed. The resulting handle is checked before ownership.
+    let raw = unsafe { OpenThread(rights, 0, id) };
+    if raw.is_null() {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: OpenThread returned a unique owned handle; this is its only
+    // ownership conversion. The handle is non-inheritable and closed on return.
+    let thread = unsafe { OwnedHandle::from_raw_handle(raw) };
+    // SAFETY: thread is an owned live handle with query rights. Verify ownership
+    // after opening, so a stale snapshot/recycled thread id cannot resume a stranger.
+    let owner = unsafe { GetProcessIdOfThread(thread.as_raw_handle()) };
+    if owner != child.id() {
+        return Err(io::Error::other("snapshot thread no longer belongs to child"));
+    }
+    // SAFETY: the owned handle pins the verified child's thread; the child was
+    // created suspended and assigned to this job before reaching this call.
+    let previous = unsafe { ResumeThread(thread.as_raw_handle()) };
+    if previous == u32::MAX {
+        return Err(io::Error::last_os_error());
+    }
+    if previous != 1 {
+        return Err(io::Error::other("unexpected initial thread suspend count"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

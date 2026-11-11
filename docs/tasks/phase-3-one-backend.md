@@ -69,9 +69,26 @@ why.
    entry are dropped; `ControlJsonStructure` decides whether a line is progress. Progress lines **replace** the
    current progress and are not also emitted as output; non-progress lines are output. This is
    [architecture](../architecture.md) §4 and it is the difference between a usable log window and a flood.
-5. **Progress values.** The generic reader extracts percent, total, speed, ETA and file name from the line.
-   For this phase, only the yt-dlp shape is required — the `--progress-template` string in the goldens is the
-   contract, and the parser may be specific to it **if** a test says so and the generic path is where it lives.
+5. **Progress values — two shapes, and one of them breaks a naive parser.** `progress.txt` in
+   `fixtures/streams/yt-dlp/` holds **both**, in one stream:
+
+   ```
+   [download] downloaded_bytes:1024 ETA:86 total_bytes_estimate:NA total_bytes:3006209 progress.speed:34781.85 ...
+   \r\x1b[K[download]  25.0% of    2.00MiB at    4.94MiB/s ETA 00:00
+   ```
+
+   The first is the `--progress-template` string from the Phase 0 goldens. The second is yt-dlp's ordinary console
+   progress line, and it is in the fixture because it was captured from a real subprocess. A parser that only knows
+   the template treats the second shape as ordinary output and floods the log window with carriage-return spam; a
+   parser that only knows the second misses every field the template carries.
+
+   So both shapes are in scope: the first is the contract for the field names, the second for the percentage form,
+   and the rule that makes it work is item 3 — `\r` is a separator when the extension says so, so the console lines
+   arrive as separate progress lines rather than one enormous one. The `\x1b[K` and any other escape bytes are
+   stripped either by `RemoveText` or by the reader, and a test says which.
+
+   Percent, total, speed, ETA and file name come out of whichever shape the line is. A line that matches neither is
+   output, never a progress with empty fields.
 6. **Cancel.** The requirement is one sentence and it does not name a mechanism: after cancellation **no
    descendant of the backend is alive**. `libc` and `windows-sys` are accepted for it
    ([dependencies](../dependencies.md) §2.8, §2.9), `CommandExt::process_group` is the safe API where it is
@@ -197,6 +214,10 @@ Named, and visible in CI output:
 - `dry_run_argv_matches_golden_<scenario>` — table-driven over the scenarios in §5.
 - `dry_run_never_spawns` — a counting double, or an empty `PATH`; the count is asserted to be zero.
 - `list_parses_fixture_metadata` — replay of `fixtures/streams/yt-dlp/list.json`.
+- `both_progress_shapes_are_classified` — `progress.txt` replayed as one stream yields **at least one progress
+  event of each shape** (template and console percent line), no progress event carries all-empty fields, and the
+  percentages are non-decreasing. A test that only sees the template shape passes a parser that would flood the
+  window in production.
 - `progress_lines_replace_and_do_not_append` — replay of `progress.txt`; the event sequence is asserted, including
   that progress lines are not duplicated into output.
 - `partial_line_is_not_truncated` — replay of `partial-line.bin` fed in hostile chunk sizes, including a split

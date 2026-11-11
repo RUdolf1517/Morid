@@ -85,9 +85,9 @@ why.
    problem and solves it the crude way (`taskkill /F /T /PID`, rejected in §2.9 for quoting and localisation
    reasons, not because it fails to kill). You are not required to reproduce the defect, and you are not required to
    keep a design that is documented as insufficient. If race-free containment needs something this phase does not
-   have — an `unsafe` `CREATE_SUSPENDED` + assign + resume sequence through `pre_exec`, a different crate, or a
-   documented, tested residual race — **say which, with the evidence, and stop on that point**; that is the same
-   rule as everywhere else in this task. What is not acceptable is a primitive described in a comment as
+   have — a `CREATE_SUSPENDED` + assign + resume sequence, a different crate, or a measured residual race —
+   **say which, with the evidence, and stop on that point** (§3.7a is the operative text); that is the same rule as
+   everywhere else in this task. What is not acceptable is a primitive described in a comment as
    insufficient while the branch moves on, because the phase's criterion 5 will then be met on paper only.
 7. **Exit state.** `ExitState { code, signal, cancelled, duration }`, mapped to a typed `Error` variant. A
    backend that fails to start is `FailedToStart`, not `code = -1`.
@@ -240,6 +240,44 @@ That is the last thing in the binary that a user's installation cannot satisfy, 
 A missing directory is not a crash: `morid engines` reports what it searched and exits `4`. An empty list of
 searched paths is a bug, not a state.
 
+### 3.7a Windows containment: the acceptance test says "no escape", not "a survivor was observed"
+
+The Phase 3 partial (PR #12) planted the residual race as a tested property: it forces the assignment to be delayed
+past the grandchild's start, then asserts the grandchild **survives**, and then cleans it up. That is a true
+statement about assign-after-spawn and a useful test, and it is **not** the deliverable. A test that fails on the day
+somebody closes the window is a test written against the defect.
+
+The criterion is I5, unchanged: *a cancelled job leaves no live descendant*. So the test this phase must end with is
+the opposite assertion:
+
+1. spawn the fake backend **through the cancel path** — job created, child started, contained before it can execute
+   anything a containment decision would miss;
+2. have the backend start a grandchild that outlives a naive kill;
+3. cancel;
+4. assert **no descendant is alive** — by the process table, not by the exit code of a kill call;
+5. run it on Linux and on Windows.
+
+**On Windows this means the child is created suspended, assigned to the job, and only then resumed.** Rust 1.85 has
+`CommandExt::creation_flags(CREATE_SUSPENDED)`; `ChildExt::main_thread_handle` is unstable, so `ResumeThread` needs
+the thread handle another way, and finding that way is part of the work — the `unsafe` allowance of D-019 exists
+precisely so a Win32 call is available when the safe surface stops short. If the handle cannot be reached, the
+alternative is to resume the main thread by id through the tool-help snapshot API (`CreateToolhelp32Snapshot`, then
+`Thread32First`/`Thread32Next`, `OpenThread`, `ResumeThread` — the id taken from the snapshot, never guessed), and if
+that is also impossible, **that is the finding to report** — with the evidence and the options, not with a test that
+documents the escape.
+
+What may be reported as an accepted limitation, and what may not:
+
+- **May:** "on Windows there remains an interval of N microseconds between process creation and job assignment,
+  during which a descendant could escape; it is measured by test X, and closing it would require Y." That is a
+  decision with a number and a reason.
+- **May not:** "assign-after-spawn does not contain the tree; the test proves the grandchild survives." That is the
+  defect, certified.
+
+The existing test may stay as a regression guard for the low-level primitive, under the name it already has
+(`assign_after_spawn_leaves_preassignment_grandchild_alive` is honest — keep it), but it cannot be the answer to
+criterion 5.
+
 ### 3.8 What must not change
 
 - `fixtures/` — read-only. CI runs the Phase 0 checks.
@@ -264,9 +302,10 @@ searched paths is a bug, not a state.
   - The public API stays safe: no `unsafe` function, no raw handle, no `isize`/`*mut` in a signature across the
     crate boundary. A caller cannot reach the `unsafe`.
   - **Allowed mechanisms:** `libc` (`setsid`, `killpg`, `kill`) on Unix, `windows-sys`
-    (`CreateJobObjectW`, `SetInformationJobObject`, `AssignProcessToJobObject`, `TerminateJobObject`) on Windows,
-    and `std::os::unix::process::CommandExt::process_group` where it is enough. Anything else is a new dependency
-    and needs asking first.
+    (`CreateJobObjectW`, `SetInformationJobObject`, `AssignProcessToJobObject`, `TerminateJobObject`, and — for
+    §3.7a — `CREATE_SUSPENDED` via `CommandExt::creation_flags`, `ResumeThread`, and the tool-help snapshot calls
+    needed to find the main thread) on Windows, and `std::os::unix::process::CommandExt::process_group` where it is
+    enough. Anything else is a new dependency and needs asking first.
   - **Still forbidden:** `unsafe` in `morid-core`, `morid-ext`, `morid-store`, `morid-net`, `morid-cli`, `morid`,
     `morid-gui`; `unsafe` in `morid-engine` outside the two modules; any `unsafe` whose justification is a comment
     like "the handle is valid".

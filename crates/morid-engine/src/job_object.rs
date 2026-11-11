@@ -164,8 +164,7 @@ fn resume_initial_thread(child: &Child) -> io::Result<()> {
             }
             break;
         }
-        if entry.th32OwnerProcessID == child.id()
-            && thread_id.replace(entry.th32ThreadID).is_some()
+        if entry.th32OwnerProcessID == child.id() && thread_id.replace(entry.th32ThreadID).is_some()
         {
             return Err(io::Error::other("suspended child has multiple threads"));
         }

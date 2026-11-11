@@ -205,7 +205,14 @@ Named, and visible in CI output:
 - `remove_text_and_skip_line_apply_before_matching`.
 - `queue_respects_concurrency_limit` — limit 2, five jobs, never three at once, all five finish.
 - `cancel_kills_process_tree` (Linux, Windows) — the fake backend spawns a child and ignores SIGTERM; after cancel,
-  **neither pid exists**.
+  **neither pid exists**. It is only a real test if it can fail for the reason it names, so it carries three things
+  a happy-path version does not:
+  - **a naive-kill control** in the same test: killing only the leader leaves the grandchild alive, printed as
+    evidence. Without the control, a fixture that never escaped would pass and prove nothing;
+  - **the managed path under test** — job or process group created before the child can run — not a low-level
+    spawn followed by an assign;
+  - **reachable**: `cargo test` runs it on both platforms inside the ordinary `Test` step, so a regression turns CI
+    red without anyone remembering a separate command.
 - `unsafe_stays_in_the_two_platform_modules` — a script check, run in CI next to the Phase 0 checks: the only files
   containing `unsafe` are the two named modules and `morid-engine`'s crate root, and `#![forbid(unsafe_code)]` is
   still present in every other crate. It fails if a third module appears.
@@ -277,6 +284,21 @@ What may be reported as an accepted limitation, and what may not:
 The existing test may stay as a regression guard for the low-level primitive, under the name it already has
 (`assign_after_spawn_leaves_preassignment_grandchild_alive` is honest — keep it), but it cannot be the answer to
 criterion 5.
+
+### 3.7b Facts about the CI job that must be true, not assumed
+
+Two things went wrong in this phase's CI that a green summary would have hidden, and both are cheap to state.
+
+1. **`cancel-in-progress: true` on a group keyed by branch means the push run and the PR run cancel each other.**
+   The group is `ci-${{ github.ref }}`, a push to a branch and its pull request share the ref, and whichever starts
+   second kills the first mid-job. On 10 November this left the Linux job cancelled at the GUI smoke step of an
+   otherwise passing run, twice. **The evidence for a phase is a run that reached `completed/success` on all
+   three platforms**; a cancelled run is not evidence for anything, including for the steps that did pass. Fix the
+   group (`ci-${{ github.ref }}-${{ github.event_name }}`) or do not push twice in a row — either is fine, reporting
+   a cancelled run as "Linux still running" is not.
+2. **A step that does not exist cannot fail.** The cancellation acceptance test must run under `cargo test` in the
+   ordinary step on both platforms, so a regression breaks the default job. A dedicated step is a bonus; if it is
+   the only place the test runs, deleting the step deletes the test and nothing goes red.
 
 ### 3.8 What must not change
 

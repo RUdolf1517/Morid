@@ -13,7 +13,8 @@
 //! alternating writes, so its expected order is independent of thread scheduling.
 //!
 //! Backpressure: at most 64 records queue up; the OS pipe buffers provide the next
-//! bound. A consumer that stops reading must cancel/drop the ManagedChild before
+//! bound. This bounds queued chunks, not a single unterminated line retained by
+//! the splitter. A consumer that stops reading must cancel/drop the ManagedChild before
 //! joining readers. Dropping OutputStream disconnects the queue, not the backend.
 use crate::output::{Classified, Classifier, Progress, Splitter};
 use morid_ext::control::Control;
@@ -111,16 +112,22 @@ impl OutputStream {
     ) -> io::Result<Self> {
         let (sender, receiver) = mpsc::sync_channel(64);
         let tx = sender.clone();
-        let out = std::thread::Builder::new().name("morid-stdout".into())
+        let out = std::thread::Builder::new()
+            .name("morid-stdout".into())
             .spawn(move || reader(stdout, Stream::Stdout, tx))?;
-        let err = std::thread::Builder::new().name("morid-stderr".into())
+        let err = std::thread::Builder::new()
+            .name("morid-stderr".into())
             .spawn(move || reader(stderr, Stream::Stderr, sender))?;
         Ok(Self {
             receiver,
             readers: vec![(Stream::Stdout, out), (Stream::Stderr, err)],
             stdout: Splitter::new(&rules.split_lines_by),
             stderr: Splitter::new(&rules.split_lines_by),
-            classifier: Classifier::new(rules.remove_text, rules.skip_line_with_text, rules.control),
+            classifier: Classifier::new(
+                rules.remove_text,
+                rules.skip_line_with_text,
+                rules.control,
+            ),
             pending: VecDeque::new(),
             sequence: 0,
             disconnected: false,
@@ -147,7 +154,11 @@ impl OutputStream {
         };
         for line in lines {
             if let Some(data) = self.classifier.classify(&line) {
-                self.pending.push_back(Ok(OutputEvent { sequence: self.sequence, stream, data }));
+                self.pending.push_back(Ok(OutputEvent {
+                    sequence: self.sequence,
+                    stream,
+                    data,
+                }));
                 self.sequence += 1;
             }
         }
@@ -176,7 +187,8 @@ impl Iterator for OutputStream {
                     for (stream, handle) in self.readers.drain(..) {
                         if handle.join().is_err() {
                             self.pending.push_back(Err(ReadFailure {
-                                stream, source: io::Error::other("pipe reader panicked"),
+                                stream,
+                                source: io::Error::other("pipe reader panicked"),
                             }));
                         }
                     }
@@ -207,17 +219,25 @@ mod tests {
     #[test]
     fn read_failure_preserves_final_fragment_and_other_pipe() {
         let rules = Rules {
-            split_lines_by: vec!["\n".into()], remove_text: vec![], skip_line_with_text: vec![],
+            split_lines_by: vec!["\n".into()],
+            remove_text: vec![],
+            skip_line_with_text: vec![],
             control: Control::parse(&serde_json::json!({})).expect("control"),
         };
         let events = OutputStream::start(Broken(false), Cursor::new(b"other\n"), rules)
-            .expect("readers").collect::<Vec<_>>();
-        let out = events.iter().filter(|item| match item {
-            Ok(event) => event.stream == Stream::Stdout,
-            Err(error) => error.stream == Stream::Stdout,
-        }).collect::<Vec<_>>();
+            .expect("readers")
+            .collect::<Vec<_>>();
+        let out = events
+            .iter()
+            .filter(|item| match item {
+                Ok(event) => event.stream == Stream::Stdout,
+                Err(error) => error.stream == Stream::Stdout,
+            })
+            .collect::<Vec<_>>();
         assert_eq!(out.len(), 2);
-        assert!(matches!(out[0], Ok(OutputEvent { data: Classified::Output(text), .. }) if text == "tail"));
+        assert!(
+            matches!(out[0], Ok(OutputEvent { data: Classified::Output(text), .. }) if text == "tail")
+        );
         assert!(out[1].is_err());
         assert!(events.iter().any(|item| matches!(item, Ok(OutputEvent { stream: Stream::Stderr, data: Classified::Output(text), .. }) if text == "other")));
     }

@@ -196,7 +196,8 @@ fn finite_number(input: &str) -> Option<f64> {
 
 fn byte_quantity(input: &str) -> Option<f64> {
     let input = input.trim_start_matches('~').trim_end_matches("/s");
-    let boundary = input.find(|ch: char| !ch.is_ascii_digit() && ch != '.')
+    let boundary = input
+        .find(|ch: char| !ch.is_ascii_digit() && ch != '.')
         .unwrap_or(input.len());
     let value = finite_number(&input[..boundary])?;
     let factor = match &input[boundary..] {
@@ -246,13 +247,23 @@ fn yt_dlp_progress(line: &str) -> Option<Progress> {
             .or_else(|| number(body, "total_bytes_estimate:").filter(|value| *value > 0.0));
         let speed = number(body, "progress.speed:");
         let eta = number(body, "ETA:");
-        let filename = body.split_once("filename:").map(|(_, name)| name.to_owned())
+        let filename = body
+            .split_once("filename:")
+            .map(|(_, name)| name.to_owned())
             .filter(|name| !name.is_empty() && name != "NA" && name != "Unknown");
-        if downloaded.is_none() && total_bytes.is_none() && speed.is_none() && eta.is_none() && filename.is_none() {
+        if downloaded.is_none()
+            && total_bytes.is_none()
+            && speed.is_none()
+            && eta.is_none()
+            && filename.is_none()
+        {
             return None;
         }
         return Some(Progress {
-            percent: downloaded.zip(total_bytes).map(|(done, total)| 100.0 * done / total).filter(|value| value.is_finite()),
+            percent: downloaded
+                .zip(total_bytes)
+                .map(|(done, total)| 100.0 * done / total)
+                .filter(|value| value.is_finite()),
             total_bytes,
             speed,
             eta,
@@ -271,8 +282,12 @@ fn yt_dlp_progress(line: &str) -> Option<Progress> {
     if total_bytes.is_none() && !matches!(*size, "Unknown" | "NA") {
         return None;
     }
-    let after = |marker| words.iter().position(|word| *word == marker)
-        .and_then(|index| words.get(index + 1).copied());
+    let after = |marker| {
+        words
+            .iter()
+            .position(|word| *word == marker)
+            .and_then(|index| words.get(index + 1).copied())
+    };
     Some(Progress {
         percent: Some(percent),
         total_bytes,
@@ -363,18 +378,23 @@ mod tests {
         // contract sample without modifying any captured fixture bytes.
         let template = "[download] downloaded_bytes:1024 ETA:86 total_bytes_estimate:NA total_bytes:3006209 progress.speed:34781.85 filename:Café movie.mp4\n";
         let mut mixed = template.as_bytes().to_vec();
-        mixed.extend_from_slice(include_bytes!("../../../fixtures/streams/yt-dlp/progress.txt"));
+        mixed.extend_from_slice(include_bytes!(
+            "../../../fixtures/streams/yt-dlp/progress.txt"
+        ));
         for size in 1..=mixed.len() {
             let control = Control::parse(&serde_json::json!({
                 "Connector":"&&", "lhs":{"startsWith":"[download]"}, "rhs":{"contains":"ETA"}
-            })).expect("control");
+            }))
+            .expect("control");
             let mut classifier = Classifier::new(vec![], vec![], control);
             let mut progress = Vec::new();
             for line in split(&mixed, &["\r".into(), "\n".into()], size) {
                 if let Some(event) = classifier.classify(&line) {
                     match event {
                         Classified::Progress(value) => progress.push(value),
-                        Classified::Output(text) => assert!(!text.contains("ETA"), "progress leaked to output: {text}"),
+                        Classified::Output(text) => {
+                            assert!(!text.contains("ETA"), "progress leaked to output: {text}")
+                        }
                     }
                 }
             }
@@ -382,7 +402,10 @@ mod tests {
             assert_eq!(progress[0].eta, Some(86.0));
             assert_eq!(progress[0].speed, Some(34781.85));
             assert_eq!(progress[0].filename.as_deref(), Some("Café movie.mp4"));
-            assert!((progress[0].percent.expect("template percent") - 1024.0 / 3006209.0 * 100.0).abs() < 1e-9);
+            assert!(
+                (progress[0].percent.expect("template percent") - 1024.0 / 3006209.0 * 100.0).abs()
+                    < 1e-9
+            );
             for (item, percent) in progress[1..].iter().zip([0.0, 25.0, 50.0, 100.0, 100.0]) {
                 assert_eq!(item.percent, Some(percent));
                 assert_eq!(item.total_bytes, Some(2097152.0));
@@ -399,17 +422,28 @@ mod tests {
 
     #[test]
     fn ansi_unknowns_and_non_progress_text_are_not_guessed() {
-        let control = Control::parse(&serde_json::json!({"lhs":{"startsWith":"[download]"}})).expect("control");
+        let control = Control::parse(&serde_json::json!({"lhs":{"startsWith":"[download]"}}))
+            .expect("control");
         let mut classifier = Classifier::new(vec![], vec![], control);
         let Some(Classified::Progress(value)) = classifier.classify(
-            "\x1b]0;window title\x07\x1b[31m[download] 75% of ~1.5GiB at 3MB/s ETA 01:02:03\x1b[0m"
-        ) else { panic!("console progress") };
+            "\x1b]0;window title\x07\x1b[31m[download] 75% of ~1.5GiB at 3MB/s ETA 01:02:03\x1b[0m",
+        ) else {
+            panic!("console progress")
+        };
         assert_eq!(value.total_bytes, Some(1.5 * 1024.0_f64.powi(3)));
         assert_eq!(value.speed, Some(3000000.0));
         assert_eq!(value.eta, Some(3723.0));
-        assert!(matches!(classifier.classify("[download] unrelated ETA note"), Some(Classified::Output(_))));
-        assert!(matches!(classifier.classify("[download] NaN% of 2MiB ETA 00:00"), Some(Classified::Output(_))));
-        assert!(matches!(classifier.classify("[download] Destination: Café.mp4"), Some(Classified::Output(_))));
+        assert!(matches!(
+            classifier.classify("[download] unrelated ETA note"),
+            Some(Classified::Output(_))
+        ));
+        assert!(matches!(
+            classifier.classify("[download] NaN% of 2MiB ETA 00:00"),
+            Some(Classified::Output(_))
+        ));
+        assert!(matches!(
+            classifier.classify("[download] Destination: Café.mp4"),
+            Some(Classified::Output(_))
+        ));
     }
-
 }

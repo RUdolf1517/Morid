@@ -171,7 +171,11 @@ impl Iterator for OutputStream {
                 match record {
                     Ok((stream, line)) => {
                         if let Some(data) = self.classifier.classify(&line) {
-                            let event = OutputEvent { sequence: self.sequence, stream, data };
+                            let event = OutputEvent {
+                                sequence: self.sequence,
+                                stream,
+                                data,
+                            };
                             self.sequence += 1;
                             return Some(Ok(event));
                         }
@@ -251,17 +255,20 @@ mod tests {
             split_lines_by: vec!["\n".into()],
             remove_text: vec![],
             skip_line_with_text: vec![],
-            control: Control::parse(&serde_json::json!({"lhs":{"startsWith":"[download]"}})).expect("control"),
+            control: Control::parse(&serde_json::json!({"lhs":{"startsWith":"[download]"}}))
+                .expect("control"),
         };
         let bytes = b"[download] downloaded_bytes:25 total_bytes:100\n[download] downloaded_bytes:50 total_bytes:100\n";
-        let mut output = OutputStream::start(Cursor::new(bytes), Cursor::new(b""), rules).expect("readers");
+        let mut output =
+            OutputStream::start(Cursor::new(bytes), Cursor::new(b""), rules).expect("readers");
         for percent in [25.0, 50.0] {
             let event = output.next().expect("progress event").expect("read");
-            let Classified::Progress(progress) = event.data else { panic!("progress") };
+            let Classified::Progress(progress) = event.data else {
+                panic!("progress")
+            };
             assert_eq!(progress.percent, Some(percent));
             assert_eq!(output.current_progress(), Some(&progress));
         }
         assert!(output.next().is_none());
     }
-
 }

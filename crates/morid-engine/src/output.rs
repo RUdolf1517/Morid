@@ -239,7 +239,16 @@ fn yt_dlp_progress(line: &str) -> Option<Progress> {
     let body = line.strip_prefix("[download] ")?.trim_start();
     if body.starts_with("downloaded_bytes:") {
         fn number(line: &str, key: &str) -> Option<f64> {
-            finite_number(line.split_once(key)?.1.split_whitespace().next()?)
+            // The filename is opaque and may itself contain strings like ETA:
+            // or total_bytes:. It must never supply missing numeric fields.
+            let head = match line.split_once("filename:") {
+                Some((head, _)) => head,
+                None => line,
+            };
+            let token = head
+                .split_whitespace()
+                .find_map(|word| word.strip_prefix(key))?;
+            finite_number(token)
         }
         let downloaded = number(body, "downloaded_bytes:");
         let total_bytes = number(body, "total_bytes:")
@@ -446,4 +455,16 @@ mod tests {
             Some(Classified::Output(_))
         ));
     }
+
+    #[test]
+    fn template_filename_cannot_supply_numeric_fields() {
+        let line = "[download] downloaded_bytes:1 filename:ETA:99 total_bytes:500 progress.speed:5";
+        let value = yt_dlp_progress(line).expect("template");
+        assert_eq!(value.eta, None);
+        assert_eq!(value.total_bytes, None);
+        assert_eq!(value.speed, None);
+        assert_eq!(value.percent, None);
+        assert_eq!(value.filename.as_deref(), Some("ETA:99 total_bytes:500 progress.speed:5"));
+    }
+
 }

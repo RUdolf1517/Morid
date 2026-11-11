@@ -18,7 +18,8 @@ impl Files {
             .duration_since(UNIX_EPOCH)
             .map_err(io::Error::other)?
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("morid-cancel-{}-{nonce}", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("morid-cancel-{}-{nonce}", std::process::id()));
         fs::create_dir(&path)?;
         Ok(Self(path))
     }
@@ -59,7 +60,10 @@ fn grandchild_pid(root: &Path) -> io::Result<u32> {
             Err(error) => return Err(error),
         }
         if Instant::now() >= deadline {
-            return Err(io::Error::new(io::ErrorKind::TimedOut, "grandchild readiness"));
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "grandchild readiness",
+            ));
         }
         std::thread::sleep(Duration::from_millis(20));
     }
@@ -72,7 +76,9 @@ fn alive(pid: u32) -> io::Result<bool> {
         .stdin(Stdio::null())
         .output()?;
     if !output.status.success() && output.status.code() != Some(1) {
-        return Err(io::Error::other(String::from_utf8_lossy(&output.stderr).into_owned()));
+        return Err(io::Error::other(
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ));
     }
     let state = String::from_utf8_lossy(&output.stdout);
     // Orphan zombies can remain until init reaps them: they are dead, cannot
@@ -89,18 +95,28 @@ fn alive(pid: u32) -> io::Result<bool> {
         "if (Get-Process -Id {pid} -ErrorAction SilentlyContinue) {{ 'alive' }} else {{ 'gone' }}"
     );
     let output = Command::new(oracle)
-        .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", &script])
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            &script,
+        ])
         .stdin(Stdio::null())
         .output()?;
     if !output.status.success() {
-        return Err(io::Error::other(String::from_utf8_lossy(&output.stderr).into_owned()));
+        return Err(io::Error::other(
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ));
     }
     let text = String::from_utf8_lossy(&output.stdout);
     println!("process table: pid={pid}, state={:?}", text.trim());
     match text.trim() {
         "alive" => Ok(true),
         "gone" => Ok(false),
-        other => Err(io::Error::other(format!("unexpected table response: {other:?}"))),
+        other => Err(io::Error::other(format!(
+            "unexpected table response: {other:?}"
+        ))),
     }
 }
 
@@ -108,7 +124,10 @@ fn wait_dead(pid: u32) -> io::Result<()> {
     let deadline = Instant::now() + Duration::from_secs(15);
     while alive(pid)? {
         if Instant::now() >= deadline {
-            return Err(io::Error::new(io::ErrorKind::TimedOut, format!("live PID {pid}")));
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!("live PID {pid}"),
+            ));
         }
         std::thread::sleep(Duration::from_millis(20));
     }
@@ -127,7 +146,11 @@ fn cancel_path_leaves_no_live_descendants() -> io::Result<()> {
     assert!(!status.success());
     wait_dead(leader)?;
     wait_dead(descendant)?;
-    assert_eq!(child.cancel()?, status, "repeated cancel must not resignal reused PID");
+    assert_eq!(
+        child.cancel()?,
+        status,
+        "repeated cancel must not resignal reused PID"
+    );
     println!("CANCEL_TREE_OK: leader {leader} and grandchild {descendant}: no live descendants");
     fs::remove_dir_all(&files.0)?;
     Ok(())
@@ -140,7 +163,10 @@ fn naive_leader_kill_control_leaves_grandchild_alive() -> io::Result<()> {
     let descendant = grandchild_pid(&files.0)?;
     child.0.kill()?;
     child.0.wait()?;
-    assert!(alive(descendant)?, "fixture must survive a leader-only kill");
+    assert!(
+        alive(descendant)?,
+        "fixture must survive a leader-only kill"
+    );
     println!("NAIVE_KILL_CONTROL_OK: grandchild {descendant} survived leader-only kill");
     fs::write(files.0.join("stop"), b"stop")?;
     wait_dead(descendant)?;

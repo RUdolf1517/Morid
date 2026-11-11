@@ -464,7 +464,9 @@ mod tests {
         assert_eq!(value.total_bytes, None);
         assert_eq!(value.speed, None);
         assert_eq!(value.percent, None);
-        assert_eq!(value.filename.as_deref(), Some("ETA:99 total_bytes:500 progress.speed:5"));
+        assert_eq!(
+            value.filename.as_deref(),
+            Some("ETA:99 total_bytes:500 progress.speed:5")
+        );
     }
-
 }

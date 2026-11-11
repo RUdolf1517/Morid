@@ -164,10 +164,10 @@ fn resume_initial_thread(child: &Child) -> io::Result<()> {
             }
             break;
         }
-        if entry.th32OwnerProcessID == child.id() {
-            if thread_id.replace(entry.th32ThreadID).is_some() {
-                return Err(io::Error::other("suspended child has multiple threads"));
-            }
+        if entry.th32OwnerProcessID == child.id()
+            && thread_id.replace(entry.th32ThreadID).is_some()
+        {
+            return Err(io::Error::other("suspended child has multiple threads"));
         }
         entry.dwSize = std::mem::size_of::<THREADENTRY32>() as u32;
         // SAFETY: same owned snapshot and initialized entry as above; the API

@@ -331,6 +331,8 @@ jobs:
             test.log
             variants.log
             warnings-demo.log
+            windows-race.log
+            cancel-tree.log
             engines.txt
             engines.jsonl
             engines-warnings.txt

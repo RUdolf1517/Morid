@@ -38,8 +38,16 @@ pub struct RunningJob {
 impl RunningJob {
     pub fn start(id: JobId, spec: &SpawnSpec) -> Result<Self, FailedToStart> {
         let process = ManagedChild::spawn(spec)?;
-        let events = vec![Event::JobStarted { job: id, pid: process.id() }];
-        Ok(Self { id, state: JobState::Running, process, events })
+        let events = vec![Event::JobStarted {
+            job: id,
+            pid: process.id(),
+        }];
+        Ok(Self {
+            id,
+            state: JobState::Running,
+            process,
+            events,
+        })
     }
 
     pub fn state(&self) -> JobState {
@@ -72,7 +80,10 @@ fn finish_cancellation(
     }
     observe().map_err(CancelError::Observation)?;
     *state = JobState::Cancelled;
-    events.push(Event::JobFinished { job: id, state: JobState::Cancelled });
+    events.push(Event::JobFinished {
+        job: id,
+        state: JobState::Cancelled,
+    });
     Ok(())
 }
 
@@ -85,15 +96,29 @@ mod tests {
         let mut state = JobState::Running;
         let mut events = Vec::new();
         let failed = finish_cancellation(7, &mut state, &mut events, || {
-            Err(io::Error::new(io::ErrorKind::TimedOut, "descendant still present"))
+            Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "descendant still present",
+            ))
         });
         assert!(matches!(failed, Err(CancelError::Observation(_))));
         assert_eq!(state, JobState::Running);
-        assert!(events.is_empty(), "a failed observation must not publish Cancelled");
+        assert!(
+            events.is_empty(),
+            "a failed observation must not publish Cancelled"
+        );
         finish_cancellation(7, &mut state, &mut events, || Ok(())).expect("death observed");
-        assert_eq!(events, [Event::JobFinished { job: 7, state: JobState::Cancelled }]);
-        finish_cancellation(7, &mut state, &mut events, || panic!("must not repeat cancellation"))
-            .expect("idempotent");
+        assert_eq!(
+            events,
+            [Event::JobFinished {
+                job: 7,
+                state: JobState::Cancelled
+            }]
+        );
+        finish_cancellation(7, &mut state, &mut events, || {
+            panic!("must not repeat cancellation")
+        })
+        .expect("idempotent");
         assert_eq!(events.len(), 1);
     }
 

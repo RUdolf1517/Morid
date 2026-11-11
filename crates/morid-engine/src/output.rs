@@ -155,11 +155,15 @@ fn yt_dlp_progress(line: String) -> Progress {
         .filter(|v| *v > 0.0)
         .or_else(|| number(&line, "total_bytes_estimate:").filter(|v| *v > 0.0));
     Progress {
-        percent: downloaded.zip(total_bytes).map(|(done, total)| 100.0 * done / total),
+        percent: downloaded
+            .zip(total_bytes)
+            .map(|(done, total)| 100.0 * done / total),
         total_bytes,
         speed: number(&line, "progress.speed:"),
         eta: number(&line, "ETA:"),
-        filename: line.split_once("filename:").map(|(_, name)| name.to_owned()),
+        filename: line
+            .split_once("filename:")
+            .map(|(_, name)| name.to_owned()),
         line,
     }
 }
@@ -186,26 +190,42 @@ mod tests {
             include_bytes!("../../../fixtures/streams/yt-dlp/cr.bin").as_slice(),
             include_bytes!("../../../fixtures/streams/yt-dlp/non-utf8.bin").as_slice(),
         ] {
-            for separators in [vec!["\n".into()], vec!["\r\n".into(), "\n".into(), "\r".into()]] {
+            for separators in [
+                vec!["\n".into()],
+                vec!["\r\n".into(), "\n".into(), "\r".into()],
+            ] {
                 let expected = split(fixture, &separators, fixture.len());
                 for size in 1..=fixture.len() {
                     assert_eq!(split(fixture, &separators, size), expected, "chunk {size}");
                 }
             }
         }
-        let lines = split(include_bytes!("../../../fixtures/streams/yt-dlp/partial-line.bin"), &["\n".into()], 1);
+        let lines = split(
+            include_bytes!("../../../fixtures/streams/yt-dlp/partial-line.bin"),
+            &["\n".into()],
+            1,
+        );
         assert!(lines.last().expect("final fragment").ends_with("ETA 00:11"));
-        assert_eq!(split("é\r\n終\r".as_bytes(), &["\r\n".into(), "\r".into()], 1), ["é", "終"]);
+        assert_eq!(
+            split("é\r\n終\r".as_bytes(), &["\r\n".into(), "\r".into()], 1),
+            ["é", "終"]
+        );
     }
 
     #[test]
     fn remove_precedes_skip_and_progress_replaces_output() {
-        let control = Control::parse(&serde_json::json!({"lhs":{"startsWith":"[download]"}})).expect("control");
+        let control = Control::parse(&serde_json::json!({"lhs":{"startsWith":"[download]"}}))
+            .expect("control");
         let mut classifier = Classifier::new(vec!["ESC".into()], vec!["drop".into()], control);
         assert!(classifier.classify("ESCdrop").is_none());
-        assert!(matches!(classifier.classify("log"), Some(Classified::Output(_))));
+        assert!(matches!(
+            classifier.classify("log"),
+            Some(Classified::Output(_))
+        ));
         let line = "ESC[download] downloaded_bytes:50 ETA:3 total_bytes_estimate:200 total_bytes:100 progress.speed:12 filename:Загрузка video.mp4";
-        let Some(Classified::Progress(progress)) = classifier.classify(line) else { panic!("expected progress") };
+        let Some(Classified::Progress(progress)) = classifier.classify(line) else {
+            panic!("expected progress")
+        };
         assert_eq!(progress.percent, Some(50.0));
         assert_eq!(progress.total_bytes, Some(100.0));
         assert_eq!(progress.speed, Some(12.0));
@@ -213,6 +233,13 @@ mod tests {
         assert_eq!(progress.filename.as_deref(), Some("Загрузка video.mp4"));
         assert_eq!(classifier.current_progress.as_ref(), Some(&progress));
         classifier.classify("[download] downloaded_bytes:100 total_bytes:100");
-        assert_eq!(classifier.current_progress.as_ref().expect("replaced").percent, Some(100.0));
+        assert_eq!(
+            classifier
+                .current_progress
+                .as_ref()
+                .expect("replaced")
+                .percent,
+            Some(100.0)
+        );
     }
 }

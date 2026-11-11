@@ -84,6 +84,8 @@ jobs:
           text = Path("test.log").read_text()
           for name in ["cancel_path_leaves_no_live_descendants", "naive_leader_kill_control_leaves_grandchild_alive", "service_cancelled_event_is_followed_by_empty_process_table"]:
               assert f"test {name} ... ok" in text, f"default Test omitted {name}"
+          for name in ["live_interleaving_obeys_acknowledged_write_order", "live_both_pipes_larger_than_os_buffers_are_drained_without_loss", "both_progress_shapes_are_classified"]:
+              assert f"{name} ... ok" in text, f"default Test omitted {name}"
           PYCODE
           cargo test -p morid-ext thin_files_resolve_by_file_name -- --nocapture --test-threads=1 2>&1 | tee variants.log
           cargo test -p morid-cli warning_demo_copy_of_ytdl_patched -- --nocapture --test-threads=1 2>&1 | tee warnings-demo.log
@@ -99,6 +101,13 @@ jobs:
         run: |
           set -euo pipefail
           cargo test --locked -p morid --test service_cancel -- --nocapture 2>&1 | tee service-cancel.log
+
+      - name: Live pipe interleaving and both progress shapes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked -p morid-engine --test live_stream -- --nocapture 2>&1 | tee live-stream.log
+          cargo test --locked -p morid-engine both_progress_shapes_are_classified -- --nocapture 2>&1 | tee progress-shapes.log
 
       - name: Windows preassignment escape property (not criterion 5)
         if: runner.os == 'Windows'
@@ -322,7 +331,7 @@ jobs:
           def emit(title, text):
               text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
               print(f"::notice title={title}::{text}")
-          for name in ["engines.txt", "engines-warnings.txt", "size-report.txt", "phase0-unittest.log", "phase0-verify.log", "variants.log", "warnings-demo.log", "windows-race.log", "cancel-tree.log", "service-cancel.log", "test.log"]:
+          for name in ["engines.txt", "engines-warnings.txt", "size-report.txt", "phase0-unittest.log", "phase0-verify.log", "variants.log", "warnings-demo.log", "windows-race.log", "cancel-tree.log", "service-cancel.log", "live-stream.log", "progress-shapes.log", "test.log"]:
               path = Path(name)
               if path.exists(): emit(name, path.read_text(errors="replace")[-12000:])
           path = Path("test.log")
@@ -348,6 +357,8 @@ jobs:
             windows-race.log
             cancel-tree.log
             service-cancel.log
+            live-stream.log
+            progress-shapes.log
             engines.txt
             engines.jsonl
             engines-warnings.txt

@@ -38,6 +38,24 @@ impl ManagedChild {
         self.child.id()
     }
 
+    /// Take each pipe exactly once and start concurrent draining/classification.
+    /// If reader setup fails, cancel the backend rather than leave it blocked on
+    /// an undrained pipe. Reader threads own their pipe ends, not the child.
+    pub fn take_output(&mut self, rules: crate::stream::Rules) -> io::Result<crate::stream::OutputStream> {
+        if self.child.stdout.is_none() || self.child.stderr.is_none() {
+            return Err(io::Error::other("backend pipes already taken"));
+        }
+        let stdout = self.child.stdout.take().ok_or_else(|| io::Error::other("stdout missing"))?;
+        let stderr = self.child.stderr.take().ok_or_else(|| io::Error::other("stderr missing"))?;
+        match crate::stream::OutputStream::start(stdout, stderr, rules) {
+            Ok(output) => Ok(output),
+            Err(error) => {
+                let _ = self.cancel();
+                Err(error)
+            }
+        }
+    }
+
     /// Signal the contained tree and reap its leader. This returns the leader's
     /// status, NOT a service-level Cancelled event: descendant death must still
     /// be observed before publishing that terminal state. Idempotent after reap;

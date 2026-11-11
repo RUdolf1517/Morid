@@ -107,6 +107,7 @@ pub struct Classifier {
     skip: Vec<String>,
     control: Control,
     pub current_progress: Option<Progress>,
+    destination: Option<String>,
 }
 
 impl Classifier {
@@ -116,56 +117,170 @@ impl Classifier {
             skip,
             control,
             current_progress: None,
+            destination: None,
         }
     }
 
     pub fn classify(&mut self, input: &str) -> Option<Classified> {
-        let mut line = input.to_owned();
+        // ANSI stripping is a reader policy, before extension RemoveText and
+        // classification. It never unescapes textual backslashes or splits CR.
+        let mut line = strip_terminal_escapes(input);
         for text in &self.remove {
             line = line.replace(text, "");
         }
         if self.skip.iter().any(|text| line.contains(text)) {
             return None;
         }
-        if self.control.matches(&line) {
-            let progress = yt_dlp_progress(line);
-            self.current_progress = Some(progress.clone());
-            Some(Classified::Progress(progress))
-        } else {
-            Some(Classified::Output(line))
+        if let Some(name) = line.strip_prefix("[download] Destination: ") {
+            self.destination = Some(name.to_owned());
         }
+        if self.control.matches(&line) {
+            if let Some(mut progress) = yt_dlp_progress(&line) {
+                if progress.filename.is_none() {
+                    progress.filename.clone_from(&self.destination);
+                }
+                self.current_progress = Some(progress.clone());
+                return Some(Classified::Progress(progress));
+            }
+        }
+        Some(Classified::Output(line))
     }
 }
 
-// Phase 3's named yt-dlp --progress-template contract, not a generic guess at
-// human console text. Unknown/NA values remain absent; filename may contain spaces.
-fn yt_dlp_progress(line: String) -> Progress {
-    fn number(line: &str, key: &str) -> Option<f64> {
-        let value = line
-            .split_once(key)?
-            .1
-            .split_whitespace()
-            .next()?
-            .parse::<f64>()
-            .ok()?;
-        value.is_finite().then_some(value)
+/// Strip CSI (including erase-line/color), OSC and ST-terminated terminal
+/// strings. Work on characters so non-ASCII filenames are never byte-corrupted.
+/// Unterminated escape tails are dropped; printable text outside them survives.
+fn strip_terminal_escapes(input: &str) -> String {
+    let mut output = String::new();
+    let mut chars = input.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch != '\u{1b}' {
+            output.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('[') => {
+                for next in chars.by_ref() {
+                    if ('\u{40}'..='\u{7e}').contains(&next) {
+                        break;
+                    }
+                }
+            }
+            Some(kind @ (']' | 'P' | 'X' | '^' | '_')) => {
+                while let Some(next) = chars.next() {
+                    if (kind == ']' && next == '\u{7}')
+                        || (next == '\u{1b}' && chars.next_if_eq(&'\\').is_some())
+                    {
+                        break;
+                    }
+                }
+            }
+            Some(ch) if (' '..='/').contains(&ch) => {
+                while chars.peek().is_some_and(|next| (' '..='/').contains(next)) {
+                    chars.next();
+                }
+                if chars.peek().is_some_and(|next| ('0'..='~').contains(next)) {
+                    chars.next();
+                }
+            }
+            Some(_) | None => {}
+        }
     }
-    let downloaded = number(&line, "downloaded_bytes:");
-    let total_bytes = number(&line, "total_bytes:")
-        .filter(|v| *v > 0.0)
-        .or_else(|| number(&line, "total_bytes_estimate:").filter(|v| *v > 0.0));
-    Progress {
-        percent: downloaded
-            .zip(total_bytes)
-            .map(|(done, total)| 100.0 * done / total),
+    output
+}
+
+fn finite_number(input: &str) -> Option<f64> {
+    let number = input.parse::<f64>().ok()?;
+    (number.is_finite() && number >= 0.0).then_some(number)
+}
+
+fn byte_quantity(input: &str) -> Option<f64> {
+    let input = input.trim_start_matches('~').trim_end_matches("/s");
+    let boundary = input.find(|ch: char| !ch.is_ascii_digit() && ch != '.')
+        .unwrap_or(input.len());
+    let value = finite_number(&input[..boundary])?;
+    let factor = match &input[boundary..] {
+        "" | "B" => 1.0,
+        "KiB" => 1024.0,
+        "MiB" => 1024.0_f64.powi(2),
+        "GiB" => 1024.0_f64.powi(3),
+        "TiB" => 1024.0_f64.powi(4),
+        "PiB" => 1024.0_f64.powi(5),
+        "kB" | "KB" => 1000.0,
+        "MB" => 1000.0_f64.powi(2),
+        "GB" => 1000.0_f64.powi(3),
+        "TB" => 1000.0_f64.powi(4),
+        _ => return None,
+    };
+    let bytes = value * factor;
+    bytes.is_finite().then_some(bytes)
+}
+
+fn clock_eta(input: &str) -> Option<f64> {
+    let fields = input.split(':').collect::<Vec<_>>();
+    if !(2..=3).contains(&fields.len()) {
+        return None;
+    }
+    let mut seconds = 0_u64;
+    for (index, field) in fields.into_iter().enumerate() {
+        let value = field.parse::<u64>().ok()?;
+        if index > 0 && value >= 60 {
+            return None;
+        }
+        seconds = seconds.checked_mul(60)?.checked_add(value)?;
+    }
+    Some(seconds as f64)
+}
+
+/// Only the two named yt-dlp shapes are decoded in Phase 3. A control predicate
+/// alone is not sufficient: unrecognized text remains Output, not empty Progress.
+fn yt_dlp_progress(line: &str) -> Option<Progress> {
+    let body = line.strip_prefix("[download] ")?.trim_start();
+    if body.starts_with("downloaded_bytes:") {
+        fn number(line: &str, key: &str) -> Option<f64> {
+            finite_number(line.split_once(key)?.1.split_whitespace().next()?)
+        }
+        let downloaded = number(body, "downloaded_bytes:");
+        let total_bytes = number(body, "total_bytes:")
+            .filter(|value| *value > 0.0)
+            .or_else(|| number(body, "total_bytes_estimate:").filter(|value| *value > 0.0));
+        let speed = number(body, "progress.speed:");
+        let eta = number(body, "ETA:");
+        let filename = body.split_once("filename:").map(|(_, name)| name.to_owned())
+            .filter(|name| !name.is_empty() && name != "NA" && name != "Unknown");
+        if downloaded.is_none() && total_bytes.is_none() && speed.is_none() && eta.is_none() && filename.is_none() {
+            return None;
+        }
+        return Some(Progress {
+            percent: downloaded.zip(total_bytes).map(|(done, total)| 100.0 * done / total).filter(|value| value.is_finite()),
+            total_bytes,
+            speed,
+            eta,
+            filename,
+            line: line.to_owned(),
+        });
+    }
+    let words = body.split_whitespace().collect::<Vec<_>>();
+    let percent = finite_number(words.first()?.strip_suffix('%')?)?;
+    if words.get(1) != Some(&"of") {
+        return None;
+    }
+    let size_index = if words.get(2) == Some(&"~") { 3 } else { 2 };
+    let size = words.get(size_index)?;
+    let total_bytes = byte_quantity(size);
+    if total_bytes.is_none() && !matches!(*size, "Unknown" | "NA") {
+        return None;
+    }
+    let after = |marker| words.iter().position(|word| *word == marker)
+        .and_then(|index| words.get(index + 1).copied());
+    Some(Progress {
+        percent: Some(percent),
         total_bytes,
-        speed: number(&line, "progress.speed:"),
-        eta: number(&line, "ETA:"),
-        filename: line
-            .split_once("filename:")
-            .map(|(_, name)| name.to_owned()),
-        line,
-    }
+        speed: after("at").and_then(byte_quantity),
+        eta: after("ETA").and_then(clock_eta),
+        filename: None,
+        line: line.to_owned(),
+    })
 }
 
 #[cfg(test)]
@@ -242,4 +357,59 @@ mod tests {
             Some(100.0)
         );
     }
+    #[test]
+    fn both_progress_shapes_are_classified() {
+        // Actual progress.txt has console progress only; prepend the template
+        // contract sample without modifying any captured fixture bytes.
+        let template = "[download] downloaded_bytes:1024 ETA:86 total_bytes_estimate:NA total_bytes:3006209 progress.speed:34781.85 filename:Café movie.mp4\n";
+        let mut mixed = template.as_bytes().to_vec();
+        mixed.extend_from_slice(include_bytes!("../../../fixtures/streams/yt-dlp/progress.txt"));
+        for size in 1..=mixed.len() {
+            let control = Control::parse(&serde_json::json!({
+                "Connector":"&&", "lhs":{"startsWith":"[download]"}, "rhs":{"contains":"ETA"}
+            })).expect("control");
+            let mut classifier = Classifier::new(vec![], vec![], control);
+            let mut progress = Vec::new();
+            for line in split(&mixed, &["\r".into(), "\n".into()], size) {
+                if let Some(event) = classifier.classify(&line) {
+                    match event {
+                        Classified::Progress(value) => progress.push(value),
+                        Classified::Output(text) => assert!(!text.contains("ETA"), "progress leaked to output: {text}"),
+                    }
+                }
+            }
+            assert_eq!(progress.len(), 6);
+            assert_eq!(progress[0].eta, Some(86.0));
+            assert_eq!(progress[0].speed, Some(34781.85));
+            assert_eq!(progress[0].filename.as_deref(), Some("Café movie.mp4"));
+            assert!((progress[0].percent.expect("template percent") - 1024.0 / 3006209.0 * 100.0).abs() < 1e-9);
+            for (item, percent) in progress[1..].iter().zip([0.0, 25.0, 50.0, 100.0, 100.0]) {
+                assert_eq!(item.percent, Some(percent));
+                assert_eq!(item.total_bytes, Some(2097152.0));
+                assert_eq!(item.filename.as_deref(), Some("fixture.mp4"));
+                assert!(!item.line.contains('\u{1b}'));
+            }
+            assert_eq!(progress[1].speed, None);
+            assert_eq!(progress[1].eta, None);
+            assert_eq!(progress[2].speed, Some(4.94 * 1024.0 * 1024.0));
+            assert_eq!(progress[2].eta, Some(0.0));
+            assert_eq!(classifier.current_progress.as_ref(), progress.last());
+        }
+    }
+
+    #[test]
+    fn ansi_unknowns_and_non_progress_text_are_not_guessed() {
+        let control = Control::parse(&serde_json::json!({"lhs":{"startsWith":"[download]"}})).expect("control");
+        let mut classifier = Classifier::new(vec![], vec![], control);
+        let Some(Classified::Progress(value)) = classifier.classify(
+            "\x1b]0;window title\x07\x1b[31m[download] 75% of ~1.5GiB at 3MB/s ETA 01:02:03\x1b[0m"
+        ) else { panic!("console progress") };
+        assert_eq!(value.total_bytes, Some(1.5 * 1024.0_f64.powi(3)));
+        assert_eq!(value.speed, Some(3000000.0));
+        assert_eq!(value.eta, Some(3723.0));
+        assert!(matches!(classifier.classify("[download] unrelated ETA note"), Some(Classified::Output(_))));
+        assert!(matches!(classifier.classify("[download] NaN% of 2MiB ETA 00:00"), Some(Classified::Output(_))));
+        assert!(matches!(classifier.classify("[download] Destination: Café.mp4"), Some(Classified::Output(_))));
+    }
+
 }

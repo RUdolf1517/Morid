@@ -9,6 +9,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 struct Files(PathBuf);
@@ -18,8 +19,10 @@ impl Files {
             .duration_since(UNIX_EPOCH)
             .map_err(io::Error::other)?
             .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("morid-cancel-{}-{nonce}", std::process::id()));
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let sequence = NEXT.fetch_add(1, Ordering::Relaxed);
+        let name = format!("morid-cancel-{}-{nonce}-{sequence}", std::process::id());
+        let path = std::env::temp_dir().join(name);
         fs::create_dir(&path)?;
         Ok(Self(path))
     }

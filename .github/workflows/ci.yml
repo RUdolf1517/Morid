@@ -57,8 +57,10 @@ jobs:
             python3 - <<'PYCODE'
           from pathlib import Path
           text = Path("format.log").read_text()
-          escaped = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-          print("::error title=rustfmt diff::" + escaped)
+          import re
+          for index, block in enumerate(re.split(r"(?=Diff in )", text)):
+              escaped = block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::error title=rustfmt diff {index}::" + escaped)
           PYCODE
             exit 1
           fi

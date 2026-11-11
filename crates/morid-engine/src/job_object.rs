@@ -3,11 +3,11 @@
 
 use std::io;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
-use std::process::Child;
 use std::os::windows::process::CommandExt;
+use std::process::Child;
 use windows_sys::Win32::Foundation::{ERROR_NO_MORE_FILES, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Thread32First, Thread32Next, THREADENTRY32, TH32CS_SNAPTHREAD,
+    CreateToolhelp32Snapshot, Thread32First, Thread32Next, TH32CS_SNAPTHREAD, THREADENTRY32,
 };
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
@@ -85,10 +85,14 @@ impl Job {
         let mut command = spec.command();
         command.creation_flags(CREATE_SUSPENDED);
         let mut child = command.spawn()?;
-        let prepared = self.assign(&child).and_then(|()| resume_initial_thread(&child));
+        let prepared = self
+            .assign(&child)
+            .and_then(|()| resume_initial_thread(&child));
         if let Err(error) = prepared {
             if let Err(cleanup) = child.kill().and_then(|()| child.wait().map(|_| ())) {
-                return Err(io::Error::other(format!("{error}; suspended-child cleanup: {cleanup}")));
+                return Err(io::Error::other(format!(
+                    "{error}; suspended-child cleanup: {cleanup}"
+                )));
             }
             return Err(error);
         }
@@ -185,7 +189,9 @@ fn resume_initial_thread(child: &Child) -> io::Result<()> {
     // after opening, so a stale snapshot/recycled thread id cannot resume a stranger.
     let owner = unsafe { GetProcessIdOfThread(thread.as_raw_handle()) };
     if owner != child.id() {
-        return Err(io::Error::other("snapshot thread no longer belongs to child"));
+        return Err(io::Error::other(
+            "snapshot thread no longer belongs to child",
+        ));
     }
     // SAFETY: the owned handle pins the verified child's thread; the child was
     // created suspended and assigned to this job before reaching this call.

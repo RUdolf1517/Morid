@@ -99,7 +99,7 @@ pub struct OutputStream {
     stdout: Splitter,
     stderr: Splitter,
     classifier: Classifier,
-    pending: VecDeque<Result<OutputEvent, ReadFailure>>,
+    pending: VecDeque<Result<(Stream, String), ReadFailure>>,
     sequence: u64,
     disconnected: bool,
 }
@@ -153,14 +153,7 @@ impl OutputStream {
             None => splitter.finish(),
         };
         for line in lines {
-            if let Some(data) = self.classifier.classify(&line) {
-                self.pending.push_back(Ok(OutputEvent {
-                    sequence: self.sequence,
-                    stream,
-                    data,
-                }));
-                self.sequence += 1;
-            }
+            self.pending.push_back(Ok((stream, line)));
         }
         // Flush bytes already received before reporting the read failure.
         if let Some(source) = failure {
@@ -174,8 +167,18 @@ impl Iterator for OutputStream {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(event) = self.pending.pop_front() {
-                return Some(event);
+            if let Some(record) = self.pending.pop_front() {
+                match record {
+                    Ok((stream, line)) => {
+                        if let Some(data) = self.classifier.classify(&line) {
+                            let event = OutputEvent { sequence: self.sequence, stream, data };
+                            self.sequence += 1;
+                            return Some(Ok(event));
+                        }
+                    }
+                    Err(error) => return Some(Err(error)),
+                }
+                continue;
             }
             if self.disconnected {
                 return None;
@@ -241,4 +244,24 @@ mod tests {
         assert!(out[1].is_err());
         assert!(events.iter().any(|item| matches!(item, Ok(OutputEvent { stream: Stream::Stderr, data: Classified::Output(text), .. }) if text == "other")));
     }
+
+    #[test]
+    fn buffered_progress_tracks_emitted_event_not_future_lines() {
+        let rules = Rules {
+            split_lines_by: vec!["\n".into()],
+            remove_text: vec![],
+            skip_line_with_text: vec![],
+            control: Control::parse(&serde_json::json!({"lhs":{"startsWith":"[download]"}})).expect("control"),
+        };
+        let bytes = b"[download] downloaded_bytes:25 total_bytes:100\n[download] downloaded_bytes:50 total_bytes:100\n";
+        let mut output = OutputStream::start(Cursor::new(bytes), Cursor::new(b""), rules).expect("readers");
+        for percent in [25.0, 50.0] {
+            let event = output.next().expect("progress event").expect("read");
+            let Classified::Progress(progress) = event.data else { panic!("progress") };
+            assert_eq!(progress.percent, Some(percent));
+            assert_eq!(output.current_progress(), Some(&progress));
+        }
+        assert!(output.next().is_none());
+    }
+
 }

@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -77,6 +77,14 @@ jobs:
         run: |
           set -euo pipefail
           cargo test --locked --workspace --all-features 2>&1 | tee test.log
+          # These are ordinary integration tests, not exclusive to the optional
+          # verbose acceptance step. Removing that step must not remove coverage.
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("test.log").read_text()
+          for name in ["cancel_path_leaves_no_live_descendants", "naive_leader_kill_control_leaves_grandchild_alive"]:
+              assert f"test {name} ... ok" in text, f"default Test omitted {name}"
+          PYCODE
           cargo test -p morid-ext thin_files_resolve_by_file_name -- --nocapture --test-threads=1 2>&1 | tee variants.log
           cargo test -p morid-cli warning_demo_copy_of_ytdl_patched -- --nocapture --test-threads=1 2>&1 | tee warnings-demo.log
 

@@ -3,6 +3,7 @@
 use crate::spawn::{FailedToStart, SpawnSpec};
 use std::io;
 use std::process::{Child, ExitStatus};
+use std::time::{Duration, Instant};
 
 pub struct ManagedChild {
     child: Child,
@@ -53,6 +54,29 @@ impl ManagedChild {
         self.reaped = Some(status);
         Ok(status)
     }
+
+    /// Unlike cancel(), success includes observed tree completion. Unix is
+    /// conservative: even a dead orphan zombie prevents confirmation until its
+    /// reaper removes it. Timeout/error never means Cancelled; callers can retry
+    /// the observation without resending a signal to a reaped leader's id.
+    pub fn cancel_observed(&mut self, timeout: Duration) -> io::Result<ExitStatus> {
+        let status = self.cancel()?;
+        let started = Instant::now();
+        loop {
+            #[cfg(unix)]
+            let empty = crate::process_group::absent_after_kill(self.child.id())?;
+            #[cfg(windows)]
+            let empty = self.job.is_empty()?;
+            if empty {
+                return Ok(status);
+            }
+            if started.elapsed() >= timeout {
+                return Err(io::Error::new(io::ErrorKind::TimedOut, "tree death not observed"));
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
 }
 
 impl Drop for ManagedChild {

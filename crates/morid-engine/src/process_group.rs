@@ -64,6 +64,28 @@ impl<'child> ProcessGroup<'child> {
     }
 }
 
+/// Observation only, after the single group-kill request and leader reap. A
+/// recycled id may conservatively delay confirmation but is NEVER signalled.
+/// ESRCH proves the original group has no remaining members (including zombies).
+pub(crate) fn absent_after_kill(id: u32) -> io::Result<bool> {
+    let id = libc::pid_t::try_from(id)
+        .ok()
+        .filter(|id| *id > 0)
+        .ok_or_else(|| io::Error::other("invalid process group id"))?;
+    // SAFETY: id is a positive representable pid_t, signal zero is a read-only
+    // existence probe, and no pointers are passed. PID reuse cannot send a signal.
+    let result = unsafe { libc::killpg(id, 0) };
+    if result == 0 {
+        return Ok(false);
+    }
+    let error = io::Error::last_os_error();
+    match error.raw_os_error() {
+        Some(libc::ESRCH) => Ok(true),
+        Some(libc::EPERM) => Ok(false),
+        _ => Err(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -10,8 +10,8 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Thread32First, Thread32Next, TH32CS_SNAPTHREAD, THREADENTRY32,
 };
 use windows_sys::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-    SetInformationJobObject, TerminateJobObject, JOBOBJECT_BASIC_LIMIT_INFORMATION,
+    AssignProcessToJobObject, CreateJobObjectW, JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation, QueryInformationJobObject,
+    SetInformationJobObject, TerminateJobObject, JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_BASIC_LIMIT_INFORMATION,
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
 };
 use windows_sys::Win32::System::Threading::{
@@ -115,6 +115,37 @@ impl Job {
         } else {
             Ok(())
         }
+    }
+
+    /// Query kernel accounting, not the leader's exit code. A Job has zero
+    /// active processes only after all its contained processes have terminated.
+    pub fn is_empty(&self) -> io::Result<bool> {
+        let mut accounting = JOBOBJECT_BASIC_ACCOUNTING_INFORMATION {
+            TotalUserTime: 0,
+            TotalKernelTime: 0,
+            ThisPeriodTotalUserTime: 0,
+            ThisPeriodTotalKernelTime: 0,
+            TotalPageFaultCount: 0,
+            TotalProcesses: 0,
+            ActiveProcesses: 0,
+            TotalTerminatedProcesses: 0,
+        };
+        // SAFETY: the job is uniquely owned and live; the writable buffer is a
+        // fully initialized, correctly aligned struct for this information class.
+        // The size matches its type; the synchronous call retains no pointers.
+        let result = unsafe {
+            QueryInformationJobObject(
+                self.handle.as_raw_handle(),
+                JobObjectBasicAccountingInformation,
+                std::ptr::from_mut(&mut accounting).cast(),
+                std::mem::size_of_val(&accounting) as u32,
+                std::ptr::null_mut(),
+            )
+        };
+        if result == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(accounting.ActiveProcesses == 0)
     }
 
     /// Request termination. Completion and descendant absence must be checked

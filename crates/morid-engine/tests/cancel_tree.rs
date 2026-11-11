@@ -145,7 +145,7 @@ fn cancel_path_leaves_no_live_descendants() -> io::Result<()> {
     let descendant = grandchild_pid(&files.0)?;
     assert!(alive(leader)?);
     assert!(alive(descendant)?);
-    let status = child.cancel()?;
+    let status = child.cancel_observed(Duration::from_secs(15))?;
     assert!(!status.success());
     wait_dead(leader)?;
     wait_dead(descendant)?;

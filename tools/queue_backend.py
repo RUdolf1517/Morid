@@ -6,6 +6,10 @@ import subprocess
 import sys
 import time
 
+# Byte-identical framing on Windows too: the queue rules deliberately select LF,
+# so Python's default CRLF translation must not change the fixture protocol.
+sys.stdout.reconfigure(newline="\n")
+sys.stderr.reconfigure(newline="\n")
 mode, folder, job = sys.argv[1:]
 root = Path(folder)
 signal.signal(signal.SIGTERM, signal.SIG_IGN)

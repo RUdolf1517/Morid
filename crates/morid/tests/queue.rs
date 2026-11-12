@@ -22,7 +22,7 @@ fn fifo_queue_limit_and_terminal_output_order() {
                 cwd: root.join(job), env: vec![],
             },
             rules: Rules { split_lines_by: vec!["\n".into()], remove_text: vec![],
-                skip_line_with_text: vec![], control: Default::default() },
+                skip_line_with_text: vec![], control: morid_ext::control::Control::parse(&serde_json::json!({})).expect("control") },
         }).expect("enqueue"));
     }
     let deadline = Instant::now() + Duration::from_secs(20);

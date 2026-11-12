@@ -2225,6 +2225,7 @@ dependencies = [
  "morid-ext",
  "morid-net",
  "morid-store",
+ "serde_json",
 ]
 
 [[package]]

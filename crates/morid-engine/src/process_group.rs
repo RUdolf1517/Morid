@@ -121,3 +121,29 @@ mod tests {
         }
     }
 }
+
+/// Observe exit without reaping: the leader's PID must stay reserved until the
+/// final group signal has been sent. Child::try_wait would reap too early here.
+pub(crate) fn leader_exited(child: &Child) -> io::Result<bool> {
+    let mut info = std::mem::MaybeUninit::<libc::siginfo_t>::zeroed();
+    // SAFETY: siginfo_t is a C aggregate of integers, pointers and union storage;
+    // all-zero bytes are a valid initialized representation. The aligned local
+    // buffer remains live for waitid, which writes synchronously. P_PID selects
+    // our owned unreaped child, WNOWAIT explicitly retains the PID reservation.
+    // si_pid is read only after successful waitid; an initialized zero denotes
+    // no event with WNOHANG, including systems that leave that buffer unchanged.
+    unsafe {
+        let info = info.assume_init_mut();
+        let result = libc::waitid(
+            libc::P_PID,
+            child.id() as libc::id_t,
+            info,
+            libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+        );
+        if result == 0 {
+            Ok(info.si_pid() != 0)
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    }
+}

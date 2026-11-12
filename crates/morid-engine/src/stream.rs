@@ -162,44 +162,78 @@ impl OutputStream {
     }
 }
 
+pub enum OutputPoll {
+    Item(Result<OutputEvent, ReadFailure>),
+    Pending,
+    End,
+}
+
+impl OutputStream {
+    fn pop_event(&mut self) -> Option<Result<OutputEvent, ReadFailure>> {
+        while let Some(record) = self.pending.pop_front() {
+            match record {
+                Ok((stream, line)) => {
+                    if let Some(data) = self.classifier.classify(&line) {
+                        let event = OutputEvent { sequence: self.sequence, stream, data };
+                        self.sequence += 1;
+                        return Some(Ok(event));
+                    }
+                }
+                Err(error) => return Some(Err(error)),
+            }
+        }
+        None
+    }
+
+    fn disconnect(&mut self) {
+        self.disconnected = true;
+        for (stream, handle) in self.readers.drain(..) {
+            if handle.join().is_err() {
+                self.pending.push_back(Err(ReadFailure {
+                    stream, source: io::Error::other("pipe reader panicked"),
+                }));
+            }
+        }
+    }
+
+    /// Bounded work per poll: an infinite unterminated/filtered stream must not
+    /// starve queue controls or other jobs. Pending means yield this service turn.
+    pub fn poll_next(&mut self) -> OutputPoll {
+        for _ in 0..64 {
+            if let Some(event) = self.pop_event() {
+                return OutputPoll::Item(event);
+            }
+            if self.disconnected {
+                return OutputPoll::End;
+            }
+            match self.receiver.try_recv() {
+                Ok(record) => self.accept(record),
+                Err(mpsc::TryRecvError::Empty) => return OutputPoll::Pending,
+                Err(mpsc::TryRecvError::Disconnected) => self.disconnect(),
+            }
+        }
+        if let Some(event) = self.pop_event() {
+            OutputPoll::Item(event)
+        } else if self.disconnected {
+            OutputPoll::End
+        } else {
+            OutputPoll::Pending
+        }
+    }
+}
+
 impl Iterator for OutputStream {
     type Item = Result<OutputEvent, ReadFailure>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(record) = self.pending.pop_front() {
-                match record {
-                    Ok((stream, line)) => {
-                        if let Some(data) = self.classifier.classify(&line) {
-                            let event = OutputEvent {
-                                sequence: self.sequence,
-                                stream,
-                                data,
-                            };
-                            self.sequence += 1;
-                            return Some(Ok(event));
-                        }
-                    }
-                    Err(error) => return Some(Err(error)),
-                }
-                continue;
-            }
-            if self.disconnected {
-                return None;
-            }
-            match self.receiver.recv() {
-                Ok(record) => self.accept(record),
-                Err(_) => {
-                    self.disconnected = true;
-                    for (stream, handle) in self.readers.drain(..) {
-                        if handle.join().is_err() {
-                            self.pending.push_back(Err(ReadFailure {
-                                stream,
-                                source: io::Error::other("pipe reader panicked"),
-                            }));
-                        }
-                    }
-                }
+            match self.poll_next() {
+                OutputPoll::Item(event) => return Some(event),
+                OutputPoll::End => return None,
+                OutputPoll::Pending => match self.receiver.recv() {
+                    Ok(record) => self.accept(record),
+                    Err(_) => self.disconnect(),
+                },
             }
         }
     }

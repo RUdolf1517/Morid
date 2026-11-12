@@ -84,7 +84,7 @@ jobs:
           text = Path("test.log").read_text()
           for name in ["cancel_path_leaves_no_live_descendants", "naive_leader_kill_control_leaves_grandchild_alive", "service_cancelled_event_is_followed_by_empty_process_table"]:
               assert f"test {name} ... ok" in text, f"default Test omitted {name}"
-          for name in ["live_interleaving_obeys_acknowledged_write_order", "live_both_pipes_larger_than_os_buffers_are_drained_without_loss", "both_progress_shapes_are_classified"]:
+          for name in ["live_interleaving_obeys_acknowledged_write_order", "live_both_pipes_larger_than_os_buffers_are_drained_without_loss", "both_progress_shapes_are_classified", "progress_txt_cr_separators_produce_five_ordered_progress_events"]:
               assert f"{name} ... ok" in text, f"default Test omitted {name}"
           PYCODE
           cargo test -p morid-ext thin_files_resolve_by_file_name -- --nocapture --test-threads=1 2>&1 | tee variants.log

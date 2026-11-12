@@ -3,6 +3,10 @@
 use morid_engine::managed::ManagedChild;
 use morid_engine::spawn::{FailedToStart, SpawnSpec};
 use std::io;
+use std::path::PathBuf;
+use morid_engine::managed::ExitState;
+use morid_engine::output::Progress;
+use morid_engine::stream::Stream;
 use std::time::Duration;
 
 pub type JobId = u64;
@@ -16,10 +20,45 @@ pub enum JobState {
     Cancelled,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Event {
+    JobQueued { job: JobId },
     JobStarted { job: JobId, pid: u32 },
+    JobOutput { job: JobId, stream: Stream, line: String },
+    JobProgress { job: JobId, progress: Progress },
+    JobExited { job: JobId, exit: ExitState },
+    Notice { job: JobId, key: &'static str, args: std::collections::BTreeMap<String, String> },
+    JobError { job: JobId, failure: JobFailure },
     JobFinished { job: JobId, state: JobState },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JobFailure {
+    Destination { path: PathBuf, detail: String },
+    FailedToStart { program: PathBuf, detail: String },
+    Output { stream: Option<Stream>, detail: String },
+    BackendExit { code: Option<i32>, signal: Option<i32> },
+    Observation { detail: String },
+}
+
+impl JobFailure {
+    pub fn notice(&self, job: JobId) -> Event {
+        let key = match self {
+            Self::Destination { .. } => "job.destination_failed",
+            Self::FailedToStart { .. } => "job.failed_to_start",
+            Self::Output { .. } => "job.output_failed",
+            Self::BackendExit { .. } => "job.backend_exit",
+            Self::Observation { .. } => "job.observation_failed",
+        };
+        // Technical details are arguments, never the translated Notice text.
+        let mut args = std::collections::BTreeMap::new();
+        args.insert("detail".into(), format!("{self:?}"));
+        Event::Notice { job, key, args }
+    }
+
+    pub fn exit_code(&self) -> u8 {
+        if matches!(self, Self::Destination { .. }) { 6 } else { 3 }
+    }
 }
 
 #[derive(Debug)]

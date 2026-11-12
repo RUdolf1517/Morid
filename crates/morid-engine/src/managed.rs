@@ -8,6 +8,9 @@ use std::time::{Duration, Instant};
 pub struct ManagedChild {
     child: Child,
     reaped: Option<ExitStatus>,
+    signalled: bool,
+    cancelled: bool,
+    started: Instant,
     #[cfg(windows)]
     job: crate::job_object::Job,
 }
@@ -29,6 +32,9 @@ impl ManagedChild {
         Ok(Self {
             child,
             reaped: None,
+            signalled: false,
+            cancelled: false,
+            started: Instant::now(),
             #[cfg(windows)]
             job,
         })
@@ -75,13 +81,77 @@ impl ManagedChild {
         if let Some(status) = self.reaped {
             return Ok(status);
         }
-        #[cfg(unix)]
-        crate::process_group::ProcessGroup::for_child(&self.child).kill_tree()?;
-        #[cfg(windows)]
-        self.job.terminate(1)?;
+        self.request_cancel()?;
         let status = self.child.wait()?;
         self.reaped = Some(status);
         Ok(status)
+    }
+
+    fn signal_tree(&mut self) -> io::Result<()> {
+        if !self.signalled {
+            #[cfg(unix)]
+            crate::process_group::ProcessGroup::for_child(&self.child).kill_tree()?;
+            #[cfg(windows)]
+            self.job.terminate(1)?;
+            self.signalled = true;
+        }
+        Ok(())
+    }
+
+    pub fn request_cancel(&mut self) -> io::Result<()> {
+        if self.reaped.is_none() {
+            self.signal_tree()?;
+        }
+        self.cancelled = true;
+        Ok(())
+    }
+
+    /// Cleanup after an I/O failure, without labelling it user cancellation.
+    pub fn request_abort(&mut self) -> io::Result<()> {
+        if self.reaped.is_none() {
+            self.signal_tree()?;
+        }
+        Ok(())
+    }
+
+    /// Nonblocking lifecycle observation, retaining the Unix PID until cleanup.
+    /// Natural leader exit also kills leftover descendants; pipes can then drain
+    /// to EOF rather than hang forever on a background child inheriting them.
+    pub fn poll_finished(&mut self) -> io::Result<Option<ExitState>> {
+        if self.reaped.is_none() {
+            #[cfg(unix)]
+            if crate::process_group::leader_exited(&self.child)? {
+                self.signal_tree()?;
+                self.reaped = Some(self.child.wait()?);
+            }
+            #[cfg(windows)]
+            if let Some(status) = self.child.try_wait()? {
+                // Windows uses the owned Job, not a numeric PID signal target.
+                self.reaped = Some(status);
+                self.signal_tree()?;
+            }
+        }
+        let Some(status) = self.reaped else { return Ok(None) };
+        #[cfg(windows)]
+        self.signal_tree()?;
+        #[cfg(unix)]
+        let empty = crate::process_group::absent_after_kill(self.child.id())?;
+        #[cfg(windows)]
+        let empty = self.job.is_empty()?;
+        if !empty {
+            return Ok(None);
+        }
+        #[cfg(unix)]
+        let signal = {
+            use std::os::unix::process::ExitStatusExt;
+            status.signal()
+        };
+        #[cfg(windows)]
+        let signal = None;
+        Ok(Some(ExitState {
+            code: status.code(), signal, cancelled: self.cancelled,
+            duration: self.started.elapsed(),
+        }))
     }
 
     /// Unlike cancel(), success includes observed tree completion. Unix is
@@ -118,4 +188,13 @@ impl Drop for ManagedChild {
         // Windows Job also closes here, killing any surviving members even if
         // an explicit termination failed. No inheritable duplicate is created.
     }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExitState {
+    pub code: Option<i32>,
+    pub signal: Option<i32>,
+    pub cancelled: bool,
+    pub duration: Duration,
 }

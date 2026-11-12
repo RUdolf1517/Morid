@@ -381,12 +381,28 @@ mod tests {
             Some(100.0)
         );
     }
+    /// Console bytes are captured in progress.txt and remain unchanged. The
+    /// template sample is constructed by rendering the --progress-template argv
+    /// from s01: there is no captured template-enabled stream in the fixtures.
+    /// Recording that missing evidence belongs to a separate Phase 0 round.
     #[test]
     fn both_progress_shapes_are_classified() {
-        // Actual progress.txt has console progress only; prepend the template
-        // contract sample without modifying any captured fixture bytes.
-        let template = "[download] downloaded_bytes:1024 ETA:86 total_bytes_estimate:NA total_bytes:3006209 progress.speed:34781.85 filename:Café movie.mp4\n";
-        let mut mixed = template.as_bytes().to_vec();
+        let argv: Vec<String> = serde_json::from_str(include_str!(
+            "../../../fixtures/scenarios/s01-plain-yt-dlp/argv.json"
+        )).expect("s01 argv");
+        let template = argv.windows(2).find(|pair| pair[0] == "--progress-template")
+            .expect("s01 progress template")[1].strip_prefix("download:")
+            .expect("yt-dlp download template").to_owned();
+        let mut rendered = template;
+        for (field, value) in [
+            ("downloaded_bytes", "1024"), ("eta", "86"),
+            ("total_bytes_estimate", "NA"), ("total_bytes", "3006209"),
+            ("speed", "34781.85"), ("filename", "Café movie.mp4"),
+        ] {
+            rendered = rendered.replace(&format!("%(progress.{field})s"), value);
+        }
+        assert!(!rendered.contains("%("), "s01 added an unrendered placeholder");
+        let mut mixed = format!("{rendered}\n").into_bytes();
         mixed.extend_from_slice(include_bytes!(
             "../../../fixtures/streams/yt-dlp/progress.txt"
         ));
@@ -469,4 +485,30 @@ mod tests {
             Some("ETA:99 total_bytes:500 progress.speed:5")
         );
     }
+
+    /// In progress.txt the five ETA updates are separated only by CR. Presence
+    /// of some progress is insufficient: require the complete captured sequence.
+    #[test]
+    fn progress_txt_cr_separators_produce_five_ordered_progress_events() {
+        let fixture = include_bytes!("../../../fixtures/streams/yt-dlp/progress.txt");
+        assert_eq!(fixture.iter().filter(|byte| **byte == b'\r').count(), 7);
+        for chunk in 1..=fixture.len() {
+            let control = Control::parse(&serde_json::json!({
+                "Connector":"&&", "lhs":{"startsWith":"[download]"}, "rhs":{"contains":"ETA"}
+            })).expect("control");
+            let mut classifier = Classifier::new(vec![], vec![], control);
+            let percentages = split(fixture, &["\r".into(), "\n".into()], chunk)
+                .into_iter().filter_map(|line| match classifier.classify(&line) {
+                    Some(Classified::Progress(value)) => Some(value.percent.expect("console percent")),
+                    _ => None,
+                }).collect::<Vec<_>>();
+            assert_eq!(percentages, [0.0, 25.0, 50.0, 100.0, 100.0], "chunk {chunk}");
+            assert!(percentages.windows(2).all(|pair| pair[0] <= pair[1]));
+        }
+        // Negative control: respecting newline-only configuration does NOT split
+        // the five CR updates. This is not the evidence for the positive case.
+        let newline_only = split(fixture, &["\n".into()], 1);
+        assert!(newline_only.iter().any(|line| line.len() > 300 && line.matches("ETA").count() == 5));
+    }
+
 }

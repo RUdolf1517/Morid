@@ -76,7 +76,8 @@ why.
    ran yt-dlp with `--progress-template`. Two files, two shapes, and a parser that only knows one of them is wrong in
    one of the two places.
 
-   Console shape — `fixtures/streams/yt-dlp/progress.txt`, recorded without a template:
+   Console shape — `fixtures/streams/yt-dlp/progress.txt`, recorded with `--no-colors --progress
+   --progress-delta 0.1` and no template:
 
    ```
    \r\x1b[K[download]   0.0% of    2.00MiB at  Unknown B/s ETA Unknown
@@ -346,6 +347,28 @@ Two things went wrong in this phase's CI that a green summary would have hidden,
 2. **A step that does not exist cannot fail.** The cancellation acceptance test must run under `cargo test` in the
    ordinary step on both platforms, so a regression breaks the default job. A dedicated step is a bonus; if it is
    the only place the test runs, deleting the step deletes the test and nothing goes red.
+
+### 3.7c Two things about the live stream that a green test can hide
+
+1. **A `\r`-only stream must not be one enormous line, and `cr.bin` alone does not prove it.** `progress.txt` is the
+   file that would expose it: seven `\r` and five `\n`, with the five progress updates separated only by `\r`. A
+   splitter that treats `\r` as a separator turns that record into five progress events; a splitter that does not
+   turns it into one 500-byte "progress" string whose percent is whatever the parser finds first. Both produce events
+   and both tests can pass. The assertion that tells them apart is **the count**: five progress events with
+   non-decreasing percentages from that record, not "some progress was emitted". The test names it
+   (`both_progress_shapes_are_classified` covers the shapes, this covers the count) and the fixture is the evidence.
+
+2. **"Reads can arrive in any order" is not a licence to be untested.** The interleaving rule is: each completed
+   read is submitted to one FIFO, arrival at the FIFO is the linearisation point, and the single consumer emits
+   records in FIFO order. That is a documented, deterministic choice and it satisfies the task. What it does not
+   license is a test that accepts any order at all. The ACK handshake — the backend writes to one pipe and **waits
+   for the test's acknowledgement on disk** before writing the next, so the expected order is fixed by causality
+   rather than by thread scheduling — is the right instrument, and it must keep running in the ordinary `Test`
+   step.
+
+   And the honest limit stays written down in the rustdoc, in the same words: the order is the order reads completed,
+   **not** a reconstruction of the child's write-syscall chronology across two independent kernel pipes. Nobody
+   downstream may present it as the latter.
 
 ### 3.8 What must not change
 

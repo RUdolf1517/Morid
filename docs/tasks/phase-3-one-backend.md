@@ -395,6 +395,26 @@ Two things went wrong in this phase's CI that a green summary would have hidden,
    **not** a reconstruction of the child's write-syscall chronology across two independent kernel pipes. Nobody
    downstream may present it as the latter.
 
+### 3.7d A hand-back needs a run that reached `Test`, and `Format` comes first
+
+The workflow order is `Format` → `Lint` → `Test` → the named evidence steps. A formatting failure therefore stops
+the job before **any** acceptance evidence exists for that round: no test output, no `cancel-tree.log`, no
+`progress-shapes.log`, no uploaded artefacts. "It passes locally" is not evidence, and neither is `git diff
+--check`, which checks whitespace and not rustfmt's opinion.
+
+So the rule for every hand-back in this phase:
+
+- **Before pushing:** `cargo fmt --check` and `cargo clippy --workspace --all-targets --all-features -- -D
+  warnings`. `fmt` is deterministic and needs no network; there is no reading of the situation in which pushing
+  unformatted code is cheaper than running it.
+- **Before reporting:** the run reached at least the `Test` step on all three platforms. A run that dies in
+  `Format` is not a failed phase, it is a failed round, and it costs a full CI cycle to learn something a
+  three-second command would have said.
+- **A draft PR does not change this.** A red draft is still the only build anyone has.
+
+This is written down because it has now happened five times, and each time the cost was a round that produced no
+evidence at all rather than a round that produced bad evidence.
+
 ### 3.8 What must not change
 
 - `fixtures/` — read-only. CI runs the Phase 0 checks.

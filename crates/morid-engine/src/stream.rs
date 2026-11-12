@@ -174,7 +174,11 @@ impl OutputStream {
             match record {
                 Ok((stream, line)) => {
                     if let Some(data) = self.classifier.classify(&line) {
-                        let event = OutputEvent { sequence: self.sequence, stream, data };
+                        let event = OutputEvent {
+                            sequence: self.sequence,
+                            stream,
+                            data,
+                        };
                         self.sequence += 1;
                         return Some(Ok(event));
                     }
@@ -190,7 +194,8 @@ impl OutputStream {
         for (stream, handle) in self.readers.drain(..) {
             if handle.join().is_err() {
                 self.pending.push_back(Err(ReadFailure {
-                    stream, source: io::Error::other("pipe reader panicked"),
+                    stream,
+                    source: io::Error::other("pipe reader panicked"),
                 }));
             }
         }

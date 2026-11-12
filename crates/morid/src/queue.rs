@@ -45,8 +45,14 @@ pub struct Queue {
 
 impl Queue {
     pub fn new(limit: ConcurrencyLimit) -> Self {
-        Self { limit, next_id: 0, pending: VecDeque::new(), active: BTreeMap::new(),
-            states: BTreeMap::new(), events: VecDeque::new() }
+        Self {
+            limit,
+            next_id: 0,
+            pending: VecDeque::new(),
+            active: BTreeMap::new(),
+            states: BTreeMap::new(),
+            events: VecDeque::new(),
+        }
     }
 
     pub fn enqueue(&mut self, request: JobRequest) -> Result<JobId, QueueError> {
@@ -58,10 +64,18 @@ impl Queue {
         Ok(id)
     }
 
-    pub fn state(&self, id: JobId) -> Option<JobState> { self.states.get(&id).copied() }
-    pub fn running_count(&self) -> usize { self.active.len() }
-    pub fn is_idle(&self) -> bool { self.pending.is_empty() && self.active.is_empty() }
-    pub fn drain_events(&mut self) -> Vec<Event> { self.events.drain(..).collect() }
+    pub fn state(&self, id: JobId) -> Option<JobState> {
+        self.states.get(&id).copied()
+    }
+    pub fn running_count(&self) -> usize {
+        self.active.len()
+    }
+    pub fn is_idle(&self) -> bool {
+        self.pending.is_empty() && self.active.is_empty()
+    }
+    pub fn drain_events(&mut self) -> Vec<Event> {
+        self.events.drain(..).collect()
+    }
 
     pub fn cancel(&mut self, id: JobId) -> Result<(), QueueError> {
         let state = self.state(id).ok_or(QueueError::UnknownJob(id))?;
@@ -71,13 +85,22 @@ impl Queue {
                 // creating its destination (§3.2.4), no fake Running/PID event.
                 self.pending.retain(|(job, _)| *job != id);
                 self.states.insert(id, JobState::Cancelled);
-                self.events.push_back(Event::JobFinished { job: id, state: JobState::Cancelled });
+                self.events.push_back(Event::JobFinished {
+                    job: id,
+                    state: JobState::Cancelled,
+                });
                 Ok(())
             }
             JobState::Running => {
-                let active = self.active.get_mut(&id).ok_or(QueueError::InvalidState(state))?;
+                let active = self
+                    .active
+                    .get_mut(&id)
+                    .ok_or(QueueError::InvalidState(state))?;
                 active.cancelled = true;
-                active.process.request_cancel().map_err(|source| QueueError::Cancellation { job: id, source })
+                active
+                    .process
+                    .request_cancel()
+                    .map_err(|source| QueueError::Cancellation { job: id, source })
             }
             JobState::Cancelled => Ok(()),
             _ => Err(QueueError::InvalidState(state)),
@@ -87,9 +110,15 @@ impl Queue {
     /// Attempt every job even if cancellation of one fails. Errors are typed and
     /// returned; failed observations never become fabricated Cancelled events.
     pub fn cancel_all(&mut self) -> Vec<QueueError> {
-        let ids = self.pending.iter().map(|(id, _)| *id)
-            .chain(self.active.keys().copied()).collect::<Vec<_>>();
-        ids.into_iter().filter_map(|id| self.cancel(id).err()).collect()
+        let ids = self
+            .pending
+            .iter()
+            .map(|(id, _)| *id)
+            .chain(self.active.keys().copied())
+            .collect::<Vec<_>>();
+        ids.into_iter()
+            .filter_map(|id| self.cancel(id).err())
+            .collect()
     }
 
     pub fn pump(&mut self) {
@@ -97,48 +126,97 @@ impl Queue {
         for (&id, active) in &mut self.active {
             if active.cancelled {
                 if let Err(error) = active.process.request_cancel() {
-                    record_failure(&mut self.events, id, &mut active.failure,
-                        JobFailure::Observation { detail: error.to_string() });
+                    record_failure(
+                        &mut self.events,
+                        id,
+                        &mut active.failure,
+                        JobFailure::Observation {
+                            detail: error.to_string(),
+                        },
+                    );
                 }
             }
             if let Some(output) = &mut active.output {
                 for _ in 0..256 {
                     match output.poll_next() {
                         OutputPoll::Item(Ok(event)) => match event.data {
-                            Classified::Output(line) => self.events.push_back(Event::JobOutput { job: id, stream: event.stream, line }),
-                            Classified::Progress(progress) => self.events.push_back(Event::JobProgress { job: id, progress }),
+                            Classified::Output(line) => self.events.push_back(Event::JobOutput {
+                                job: id,
+                                stream: event.stream,
+                                line,
+                            }),
+                            Classified::Progress(progress) => self
+                                .events
+                                .push_back(Event::JobProgress { job: id, progress }),
                         },
                         OutputPoll::Item(Err(error)) => {
-                            record_failure(&mut self.events, id, &mut active.failure,
-                                JobFailure::Output { stream: Some(error.stream), detail: error.source.to_string() });
+                            record_failure(
+                                &mut self.events,
+                                id,
+                                &mut active.failure,
+                                JobFailure::Output {
+                                    stream: Some(error.stream),
+                                    detail: error.source.to_string(),
+                                },
+                            );
                             if let Err(error) = active.process.request_abort() {
-                                record_failure(&mut self.events, id, &mut active.failure,
-                                    JobFailure::Observation { detail: error.to_string() });
+                                record_failure(
+                                    &mut self.events,
+                                    id,
+                                    &mut active.failure,
+                                    JobFailure::Observation {
+                                        detail: error.to_string(),
+                                    },
+                                );
                             }
                         }
                         OutputPoll::Pending => break,
-                        OutputPoll::End => { active.eof = true; break; }
+                        OutputPoll::End => {
+                            active.eof = true;
+                            break;
+                        }
                     }
                 }
             }
             if active.exit.is_none() {
                 match active.process.poll_finished() {
                     Ok(exit) => active.exit = exit,
-                    Err(error) => record_failure(&mut self.events, id, &mut active.failure,
-                        JobFailure::Observation { detail: error.to_string() }),
+                    Err(error) => record_failure(
+                        &mut self.events,
+                        id,
+                        &mut active.failure,
+                        JobFailure::Observation {
+                            detail: error.to_string(),
+                        },
+                    ),
                 }
             }
-            if active.eof && active.exit.is_some() { finished.push(id); }
+            if active.eof && active.exit.is_some() {
+                finished.push(id);
+            }
         }
         for id in finished {
             if let Some(active) = self.active.remove(&id) {
                 if let Some(mut exit) = active.exit {
                     exit.cancelled = active.cancelled;
-                    let state = if active.cancelled { JobState::Cancelled }
-                        else if active.failure.is_some() || exit.code != Some(0) || exit.signal.is_some() { JobState::Failed }
-                        else { JobState::Succeeded };
+                    let state = if active.cancelled {
+                        JobState::Cancelled
+                    } else if active.failure.is_some()
+                        || exit.code != Some(0)
+                        || exit.signal.is_some()
+                    {
+                        JobState::Failed
+                    } else {
+                        JobState::Succeeded
+                    };
                     if state == JobState::Failed && active.failure.is_none() {
-                        self.events.push_back(Event::JobError { job: id, failure: JobFailure::BackendExit { code: exit.code, signal: exit.signal } });
+                        self.events.push_back(Event::JobError {
+                            job: id,
+                            failure: JobFailure::BackendExit {
+                                code: exit.code,
+                                signal: exit.signal,
+                            },
+                        });
                     }
                     self.events.push_back(Event::JobExited { job: id, exit });
                     self.states.insert(id, state);
@@ -147,31 +225,65 @@ impl Queue {
             }
         }
         while self.active.len() < self.limit.get() {
-            let Some((id, request)) = self.pending.pop_front() else { break };
+            let Some((id, request)) = self.pending.pop_front() else {
+                break;
+            };
             self.states.insert(id, JobState::Running);
             if let Err(error) = std::fs::create_dir_all(&request.spawn.cwd) {
-                self.failed_admission(id, JobFailure::Destination { path: request.spawn.cwd, detail: error.to_string() });
+                self.failed_admission(
+                    id,
+                    JobFailure::Destination {
+                        path: request.spawn.cwd,
+                        detail: error.to_string(),
+                    },
+                );
                 continue;
             }
             let mut process = match ManagedChild::spawn(&request.spawn) {
                 Ok(child) => child,
                 Err(error) => {
-                    self.failed_admission(id, JobFailure::FailedToStart { program: error.program, detail: error.source.to_string() });
+                    self.failed_admission(
+                        id,
+                        JobFailure::FailedToStart {
+                            program: error.program,
+                            detail: error.source.to_string(),
+                        },
+                    );
                     continue;
                 }
             };
-            self.events.push_back(Event::JobStarted { job: id, pid: process.id() });
+            self.events.push_back(Event::JobStarted {
+                job: id,
+                pid: process.id(),
+            });
             let mut failure = None;
             let output = match process.take_output(request.rules) {
                 Ok(output) => Some(output),
                 Err(error) => {
-                    record_failure(&mut self.events, id, &mut failure,
-                        JobFailure::Output { stream: None, detail: error.to_string() });
+                    record_failure(
+                        &mut self.events,
+                        id,
+                        &mut failure,
+                        JobFailure::Output {
+                            stream: None,
+                            detail: error.to_string(),
+                        },
+                    );
                     None
                 }
             };
             let eof = output.is_none();
-            self.active.insert(id, Active { process, output, eof, cancelled: false, failure, exit: None });
+            self.active.insert(
+                id,
+                Active {
+                    process,
+                    output,
+                    eof,
+                    cancelled: false,
+                    failure,
+                    exit: None,
+                },
+            );
         }
     }
 
@@ -179,14 +291,25 @@ impl Queue {
         self.events.push_back(failure.notice(id));
         self.events.push_back(Event::JobError { job: id, failure });
         self.states.insert(id, JobState::Failed);
-        self.events.push_back(Event::JobFinished { job: id, state: JobState::Failed });
+        self.events.push_back(Event::JobFinished {
+            job: id,
+            state: JobState::Failed,
+        });
     }
 }
 
-fn record_failure(events: &mut VecDeque<Event>, id: JobId, stored: &mut Option<JobFailure>, failure: JobFailure) {
+fn record_failure(
+    events: &mut VecDeque<Event>,
+    id: JobId,
+    stored: &mut Option<JobFailure>,
+    failure: JobFailure,
+) {
     if stored.is_none() {
         events.push_back(failure.notice(id));
-        events.push_back(Event::JobError { job: id, failure: failure.clone() });
+        events.push_back(Event::JobError {
+            job: id,
+            failure: failure.clone(),
+        });
         *stored = Some(failure);
     }
 }

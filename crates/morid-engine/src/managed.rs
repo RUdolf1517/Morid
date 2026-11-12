@@ -131,7 +131,9 @@ impl ManagedChild {
                 self.signal_tree()?;
             }
         }
-        let Some(status) = self.reaped else { return Ok(None) };
+        let Some(status) = self.reaped else {
+            return Ok(None);
+        };
         #[cfg(windows)]
         self.signal_tree()?;
         #[cfg(unix)]
@@ -149,7 +151,9 @@ impl ManagedChild {
         #[cfg(windows)]
         let signal = None;
         Ok(Some(ExitState {
-            code: status.code(), signal, cancelled: self.cancelled,
+            code: status.code(),
+            signal,
+            cancelled: self.cancelled,
             duration: self.started.elapsed(),
         }))
     }
@@ -189,7 +193,6 @@ impl Drop for ManagedChild {
         // an explicit termination failed. No inheritable duplicate is created.
     }
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExitState {

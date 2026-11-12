@@ -15,15 +15,30 @@ fn fifo_queue_limit_and_terminal_output_order() {
     let mut queue = Queue::new(ConcurrencyLimit::new(1).expect("limit"));
     let mut ids = Vec::new();
     for job in ["a", "b"] {
-        ids.push(queue.enqueue(JobRequest {
-            spawn: SpawnSpec {
-                program: PathBuf::from(if cfg!(windows) { "python" } else { "python3" }),
-                args: vec![script.as_os_str().into(), "gate".into(), root.as_os_str().into(), job.into()],
-                cwd: root.join(job), env: vec![],
-            },
-            rules: Rules { split_lines_by: vec!["\n".into()], remove_text: vec![],
-                skip_line_with_text: vec![], control: morid_ext::control::Control::parse(&serde_json::json!({})).expect("control") },
-        }).expect("enqueue"));
+        ids.push(
+            queue
+                .enqueue(JobRequest {
+                    spawn: SpawnSpec {
+                        program: PathBuf::from(if cfg!(windows) { "python" } else { "python3" }),
+                        args: vec![
+                            script.as_os_str().into(),
+                            "gate".into(),
+                            root.as_os_str().into(),
+                            job.into(),
+                        ],
+                        cwd: root.join(job),
+                        env: vec![],
+                    },
+                    rules: Rules {
+                        split_lines_by: vec!["\n".into()],
+                        remove_text: vec![],
+                        skip_line_with_text: vec![],
+                        control: morid_ext::control::Control::parse(&serde_json::json!({}))
+                            .expect("control"),
+                    },
+                })
+                .expect("enqueue"),
+        );
     }
     let deadline = Instant::now() + Duration::from_secs(20);
     let mut events = Vec::new();
@@ -53,8 +68,13 @@ fn fifo_queue_limit_and_terminal_output_order() {
         assert_eq!(queue.state(id), Some(JobState::Succeeded));
         let tail = events.iter().position(|event| matches!(event,
             Event::JobOutput { job: current, line, .. } if *current == id && line == &format!("tail-{job}"))).expect("EOF tail");
-        let terminal = events.iter().position(|event| matches!(event,
-            Event::JobFinished { job, .. } if *job == id)).expect("terminal");
+        let terminal = events
+            .iter()
+            .position(|event| {
+                matches!(event,
+            Event::JobFinished { job, .. } if *job == id)
+            })
+            .expect("terminal");
         assert!(tail < terminal);
     }
     std::fs::remove_dir_all(root).expect("cleanup");

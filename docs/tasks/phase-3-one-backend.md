@@ -69,26 +69,51 @@ why.
    entry are dropped; `ControlJsonStructure` decides whether a line is progress. Progress lines **replace** the
    current progress and are not also emitted as output; non-progress lines are output. This is
    [architecture](../architecture.md) §4 and it is the difference between a usable log window and a flood.
-5. **Progress values — two shapes, and one of them breaks a naive parser.** `progress.txt` in
-   `fixtures/streams/yt-dlp/` holds **both**, in one stream:
+5. **Progress values — two shapes, in two different files.** My earlier text in this section said
+   `progress.txt` holds both. **That was wrong** (corrected 11 November, reported by the coder): `progress.txt` holds
+   only the console shape — 542 bytes, 7 `\r`, 6 `\x1b[K`, and **zero** occurrences of `downloaded_bytes`. The
+   template shape appears in the scenario `log.txt` files instead, in 18 of them, because that is where the harness
+   ran yt-dlp with `--progress-template`. Two files, two shapes, and a parser that only knows one of them is wrong in
+   one of the two places.
+
+   Console shape — `fixtures/streams/yt-dlp/progress.txt`, recorded without a template:
+
+   ```
+   \r\x1b[K[download]   0.0% of    2.00MiB at  Unknown B/s ETA Unknown
+   \r\x1b[K[download]  25.0% of    2.00MiB at    4.94MiB/s ETA 00:00
+   \r\x1b[K[download] 100% of    2.00MiB in 00:00:00 at 4.63MiB/s
+   ```
+
+   `Unknown`, `NA` and the `in <time> at <rate>` form at the end are all in the fixture and all have to parse.
+
+   Template shape — every `fixtures/scenarios/*/log.txt` that ran with `--progress-template`:
 
    ```
    [download] downloaded_bytes:1024 ETA:86 total_bytes_estimate:NA total_bytes:3006209 progress.speed:34781.85 ...
-   \r\x1b[K[download]  25.0% of    2.00MiB at    4.94MiB/s ETA 00:00
    ```
 
-   The first is the `--progress-template` string from the Phase 0 goldens. The second is yt-dlp's ordinary console
-   progress line, and it is in the fixture because it was captured from a real subprocess. A parser that only knows
-   the template treats the second shape as ordinary output and floods the log window with carriage-return spam; a
-   parser that only knows the second misses every field the template carries.
-
-   So both shapes are in scope: the first is the contract for the field names, the second for the percentage form,
-   and the rule that makes it work is item 3 — `\r` is a separator when the extension says so, so the console lines
-   arrive as separate progress lines rather than one enormous one. The `\x1b[K` and any other escape bytes are
+   A parser that only knows the template treats the console lines as ordinary output and floods the log window with
+   carriage-return spam; a parser that only knows the console shape gets `percent = None` from every template line.
+   Both are in scope: the template is the contract for the field names, the console shape for the percentage form,
+   and the rule that makes it work is item 3 — `\r` is a separator when the extension says so, so the console
+   updates arrive as separate lines rather than one enormous one. The `\x1b[K` and any other escape bytes are
    stripped either by `RemoveText` or by the reader, and a test says which.
 
    Percent, total, speed, ETA and file name come out of whichever shape the line is. A line that matches neither is
    output, never a progress with empty fields.
+
+   **Where the evidence for each shape lives, and an honest gap.** The console shape has a captured stream:
+   `fixtures/streams/yt-dlp/progress.txt`. The template shape does **not** — the scenario `log.txt` files record the
+   *argv* the wrapper received, so `downloaded_bytes:` appears there only inside the `--progress-template` argument,
+   never as captured output. There is no captured yt-dlp stream produced with a progress template in the fixture
+   set.
+
+   Consequence, and it is not a reason to stall: the mixed-stream test must be built from the captured console stream
+   plus a template **line** constructed to match the contract in `s01`'s argv, and the test must say in its own doc
+   comment that the template line is synthetic and where the field names come from. That is the coder's call to
+   record, and it was reported before the fact, which is the right order. Do not edit fixtures to close the gap; a
+   Phase 0 follow-up that captures one template stream would close it, and it is worth proposing rather than
+   assuming.
 6. **Cancel.** The requirement is one sentence and it does not name a mechanism: after cancellation **no
    descendant of the backend is alive**. `libc` and `windows-sys` are accepted for it
    ([dependencies](../dependencies.md) §2.8, §2.9), `CommandExt::process_group` is the safe API where it is
@@ -214,10 +239,11 @@ Named, and visible in CI output:
 - `dry_run_argv_matches_golden_<scenario>` — table-driven over the scenarios in §5.
 - `dry_run_never_spawns` — a counting double, or an empty `PATH`; the count is asserted to be zero.
 - `list_parses_fixture_metadata` — replay of `fixtures/streams/yt-dlp/list.json`.
-- `both_progress_shapes_are_classified` — `progress.txt` replayed as one stream yields **at least one progress
-  event of each shape** (template and console percent line), no progress event carries all-empty fields, and the
-  percentages are non-decreasing. A test that only sees the template shape passes a parser that would flood the
-  window in production.
+- `both_progress_shapes_are_classified` — console shape from `progress.txt` and template shape from a line matching
+  `s01`'s `--progress-template` each yield a progress event with fields; no progress event carries all-empty fields;
+  `0%`, `Unknown` and the final `in <time> at <rate>` line parse without a panic or a division by zero. The test's
+  doc comment says which input is captured and which is constructed, and why. A test that exercises one shape passes
+  a parser that fails in the other.
 - `progress_lines_replace_and_do_not_append` — replay of `progress.txt`; the event sequence is asserted, including
   that progress lines are not duplicated into output.
 - `partial_line_is_not_truncated` — replay of `partial-line.bin` fed in hostile chunk sizes, including a split

@@ -86,6 +86,8 @@ jobs:
               assert f"test {name} ... ok" in text, f"default Test omitted {name}"
           for name in ["live_interleaving_obeys_acknowledged_write_order", "live_both_pipes_larger_than_os_buffers_are_drained_without_loss", "both_progress_shapes_are_classified", "progress_txt_cr_separators_produce_five_ordered_progress_events"]:
               assert f"{name} ... ok" in text, f"default Test omitted {name}"
+          for name in ["queue_limit_two_completes_all_five_jobs_without_stalling", "queue_fifo_three_jobs_refills_freed_slot_automatically", "queue_terminal_is_last_after_both_pipe_eof_fragments", "queue_cancel_before_admission_has_no_start_pid_or_destination", "queue_flood_does_not_starve_quiet_job_and_idle_poll_reports_waiting"]:
+              assert f"{name} ... ok" in text, f"default Test omitted {name}"
           PYCODE
           cargo test -p morid-ext thin_files_resolve_by_file_name -- --nocapture --test-threads=1 2>&1 | tee variants.log
           cargo test -p morid-cli warning_demo_copy_of_ytdl_patched -- --nocapture --test-threads=1 2>&1 | tee warnings-demo.log

@@ -34,6 +34,15 @@ pub enum QueueError {
     Cancellation { job: JobId, source: io::Error },
 }
 
+/// Callers must yield for retry_after on Waiting; no-progress is explicit,
+/// rather than indistinguishable from an empty event batch in a busy loop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PumpStatus {
+    Progress,
+    Waiting { retry_after: std::time::Duration },
+    Idle,
+}
+
 pub struct Queue {
     limit: ConcurrencyLimit,
     next_id: JobId,
@@ -121,7 +130,8 @@ impl Queue {
             .collect()
     }
 
-    pub fn pump(&mut self) {
+    pub fn pump(&mut self) -> PumpStatus {
+        let previous_events = self.events.len();
         let mut finished = Vec::new();
         for (&id, active) in &mut self.active {
             if active.cancelled {
@@ -284,6 +294,15 @@ impl Queue {
                     exit: None,
                 },
             );
+        }
+        if self.events.len() != previous_events {
+            PumpStatus::Progress
+        } else if self.is_idle() {
+            PumpStatus::Idle
+        } else {
+            PumpStatus::Waiting {
+                retry_after: std::time::Duration::from_millis(5),
+            }
         }
     }
 

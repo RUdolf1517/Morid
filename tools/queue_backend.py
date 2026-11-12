@@ -32,6 +32,15 @@ if mode in ("background", "tree-gate"):
 print(f"out-{job}", flush=True)
 print(f"err-{job}", file=sys.stderr, flush=True)
 print("[download] downloaded_bytes:50 ETA:1 total_bytes:100 progress.speed:12 filename:test.mp4", flush=True)
+if mode == "flood":
+    deadline = time.monotonic() + 30
+    sequence = 0
+    while not (root / f"release-{job}").exists():
+        if time.monotonic() >= deadline:
+            raise TimeoutError("flood completion gate")
+        sys.stdout.write("".join(f"flood-{sequence + index}\n" for index in range(256)))
+        sys.stdout.flush()
+        sequence += 256
 if mode in ("gate", "tree-gate"):
     deadline = time.monotonic() + 30
     while not (root / f"release-{job}").exists() and not (root / "stop").exists():
@@ -41,6 +50,8 @@ if mode in ("gate", "tree-gate"):
 if child:
     child.kill()
     child.wait()
+sys.stdout.write(f"stdout-tail-{job}")
+sys.stdout.flush()
 sys.stderr.write(f"tail-{job}")
 sys.stderr.flush()
 sys.exit(7 if mode == "fail" else 0)

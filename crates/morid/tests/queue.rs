@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 #[test]
 fn fifo_queue_limit_and_terminal_output_order() {
-    let root = std::env::temp_dir().join(format!("morid-queue-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("morid-queue-{:?}", std::thread::current().id()));
     std::fs::create_dir_all(&root).expect("fixture directory");
     let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tools/queue_backend.py");
     let mut queue = Queue::new(ConcurrencyLimit::new(1).expect("limit"));

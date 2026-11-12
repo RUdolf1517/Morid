@@ -121,7 +121,18 @@ impl ManagedChild {
         if self.reaped.is_none() {
             #[cfg(unix)]
             if crate::process_group::leader_exited(&self.child)? {
-                self.signal_tree()?;
+                match self.signal_tree() {
+                    Ok(()) => {}
+                    // Darwin may reject killpg when the only member is an
+                    // exited, unreaped child. Reap that known-dead leader, then
+                    // require the read-only absence probe below. EPERM itself
+                    // is NEVER proof of completion. If other members remain,
+                    // keep waiting conservatively and never signal a reused ID.
+                    Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+                        self.signalled = true;
+                    }
+                    Err(error) => return Err(error),
+                }
                 self.reaped = Some(self.child.wait()?);
             }
             #[cfg(windows)]

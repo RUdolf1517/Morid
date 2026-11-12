@@ -153,6 +153,31 @@ why.
    backends write relative paths ([architecture](../architecture.md) §4). A folder that cannot be created is exit
    code `6`, not a panic.
 
+### 3.2a The queue contract: four properties, each with a test
+
+The queue may be caller-driven, threaded, or a mix — that is the coder's mechanism. These four properties are the
+contract, and each one has a named test because each one is easy to get wrong while every test stays green.
+
+1. **The limit is never exceeded, and never stalls.** With `MaxConcurrentDownloads = 2` and five jobs, at most two
+   are `Running` at any instant, and all five finish. A queue that runs two and then wedges because the slot is never
+   refilled passes "never more than two" and fails "all five finish"; both halves are asserted.
+2. **Admission order is submission order, and a freed slot is filled.** With limit 1 and three jobs, they start in
+   the order they were submitted; when the first finishes, the second starts without the caller doing anything
+   special.
+3. **A terminal event is last for its job, and it is published only after both pipes have reached EOF.** The events
+   of a job are: `JobQueued`, `JobStarted`, zero or more output/progress events, one `JobFinished`. `JobFinished`
+   before the last stdout line means the log window loses its tail — which is exactly the bug a downloader is blamed
+   for by its users. Assert: nothing for that job appears after `JobFinished`, and the last output event of the job
+   is `JobFinished` itself.
+4. **No starvation, and no busy-spin.** One job flooding output must not delay another job's events beyond a bounded
+   number of the flooder's events; a `pump` that can make no progress while work remains must either block or report
+   that state, not return "empty" in a loop that burns a core. The bound is the coder's to choose and state; a test
+   with one flooding job and one quiet job proves the quiet job's events appear while the flood is still running.
+
+A cancelled job that never started is `Cancelled` with **no** `JobStarted`, no destination created, and no PID
+reported — a fake `Running` event for a process that never existed breaks every consumer downstream, including the
+window's table.
+
 ### 3.3 argv construction — the part that has to be right
 
 `morid download <url> --dry-run` prints the vector that would be passed. The vector is built from:

@@ -295,6 +295,15 @@ test that fails when the rule is inverted.
 
 ### Phase 5 — Network, backend installation, updates
 
+**Status: task issued 4 November 2026** — [tasks/phase-5-network.md](tasks/phase-5-network.md). This is the first
+phase that touches the network, so the order inside it is: the transport trait and the recorded responses first,
+then integrity, then unpacking, then the three verbs — and version reading last, because `morid engines` reporting a
+version is the visible result of the other four.
+
+**Three dependency questions are closed by this phase rather than assumed** ([dependencies](dependencies.md)
+§2.5–2.7): `ureq` versus `reqwest`, the TLS trust store, and `tar`/`flate2`/`zip` versus a shelled-out `bsdtar`.
+The document already carries the arguments; the phase carries the measured sizes.
+
 **Deliverable:** backends install and update themselves with integrity checking, from their own projects.
 
 - `morid-net`: release metadata, download, size + SHA-256 verification, archive unpacking with path-traversal

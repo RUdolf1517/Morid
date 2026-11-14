@@ -236,17 +236,6 @@ fn resume_initial_thread(child: &Child) -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_job_can_be_configured_and_terminated() -> io::Result<()> {
-        let job = Job::new()?;
-        job.terminate(1)
-    }
-}
-
 static INTERRUPTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 extern "system" fn interrupt_handler(event: u32) -> windows_sys::core::BOOL {
     if event == 0 || event == 1 {
@@ -271,4 +260,15 @@ pub fn install_interrupt_handler() -> io::Result<()> {
 }
 pub fn interrupted() -> bool {
     INTERRUPTED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_job_can_be_configured_and_terminated() -> io::Result<()> {
+        let job = Job::new()?;
+        job.terminate(1)
+    }
 }

@@ -58,6 +58,68 @@ fn check(case: &str, options: &str, kind: Kind) {
     )
     .expect("argv");
     assert_eq!(&actual[1..], expected, "{case}");
+    // Exercise the real CLI override/flag adapter too, not merely planner output.
+    let settings_path = std::env::temp_dir().join(format!("morid-{case}-settings.json"));
+    std::fs::write(
+        &settings_path,
+        serde_json::to_vec(&settings).expect("settings JSON"),
+    )
+    .expect("settings file");
+    let batch_path = settings_path.with_extension("urls");
+    let mut cli = vec![
+        if kind == Kind::List {
+            "list"
+        } else {
+            "download"
+        }
+        .into(),
+        "--settings".into(),
+        settings_path.to_string_lossy().into_owned(),
+        "--options".into(),
+        options.into(),
+        "--dry-run".into(),
+    ];
+    if kind == Kind::Batch {
+        std::fs::write(
+            &batch_path,
+            format!("{url}\nhttps://example.com/v/fixture-02\n"),
+        )
+        .expect("batch");
+        cli.extend(["--batch".into(), batch_path.to_string_lossy().into_owned()]);
+    } else {
+        cli.push(url.into());
+    }
+    let mut stdout = Vec::new();
+    assert_eq!(
+        morid_cli::run(
+            &cli,
+            &root.join("extensions"),
+            &Target {
+                platform: "Generic",
+                arch: "amd64"
+            },
+            &search,
+            &mut stdout,
+            &mut Vec::new()
+        )
+        .expect("CLI dry run"),
+        0
+    );
+    let lines = String::from_utf8(stdout).expect("UTF8");
+    let rows = lines
+        .lines()
+        .map(|line| serde_json::from_str::<Vec<String>>(line).expect("argv JSON"))
+        .collect::<Vec<_>>();
+    assert_eq!(rows[0], actual);
+    assert_eq!(rows.len(), if kind == Kind::Batch { 2 } else { 1 });
+    println!(
+        "{case} DRY-RUN {} GOLDEN {}",
+        serde_json::to_string(&rows[0][1..]).expect("argv"),
+        serde_json::to_string(&expected).expect("golden")
+    );
+    let _ = std::fs::remove_file(settings_path);
+    let _ = std::fs::remove_file(batch_path);
+
     if kind == Kind::Batch {
         let second = Request {
             url: Url::parse("https://example.com/v/fixture-02").expect("url"),

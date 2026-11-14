@@ -1,7 +1,7 @@
 //! Pure argv planning from extension policy + typed request + settings. No spawn.
 use morid_core::{DownloadOptions, Error, Url};
 use morid_ext::Extension;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub const DEFAULT_FORMAT: &str = "bestvideo[ext=mp4][vcodec^=av]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best";
@@ -9,7 +9,7 @@ pub const DEFAULT_PROGRESS: &str = "download:[download] downloaded_bytes:%(progr
 
 /// Phase 3 JSON override surface, not an INI/product storage format. Paths are
 /// supplied by the adapter; defaults are relative until resolved against appdata.
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
     pub engine: String,

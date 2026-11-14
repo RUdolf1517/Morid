@@ -113,6 +113,12 @@ jobs:
           cargo test --locked -p morid-engine --test live_stream -- --nocapture 2>&1 | tee live-stream.log
           cargo test --locked -p morid-engine both_progress_shapes_are_classified -- --nocapture 2>&1 | tee progress-shapes.log
 
+      - name: Phase 3 fifteen CLI dry-run golden vectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked -p morid-cli --test planning dry_run_argv_matches_golden -- --nocapture 2>&1 | tee phase3-goldens.log
+
       - name: Windows preassignment escape property (not criterion 5)
         if: runner.os == 'Windows'
         shell: bash
@@ -135,6 +141,21 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/test_cli_phase3.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase3-cli.log
+
+      # Deliberately separate from offline tests: installs a real backend, then
+      # downloads only from an ephemeral loopback server, outside the checkout.
+      - name: Phase 3 real yt-dlp HTTP smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/morid-ytdlp"
+          if [ "${{ runner.os }}" = Windows ]; then
+            py="$RUNNER_TEMP/morid-ytdlp/Scripts/python.exe"
+          else
+            py="$RUNNER_TEMP/morid-ytdlp/bin/python"
+          fi
+          "$py" -m pip install yt-dlp
+          "$py" tools/phase3_http_smoke.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase3-http.log
 
       - name: Resolve all bundled engines without starting them
         shell: bash
@@ -371,6 +392,8 @@ jobs:
           path: |
             test.log
             phase3-cli.log
+            phase3-http.log
+            phase3-goldens.log
             variants.log
             warnings-demo.log
             windows-race.log

@@ -2225,6 +2225,8 @@ dependencies = [
  "morid-ext",
  "morid-net",
  "morid-store",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2246,8 +2248,11 @@ version = "0.1.0"
 name = "morid-engine"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "morid-core",
  "morid-ext",
+ "serde_json",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

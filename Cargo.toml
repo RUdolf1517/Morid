@@ -25,6 +25,8 @@ repository = "https://github.com/RUdolf1517/Morid"
 publish = false
 
 [workspace.dependencies]
+libc = { version = "0.2", default-features = false }
+windows-sys = { version = "0.61", default-features = false }
 morid-core = { path = "crates/morid-core" }
 morid-ext = { path = "crates/morid-ext" }
 morid-engine = { path = "crates/morid-engine" }

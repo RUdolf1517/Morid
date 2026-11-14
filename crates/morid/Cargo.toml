@@ -16,3 +16,5 @@ morid-ext = { workspace = true }
 morid-engine = { workspace = true }
 morid-store = { workspace = true }
 morid-net = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

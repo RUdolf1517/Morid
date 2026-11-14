@@ -1,0 +1,169 @@
+//! Unix process-group primitive. No shell, session hook or platform handle escapes.
+#![allow(unsafe_code)]
+
+use std::io;
+use std::os::unix::process::CommandExt;
+use std::process::{Child, Command};
+
+/// Configure a new group before spawning. Rust performs setpgid in the child.
+/// A separate session is unnecessary for signalling this group.
+pub fn configure(command: &mut Command) -> &mut Command {
+    command.process_group(0)
+}
+
+/// Borrowing the child prevents its owner from reaping/dropping it while this
+/// signal target exists. An exited but unreaped leader still reserves its PID.
+/// Use only for a child started with `configure` that has never been reaped
+/// (including by `try_wait`). The reference never owns/reaps it.
+pub struct ProcessGroup<'child> {
+    child: &'child Child,
+}
+
+impl<'child> ProcessGroup<'child> {
+    pub fn for_child(child: &'child Child) -> Self {
+        Self { child }
+    }
+
+    fn id(&self) -> libc::pid_t {
+        // std's Unix Child::id is the kernel's positive pid_t converted to u32;
+        // this conversion reverses it, not an arbitrary user-supplied number.
+        self.child.id() as libc::pid_t
+    }
+
+    /// Send an unignorable termination signal to the entire group. A successful
+    /// signal is NOT proof that the members have exited; the supervisor must wait.
+    pub fn kill_tree(&self) -> io::Result<()> {
+        // SAFETY: the borrowed Child pins the unreaped leader's positive PID;
+        // killpg takes integer values only, and SIGKILL is a valid signal.
+        let result = unsafe { libc::killpg(self.id(), libc::SIGKILL) };
+        if result == 0 {
+            return Ok(());
+        }
+        let error = io::Error::last_os_error();
+        if error.raw_os_error() == Some(libc::ESRCH) {
+            Ok(())
+        } else {
+            Err(error)
+        }
+    }
+
+    /// Probe the group without delivering a signal. EPERM means it still exists.
+    pub fn is_present(&self) -> io::Result<bool> {
+        // SAFETY: the Child borrow prevents reaping/PID reuse; signal zero is
+        // the POSIX existence/permission probe and dereferences no memory.
+        let result = unsafe { libc::killpg(self.id(), 0) };
+        if result == 0 {
+            return Ok(true);
+        }
+        let error = io::Error::last_os_error();
+        match error.raw_os_error() {
+            Some(libc::ESRCH) => Ok(false),
+            Some(libc::EPERM) => Ok(true),
+            _ => Err(error),
+        }
+    }
+}
+
+/// Observation only, after the single group-kill request and leader reap. A
+/// recycled id may conservatively delay confirmation but is NEVER signalled.
+/// ESRCH proves the original group has no remaining members (including zombies).
+pub(crate) fn absent_after_kill(id: u32) -> io::Result<bool> {
+    let id = libc::pid_t::try_from(id)
+        .ok()
+        .filter(|id| *id > 0)
+        .ok_or_else(|| io::Error::other("invalid process group id"))?;
+    // SAFETY: id is a positive representable pid_t, signal zero is a read-only
+    // existence probe, and no pointers are passed. PID reuse cannot send a signal.
+    let result = unsafe { libc::killpg(id, 0) };
+    if result == 0 {
+        return Ok(false);
+    }
+    let error = io::Error::last_os_error();
+    match error.raw_os_error() {
+        Some(libc::ESRCH) => Ok(true),
+        Some(libc::EPERM) => Ok(false),
+        _ => Err(error),
+    }
+}
+
+/// Observe exit without reaping: the leader's PID must stay reserved until the
+/// final group signal has been sent. Child::try_wait would reap too early here.
+pub(crate) fn leader_exited(child: &Child) -> io::Result<bool> {
+    let mut info = std::mem::MaybeUninit::<libc::siginfo_t>::zeroed();
+    // SAFETY: siginfo_t is a C aggregate of integers, pointers and union storage;
+    // all-zero bytes are a valid initialized representation. The aligned local
+    // buffer remains live for waitid, which writes synchronously. P_PID selects
+    // our owned unreaped child, WNOWAIT explicitly retains the PID reservation.
+    // si_pid is read only after successful waitid; an initialized zero denotes
+    // no event with WNOHANG, including systems that leave that buffer unchanged.
+    unsafe {
+        let info = info.assume_init_mut();
+        let result = libc::waitid(
+            libc::P_PID,
+            child.id() as libc::id_t,
+            info,
+            libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+        );
+        if result == 0 {
+            Ok(info.si_pid() != 0)
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    }
+}
+
+static INTERRUPTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+extern "C" fn interrupt_handler(_: libc::c_int) {
+    INTERRUPTED.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn install_interrupt_handler() -> io::Result<()> {
+    INTERRUPTED.store(false, std::sync::atomic::Ordering::Relaxed);
+    // SAFETY: handler has the C signal ABI, never unwinds, allocates, or accesses
+    // non-atomic mutable data. It remains a valid function for the process lifetime.
+    let old = unsafe { libc::signal(libc::SIGINT, interrupt_handler as libc::sighandler_t) };
+    if old == libc::SIG_ERR {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+pub fn interrupted() -> bool {
+    INTERRUPTED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::process::ExitStatusExt;
+
+    #[test]
+    fn configured_group_can_be_probed_and_killed() -> io::Result<()> {
+        // Start this test harness itself: no external shell or network fixture.
+        let mut command = Command::new(std::env::current_exe()?);
+        command.args(["--ignored", "--exact", "process_group::tests::group_child"]);
+        let mut child = configure(&mut command).spawn()?;
+        let (probe, killed) = {
+            let group = ProcessGroup::for_child(&child);
+            (group.is_present(), group.kill_tree())
+        };
+        // The borrow ends before wait; reaping while a signal target lives is
+        // deliberately rejected by Rust's borrow checker.
+        if killed.is_err() {
+            let _ = child.kill();
+        }
+        let status = child.wait()?;
+        assert!(probe?);
+        killed?;
+        assert_eq!(status.signal(), Some(libc::SIGKILL));
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "payload selected explicitly by configured_group_can_be_probed_and_killed"]
+    fn group_child() {
+        loop {
+            std::thread::park();
+        }
+    }
+}

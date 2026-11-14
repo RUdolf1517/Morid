@@ -1,4 +1,4 @@
-//! Testable CLI entry point. Runs in-process; no backend is ever started.
+//! Testable console adapter; all backend execution belongs to morid-engine.
 #![forbid(unsafe_code)]
 use morid_core::Error;
 use morid_ext::{read_path, Executables, Target};
@@ -15,6 +15,14 @@ pub fn run(
     err: &mut dyn Write,
 ) -> Result<u8, Error> {
     let output_error = |_| Error::Internal("cannot write CLI output".to_owned());
+    if matches!(args.first().map(String::as_str), Some("download" | "list")) {
+        return download::run(args, directory, target, search, out, err);
+    }
+    if args == ["--help"] || args == ["-h"] {
+        writeln!(out, "morid --version | engines [--json] | list URL | download URL [--dry-run] [--settings FILE] [--options TEXT] [--to DIR] [--json] | download --batch FILE").map_err(output_error)?;
+        return Ok(0);
+    }
+
     if args == ["--version"] || args == ["-V"] {
         writeln!(out, "morid {}", env!("CARGO_PKG_VERSION")).map_err(output_error)?;
         return Ok(0);
@@ -90,4 +98,57 @@ pub fn run(
         }
     }
     Ok(status)
+}
+
+pub mod download;
+
+/// Runtime paths only: executable-adjacent resources, then per-user appdata.
+pub fn extension_paths(executable: &Path, data: &Path) -> Vec<std::path::PathBuf> {
+    vec![
+        executable
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("extensions"),
+        data.join("extensions"),
+    ]
+}
+pub fn data_directory() -> std::path::PathBuf {
+    use std::path::PathBuf;
+    if let Some(path) = std::env::var_os("MediaDownloaderAppDataPath") {
+        return PathBuf::from(path);
+    }
+    if cfg!(windows) {
+        return std::env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("morid");
+    }
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    if cfg!(target_os = "macos") {
+        home.join("Library/Application Support/morid")
+    } else {
+        std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join(".local/share"))
+            .join("morid")
+    }
+}
+
+/// Move only the actual verb, never a global option's value named "list".
+pub fn normalize_arguments(args: &mut Vec<String>) {
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "list" | "download" | "engines" => {
+                let verb = args.remove(index);
+                args.insert(0, verb);
+                return;
+            }
+            "--settings" | "--config" | "--lang" => index += 2,
+            "--json" | "--quiet" | "--verbose" | "--no-color" => index += 1,
+            _ => return,
+        }
+    }
 }

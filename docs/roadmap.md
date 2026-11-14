@@ -195,6 +195,14 @@ spawned by any test. **All met.**
 
 ### Phase 3 — One backend, end to end
 
+**Status: review candidate, not accepted.** The service queue/cancellation/stream increments are followed by
+`list`/`download`/batch adapters, the JSON settings override seam, fifteen in-scope CLI dry-run goldens, version-1
+JSONL and executable-adjacent → per-user extension lookup. Offline fixture-process tests and the separate real
+loopback-HTTP yt-dlp acceptance are distinct CI steps. Evidence and explicit interface limitations are in PR #12;
+this paragraph does not promote the phase to accepted. The original 12–16-day estimate below is retained: the
+work spanned multiple implementation/review rounds, but active engineering days were not measured, so an actual
+person-day figure cannot honestly be substituted.
+
 **Deliverable:** `morid list` and `morid download` work against a real yt-dlp, and the argv matches the golden
 fixtures.
 

@@ -82,7 +82,7 @@ never "someone wrote something".
 | F-35 | Install / remove an extension | `configure` (Extensions sub-tab) | `morid-ext`, filesystem | P0 | not started | Install and remove work; removal of a bundled engine is refused where the original refuses |
 | F-36 | Engine variants (yt-dlp-aria2c, -ffmpeg, -nightly) | `extensions/*.json` + `configure.cpp` | — | P1 | not started | All variants appear in the menu and produce their own argument sets |
 | F-37 | yt-dlp family behaviour (`LikeYoutubeDl`) | `engines::engine` | — | P0 | not started | A family member shares the archive file and parser with yt-dlp, exactly as the original shares them |
-| F-38 | Supporting engines (ffmpeg, deno, quickjs-ng, python, bsdtar) | `getSupportingEngineByName` (`legacy/src/engines.cpp:311`) | network | P0 | not started | Each is found, version-checked and installed per platform rules |
+| F-38 | Supporting engines (ffmpeg, deno, tar, bsdtar, quickjs-ng, python — six, built in, [D-020](decisions.md)) | `getSupportingEngineByName` (`legacy/src/engines.cpp:311`) | network | P0 | not started | Each is found, version-checked and installed per platform rules |
 | F-39 | Custom extension (user-supplied binary) | `configure::addAction` with `custom` | — | P1 | not started | A user-chosen executable with user-chosen arguments downloads successfully |
 | F-40 | `--pretend-*` platform overrides | `utility::PretendPlatform` | — | P2 | not started | Debug overrides select the same commands as the real platform would |
 | F-41 | Built-in engine self-test mode | `legacy/src/engines/tests.cpp` | network | P3 | not carried | Replaced by the fixture-based suite ([testing](testing.md)); a network self-test is not carried over |

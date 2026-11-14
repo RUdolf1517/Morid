@@ -11,6 +11,7 @@ project manager through the owner, and a task is not started before the previous
 | 3 | [phase-2-domain.md](phase-2-domain.md) | Phase 2 — domain types, extension schema, command resolution | 10–14 days | **accepted 10 Nov 2026** in PR #8 (`564284b4`), merged |
 | 4 | [phase-3-one-backend.md](phase-3-one-backend.md) | Phase 3 — one backend end to end: spawn, stream, cancel, argv equals golden | 12–16 days | **accepted 14 Nov 2026** with four named gaps ([roadmap](../roadmap.md) Phase 3); merged in PR #12 (`3b3fa32`) |
 | 5 | [phase-4-user-data.md](phase-4-user-data.md) | Phase 4 — user data: the two Qt escapes, six data files, import/export, the round trip | 10–14 days | **accepted 14 Nov 2026** at `5780005`; PR #14, [CI 43619103137](https://github.com/RUdolf1517/Morid/actions/runs/43619103137) |
+| 6 | [phase-5-network.md](phase-5-network.md) | Phase 5 — network, install, update, versions: transport trait, size + SHA-256, traversal refusal, `engines --install/--update/--remove` | 10–14 days | **issued 4 Nov 2026** — next to be worked |
 
 Task 1 produces no Rust code and must not be skipped: without it there is no definition of "same behaviour" to
 test against. Task 2 produces no functionality: it produces the pipeline that later phases are checked by.

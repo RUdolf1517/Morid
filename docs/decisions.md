@@ -208,7 +208,7 @@ is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-
 
 ---
 
-## Open questions
+## Decisions raised after the audit
 
 ### D-016 — `settings.ini` is read and written the way the original does it
 
@@ -312,9 +312,58 @@ is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-
     platform-independent layers remain provably safe;
   - if either module ever grows beyond owning one primitive, that is a new question, not an extension of this one.
 
+### D-020 — Supporting engines are six, and their descriptors are part of the product
+
+- **Date:** 4 November 2026 · **Question:** raised by the coder before writing code: the Phase 5 task named five
+  supporting engines "from the audit", the tree has none of them as extension files, and the original builds their
+  descriptors **in code** (`legacy/src/engines.cpp:498-526`). Reported in PR #15.
+- **Decision:** the set is the original's own, and it is **six**, not five: `ffmpeg` (always), `deno` (always),
+  `tar` (Linux and macOS), `bsdtar` (Windows), `quickjs-ng` (Linux x86), `python` (only when `you-get` is present).
+  These are **built-in descriptors inside `morid-ext`**, not files in `extensions/`, because that is what they are
+  in the original too. The task's "five" was wrong and is corrected in
+  [tasks/phase-5-network.md](tasks/phase-5-network.md).
+- **Reasoning:** the audit's list was a summary written from the manual, and it dropped `tar`/`bsdtar` as "the same
+  thing". They are not: the platform that gets one does not get the other, and a descriptor with no
+  `SupportingEngine` flag does not exist to be installed at all. Putting a helper into `extensions/` would change
+  what `extensions/` means (D-003, D-010): a helper is not a downloader a user picks, and the extension list is a
+  contract with third-party authors.
+- **What it does not mean:** the helpers are not invisible. `morid engines` reports them in their own section, with
+  version and path, and the Configure → Extensions screen in Phase 7 shows them. Being built in is about where the
+  descriptor comes from, not about hiding it.
+- **Consequences:**
+  - `morid-ext` carries the six descriptors, with the platform and condition rules above, and a test that asserts the
+    selected set per platform — including that Linux x86 gets **both** `quickjs-ng` and `tar`, and that `python`
+    appears only when `you-get` does;
+  - `docs/extensions.md` §7 gains the sentence that these six are the only engines whose descriptor is not a file;
+  - `docs/features.md` F-38 keeps its wording but its count changes from five to six, with the source cited.
+
+### D-021 — Helper binaries come from the original's own package releases, named explicitly
+
+- **Date:** 4 November 2026 · **Question:** raised in the same report: on Windows the original takes `ffmpeg` and
+  `python` from `https://api.github.com/repos/mhogomchungu/packages/releases/latest`
+  (`legacy/src/engines/ffmpeg.cpp:96`, `python.cpp:130`), which appears in no `extensions/*.json`. Under the Phase 5
+  allow-list — built from the extensions' `DownloadUrl` values — that source would either be unreachable or, worse,
+  be reached by relaxing the rule to "any host that happens to be `api.github.com`".
+- **Decision:** the allow-list is a list of **exact release endpoints**, not hosts, and it contains this endpoint as
+  a named member, contributed by the built-in helper descriptors of D-020. It is not derived from the host name, and
+  it is not extended by wildcard.
+- **Reasoning:** the owner's rule is D-014 — third-party backends from their own projects. This repository is the
+  original author's own package channel, which is where those two binaries have always come from; treating it as
+  unknown would break F-38 on Windows for no gain. But "same host" is exactly the reasoning that would let any
+  GitHub release through, so the exception is written as one endpoint with a source line, not as a pattern.
+- **What it does not mean:** no other `mhogomchungu` endpoint is allowed, and this does not reopen the extension
+  description question (D-010) — nothing is downloaded for a description.
+- **Consequences:**
+  - the allow-list is a data table in `morid-net` with one row per endpoint and a comment naming its source, in the
+    same form as the extension-derived rows;
+  - a test refuses an endpoint that shares the host but not the path, and refuses one that differs only by scheme;
+  - [THIRD-PARTY.md](../THIRD-PARTY.md) §3 lists this endpoint next to the backends' own.
+
 **None.** All fifteen questions of the audit were decided on 4 November 2026. D-016 and D-017 were raised
 afterwards, by the Phase 0 review. D-018 came from the owner on 10 November 2026, after the Phase 2 task. D-019
-came the same day, from the coder's blocking report on Phase 3.
+came the same day, from the coder's blocking report on Phase 3. D-020 and D-021 came from the coder's pre-flight
+report on Phase 5, which found that the task's list of supporting engines and the allow-list rule both contradicted
+the original.
 
 | Question | Decision | Question | Decision |
 | --- | --- | --- | --- |

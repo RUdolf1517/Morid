@@ -105,6 +105,30 @@ jobs:
               print(f"::notice title=Phase 5 policy foundation {index}::" + escaped)
           PYCODE
 
+      - name: Phase 5 old executable integrity proof (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MORID_INTEGRITY_EVIDENCE="$PWD/target/phase5-integrity-evidence"
+          cargo test --locked --offline -p morid-net synthetic_bad_size_and_hash_preserve_old_executable_and_it_still_runs -- --nocapture 2>&1 | tee phase5-integrity.log
+          {
+            echo 'cmp before.bin after.bin'
+            cmp "$MORID_INTEGRITY_EVIDENCE/before.bin" "$MORID_INTEGRITY_EVIDENCE/after.bin"
+            echo "cmp exit=$?"
+            sha256sum "$MORID_INTEGRITY_EVIDENCE/"*.bin
+            "$MORID_INTEGRITY_EVIDENCE/after.bin" --list
+            echo "old executable exit=$?"
+          } 2>&1 | tee -a phase5-integrity.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("phase5-integrity.log").read_text()
+          for index, start in enumerate(range(0, len(text), 3500)):
+              block = text[start:start + 3500]
+              escaped = block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::notice title=Phase 5 integrity {index}::" + escaped)
+          PYCODE
+
       - name: Test
         shell: bash
         run: |
@@ -527,6 +551,7 @@ jobs:
             phase3-cli.log
             phase4-cli.log
             phase5-policy.log
+            phase5-integrity.log
             phase4-store.log
             phase4-original.log
             phase3-http.log

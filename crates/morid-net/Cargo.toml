@@ -12,3 +12,4 @@ description = "HTTP, hash verification and archive unpacking"
 
 [dependencies]
 morid-core = { workspace = true }
+sha2 = { workspace = true }

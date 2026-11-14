@@ -5,4 +5,5 @@
 #![forbid(unsafe_code)]
 
 pub mod endpoints;
+pub mod install;
 pub mod transport;

@@ -44,9 +44,11 @@ There is no window in this phase, no network, and no backend installation. Resis
    `fixtures/userdata/media-downloader/` — 94 settings keys, 15 presets, 1 URL rule, 2 engine-default rows,
    1 subscription, 2 saved list entries, 20 history objects, 1 archive line, 2 themes, and `meta.json` recording
    that the original reloaded all of it.
-6. `tools/capture/qt_ini.py` — **the executable specification of both escapes**, ported from `qsettings.cpp` and
-   proved by 30 stdlib tests and a seeded fuzz (`tools/capture/test_qt_ini_roundtrip.py`). Port it; do not
-   re-derive it.
+6. `tools/capture/test_qt_ini_roundtrip.py` — **the corpus** every rule must reproduce. The specification is
+   executable, but it is split across two modules and this task previously named the wrong one:
+   **decoders** in `tools/capture/qt_ini.py` (`qt_ini_unescape`, `qt_ini_unescape_key`, `qt_ini_lines`,
+   `read_settings_ini`) and **encoders** in `tools/capture/canonicalise.py` (`escape_qt_ini_value` line 181,
+   `escape_qt_ini_key` line 233). Port from the code; do not re-derive from the prose.
 
 ---
 
@@ -58,8 +60,28 @@ There is no window in this phase, no network, and no backend installation. Resis
 [data-compat](../data-compat.md) §3.0 and §3.0a. They may share a UTF-16 code-unit splitter and **nothing else** —
 a single "smart" function is how a `%U` sequence ends up inside a path.
 
-Your source of truth is `tools/capture/qt_ini.py`, not the prose: where the two disagree, the Python is what was
-proved against Qt's own reader and writer.
+Your source of truth is that Python, not the prose: where the two disagree, the Python is what was proved against
+Qt's own reader and writer.
+
+**A value is not always a string, and this is the trap in this section.** `qt_ini_unescape` returns `str | list[str]`:
+a comma outside quotes starts a `QStringList`. The captured fixture has exactly one such key —
+`BasicDownloaderOptionsHistory-yt-dlp`, whose raw value is 21 comma-separated entries — and `escape_qt_ini_value`
+**raises** when handed the list, because encoding a list is not its job. Writing the items back requires joining
+them, one escaped item per element, with `", "`.
+
+The whole-file byte comparison is the test that catches this, and it was verified before this task was issued:
+re-encoding every line of `fixtures/userdata/media-downloader/settings/settings.ini` through
+`qt_ini_unescape` → (`", "`-join for a list) → `escape_qt_ini_value` / `escape_qt_ini_key` produces 3 351 bytes
+**identical** to the fixture. Treating that one value as a single string cannot produce the same bytes, and a
+writer that quotes it instead — which is what `escape_qt_ini_value` does with any value containing a comma —
+changes what the original reads: 21 history entries become one 400-character option string, with no error on
+either side. `test_qstringlist_splitting_is_not_emitted` in the corpus states this on purpose.
+
+So: the store has to carry "this value is a list" through a read and a write. Choose the representation you think
+is right and **say which you chose and why**; what is not allowed is flattening it to a string.
+
+(The fixture is pure ASCII, so the byte comparison is unambiguous. Read it as bytes, not as UTF-8 — `qt_ini_lines`
+decodes Latin-1 because that is what Qt 5 does, and a value that is not ASCII is a finding to report, §3.0.)
 
 Tests, named:
 
@@ -68,6 +90,8 @@ Tests, named:
   control-character escapes.
 - `ini_key_round_trips_qt_corpus` — `%XX` as a **Latin-1 code point**, `%UXXXX` uppercase only, a non-BMP
   character as **two** escapes (`%UD83D%UDE00`), and a malformed escape **refused** (documented divergence, §3.0a).
+- `ini_list_value_round_trips_as_a_list` — `a,b` reads back as two items, not one; re-encoding those items with
+  `", "` gives `a, b`; and the 21-entry fixture key survives with 21 entries.
 - `settings_ini_from_fixture_decodes_without_loss` — read `fixtures/userdata/media-downloader/settings/settings.ini`,
   get **94 keys**, and re-encode to bytes that equal the input byte for byte. If the fixture cannot be reproduced
   exactly, that is a finding about the fixture or about your writer — report it, do not normalise it away.
@@ -171,7 +195,8 @@ picks up the fixture's engine, archive and encoding values rather than the built
 ## 5. Acceptance criteria
 
 1. `cargo build --release`, `cargo test`, fmt and clippy `-D warnings` green on Linux, macOS and Windows in CI.
-2. The three escape tests and the 94-key round trip pass, and the re-encoded fixture is **byte-identical**.
+2. The four escape tests and the 94-key round trip pass, and the re-encoded fixture is **byte-identical** (3 351
+   bytes, one of them a 21-item list) — seen in the output, not asserted in prose.
 3. `bundled_presets_match_the_captured_file` passes: 15 entries, post-rewrite, in order.
 4. `url_manager_takes_the_first_match` and `engine_defaults_take_the_first_enabled_row` pass, and each fails if the
    direction is inverted (show that: flip it locally, paste the failure, flip it back).
@@ -211,6 +236,8 @@ in Phase 3 cost nothing; the same claim implemented costs a phase.
 - The escapes passing on ASCII only. The review feeds Cyrillic, emoji (non-BMP), a value ending in a hex digit, a
   value containing `;` and `=`, a key with Cyrillic, a `%u` lowercase escape (which must **not** be accepted), and
   a malformed `%zz`.
+- The list value flattened. The review writes a settings file with an options-history key, reads it with Qt's own
+  reader, and counts the items: 21 expected, one long string is a fail.
 - An import that silently drops unknown keys. The review plants one key that appears in no document and checks it
   survives and is named in the report.
 - An import that is idempotent because it does nothing on the second run: the review imports into a directory that

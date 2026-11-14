@@ -184,6 +184,26 @@ instead** — deliberately, and this is a documented divergence rather than a po
 malformed escape; one that does should fail loudly rather than resolve to a different key, which is the whole G11
 failure mode.
 
+### 3.0b A value is not always a string: `QStringList`
+
+Six of the fixed keys hold a **list**, not a string: `BasicDownloaderOptionsHistory-<engine>`,
+`BatchDownloaderOptionsHistory-<engine>`, `PlaylistDownloaderOptionsHistory-<engine>`, `PlaylistRangeHistory-<engine>`,
+`PlaylistUrlHistory-<engine>` and `playlistRangeHistoryLastUsed-<engine>`. Qt has no separate syntax for them in an
+INI file: a **comma outside quotes** starts the next item, and the writer emits `", "` between items. The captured
+fixture has exactly one such key, with 21 items.
+
+Two consequences, both silent when wrong:
+
+- a reader that returns one string per line has already lost the shape, and nothing downstream can recover it;
+- a writer that escapes such a value as a single string sees a comma, decides the value `needsQuotes`, and emits
+  `"item, item, item"` — which Qt reads back as **one** item, because the quotes suppress splitting. The user's
+  options history collapses to a single 400-character option, and the original accepts it without an error.
+
+So the store carries a value as "one string **or** a list of strings", and the pair of functions is used the way
+the corpus uses them: decode a value, and if it is a list, escape each item and join with `", "`. Verified: this
+reproduces the committed `settings.ini` byte for byte (3 351 bytes). Passing the list to the value escaper is not
+a supported call — it raises.
+
 This matters beyond the fixtures: an engine or extension whose name is not ASCII produces such a key in a real
 `settings.ini`, and Windows users have those files today. A reader that treats `%U417%U430` as a literal key name
 will not find the setting it is looking at, and will report a missing key rather than a decoding problem.

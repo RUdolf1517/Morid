@@ -25,7 +25,7 @@ morid [GLOBAL OPTIONS] <COMMAND> [COMMAND OPTIONS]
 | `--quiet` | Suppress progress output; errors still go to stderr |
 | `--verbose` | Include backend output lines in the stream |
 | `--no-color` | Disable colour; also implied when stdout is not a terminal |
-| `--lang <tag>` | Interface language for messages, e.g. `ru`, `de` |
+| `--lang <tag>` | Interface language for messages, e.g. `ru`, `de`. **Phase 3 accepts `en` only and rejects every other tag** with exit `1` and `only --lang en is supported in Phase 3` on stderr — it does not fall back to English silently, because a flag that parses and is ignored is worse than an absent one. Translations arrive in Phase 7 |
 | `-h`, `--help`; `-V`, `--version` | Usage and version |
 
 Rules:
@@ -189,7 +189,7 @@ version, starting at `1`).
 
 ```jsonc
 {"type":"started","v":1,"job":1,"engine":"yt-dlp","engine_version":"2026.10.31","argv":["yt-dlp","--newline","-f","22","https://..."]}
-{"type":"metadata","v":1,"job":1,"title":"Example clip","duration":243,"thumbnail":"https://...","formats":[{"id":"22","ext":"mp4","resolution":"1280x720","filesize":45613056}]}
+{"type":"metadata","v":1,"job":1,"title":"Example clip","duration":243,"thumbnail":"https://...","formats":[{"id":"22","format_id":"22","ext":"mp4","resolution":"1280x720","filesize":45613056}]}
 {"type":"progress","v":1,"job":1,"percent":42.3,"downloaded":19293796,"total":45613056,"speed":2202009,"eta":12}
 {"type":"output","v":1,"job":1,"stream":"stdout","line":"[download] Destination: ..."}
 {"type":"finished","v":1,"job":1,"state":"success","files":["/home/u/Downloads/Example clip-abc.mp4"],"duration_ms":21034}
@@ -203,6 +203,14 @@ Rules:
 - `argv` is the exact vector passed to the operating system — this is what makes `--json` useful for
   compatibility testing;
 - `message` is already localised according to `--lang`; `code` is not, and is what scripts should branch on.
+- **`metadata.formats` carries the backend's fields unchanged and adds `id`.** `format_id` is the backend's own
+  name and is preserved; `id` is the consumer-facing alias the service projection (`MediaMeta`) supplies. The
+  projection lives in `morid`, not in the CLI, so a window consuming the same event sees the same alias —
+  [architecture](architecture.md) §6.
+- **`engine_version` is `null` in Phase 3** and that is an honest unknown, not an empty string: the extension's
+  `Version` is a schema version and `fixtures/streams/*/version.txt` is a historical observation, so neither
+  describes the binary that is running. A real value needs a `--version` query, which Phase 5 owns. Consumers should
+  expect `null` and treat it as unknown.
 
 A stream version bump is required for: removing a field, changing a field's type or meaning, or changing the
 event set. Consumers must ignore unknown fields.

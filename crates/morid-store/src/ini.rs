@@ -11,6 +11,21 @@ pub struct Entry {
     raw_value: String,
 }
 
+impl Entry {
+    /// Construct a new setting without an input document. Readers retain raw
+    /// spelling; new/edited values use the independent Qt encoders.
+    pub fn new(section: impl Into<String>, key: impl Into<String>, value: IniValue) -> Self {
+        let key = key.into();
+        Self {
+            section: section.into(),
+            raw_key: escape_key(&key),
+            raw_value: value.encode(),
+            key,
+            value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Line {
     Section(String),
@@ -173,6 +188,22 @@ mod tests {
         assert_eq!(document.encode(), bytes);
         println!("settings.ini: 94 decoded keys, 21 history items, 3351 bytes: byte-identical");
     }
+    #[test]
+    fn new_settings_can_be_written_without_a_seed_file() {
+        let entry = Entry::new(
+            "General",
+            "😀/Загрузки",
+            IniValue::StringList(vec!["one, quoted".into(), "Отпуск2024".into()]),
+        );
+        let document = Document::from_entries(vec![entry.clone()]);
+        let bytes = document.encode();
+        assert!(bytes.is_ascii());
+        let decoded = Document::parse(&bytes).expect("new setting");
+        let actual = decoded.entries().next().expect("entry");
+        assert_eq!(actual.key, entry.key);
+        assert_eq!(actual.value, entry.value);
+    }
+
     #[test]
     fn ck_reports_a_utf8_value_instead_of_decoding_it() {
         assert!(Document::parse("[General]\nx=Привет\n".as_bytes())

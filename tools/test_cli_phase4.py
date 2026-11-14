@@ -24,13 +24,17 @@ class UserData(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="morid-user-data-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        # Isolate the executable from CI's release-adjacent bundled extensions.
+        # Production correctly prefers adjacent resources over --config ones.
+        self.binary = self.root / BINARY.name
+        shutil.copy2(BINARY, self.binary)
         self.source = self.root / "source"
         shutil.copytree(FIXTURE, self.source)
         self.config = self.root / "morid"
         self.before = snapshot(self.source)
 
     def cli(self, *args, config=None, env=None):
-        result = subprocess.run([str(BINARY), "--config", str(config or self.config), *map(str, args)],
+        result = subprocess.run([str(self.binary), "--config", str(config or self.config), *map(str, args)],
                                 cwd=self.root, env=env, capture_output=True, text=True,
                                 encoding="utf-8", timeout=30)
         print("CLI", args, "exit", result.returncode, "stdout", result.stdout, "stderr", result.stderr)

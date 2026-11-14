@@ -138,6 +138,7 @@ fn job_of(event: &Event) -> u64 {
         | Event::JobStarted { job, .. }
         | Event::JobOutput { job, .. }
         | Event::JobProgress { job, .. }
+        | Event::JobMetadata { job, .. }
         | Event::JobExited { job, .. }
         | Event::Notice { job, .. }
         | Event::JobError { job, .. }

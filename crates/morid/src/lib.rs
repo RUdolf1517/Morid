@@ -13,3 +13,5 @@ pub mod queue;
 pub mod service;
 
 pub mod planner;
+
+pub mod metadata;

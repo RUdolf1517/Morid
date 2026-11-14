@@ -265,13 +265,14 @@ fn dry_run_never_spawns() {
 }
 #[test]
 fn list_parses_fixture_metadata() {
-    let meta = morid_cli::download::parse_metadata(include_str!(
+    let meta = morid::metadata::MediaMeta::from_yt_dlp(include_str!(
         "../../../fixtures/streams/yt-dlp/list.json"
     ))
     .expect("metadata");
+    let meta = serde_json::to_value(meta).expect("projection JSON");
     assert_eq!(meta["title"], "video");
     assert_eq!(meta["formats"][0]["id"], "mp4");
-    assert!(morid_cli::download::parse_metadata("[]").is_err());
+    assert!(morid::metadata::MediaMeta::from_yt_dlp("[]").is_err());
 }
 
 #[test]

@@ -214,17 +214,21 @@ pub fn run(
     for mut argv in plans {
         // Resolution changes only argv[0], which is the executable passed to the OS.
         argv[0] = program.to_string_lossy().into_owned();
-        let job = service
-            .client
-            .enqueue(JobRequest {
-                spawn: SpawnSpec {
-                    program: program.clone(),
-                    args: argv[1..].iter().map(Into::into).collect(),
-                    cwd: settings.destination.clone(),
-                    env: vec![],
-                },
-                rules: Rules::from_extension(&extension),
-            })
+        let request = JobRequest {
+            spawn: SpawnSpec {
+                program: program.clone(),
+                args: argv[1..].iter().map(Into::into).collect(),
+                cwd: settings.destination.clone(),
+                env: vec![],
+            },
+            rules: Rules::from_extension(&extension),
+        };
+        let reply = if list {
+            service.client.enqueue_metadata(request)
+        } else {
+            service.client.enqueue(request)
+        };
+        let job = reply
             .map_err(|_| Error::Internal("service disconnected".into()))?
             .recv()
             .map_err(|_| Error::Internal("enqueue reply lost".into()))?
@@ -281,20 +285,18 @@ pub fn run(
                 if stream == Stream::Stderr && line.contains("Unsupported URL:") {
                     unsupported.insert(job);
                 }
-                if list && stream == Stream::Stdout {
-                    let meta = parse_metadata(&line)?;
-                    json!({"type":"metadata","v":1,"job":job,"title":meta["title"],"duration":meta["duration"],"thumbnail":meta["thumbnail"],"formats":meta["formats"]})
-                } else {
-                    if let Some(name) = line.strip_prefix("[download] Destination: ") {
-                        let path = PathBuf::from(name);
-                        files.entry(job).or_default().push(if path.is_absolute() {
-                            path
-                        } else {
-                            settings.destination.join(path)
-                        });
-                    }
-                    json!({"type":"output","v":1,"job":job,"stream":if stream==Stream::Stdout {"stdout"} else {"stderr"},"line":line})
+                if let Some(name) = line.strip_prefix("[download] Destination: ") {
+                    let path = PathBuf::from(name);
+                    files.entry(job).or_default().push(if path.is_absolute() {
+                        path
+                    } else {
+                        settings.destination.join(path)
+                    });
                 }
+                json!({"type":"output","v":1,"job":job,"stream":if stream==Stream::Stdout {"stdout"} else {"stderr"},"line":line})
+            }
+            Event::JobMetadata { job, meta } => {
+                json!({"type":"metadata","v":1,"job":job,"title":meta.title,"duration":meta.duration,"thumbnail":meta.thumbnail,"formats":meta.formats})
             }
             Event::JobExited { job, exit } => {
                 durations.insert(job, exit.duration.as_millis());
@@ -368,27 +370,4 @@ pub fn run(
         .join()
         .map_err(|_| Error::Internal("service worker panicked".into()))?;
     Ok(status)
-}
-
-pub fn parse_metadata(line: &str) -> Result<Value, Error> {
-    let mut value: Value = serde_json::from_str(line)
-        .map_err(|e| Error::BackendFailure(format!("invalid metadata: {e}")))?;
-    let object = value
-        .as_object_mut()
-        .ok_or_else(|| Error::BackendFailure("metadata must be an object".into()))?;
-    if !object.get("formats").is_some_and(Value::is_array) {
-        return Err(Error::BackendFailure(
-            "metadata formats must be an array".into(),
-        ));
-    }
-    if let Some(formats) = object.get_mut("formats").and_then(Value::as_array_mut) {
-        for format in formats {
-            if let Some(fields) = format.as_object_mut() {
-                if let Some(id) = fields.get("format_id").cloned() {
-                    fields.insert("id".into(), id);
-                }
-            }
-        }
-    }
-    Ok(value)
 }

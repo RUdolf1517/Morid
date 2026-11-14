@@ -44,6 +44,7 @@ pub enum PumpStatus {
 }
 
 pub struct Queue {
+    metadata_jobs: std::collections::BTreeSet<JobId>,
     limit: ConcurrencyLimit,
     next_id: JobId,
     pending: VecDeque<(JobId, JobRequest)>,
@@ -55,6 +56,7 @@ pub struct Queue {
 impl Queue {
     pub fn new(limit: ConcurrencyLimit) -> Self {
         Self {
+            metadata_jobs: Default::default(),
             limit,
             next_id: 0,
             pending: VecDeque::new(),
@@ -70,6 +72,12 @@ impl Queue {
         self.pending.push_back((id, request));
         self.states.insert(id, JobState::Queued);
         self.events.push_back(Event::JobQueued { job: id });
+        Ok(id)
+    }
+
+    pub fn enqueue_metadata(&mut self, request: JobRequest) -> Result<JobId, QueueError> {
+        let id = self.enqueue(request)?;
+        self.metadata_jobs.insert(id);
         Ok(id)
     }
 
@@ -92,6 +100,7 @@ impl Queue {
             JobState::Queued => {
                 // Explicit queued-cancel exception: remove without spawning or
                 // creating its destination (§3.2.4), no fake Running/PID event.
+                self.metadata_jobs.remove(&id);
                 self.pending.retain(|(job, _)| *job != id);
                 self.states.insert(id, JobState::Cancelled);
                 self.events.push_back(Event::JobFinished {
@@ -150,6 +159,37 @@ impl Queue {
                 for _ in 0..256 {
                     match output.poll_next() {
                         OutputPoll::Item(Ok(event)) => match event.data {
+                            Classified::Output(line)
+                                if self.metadata_jobs.contains(&id)
+                                    && event.stream == morid_engine::stream::Stream::Stdout =>
+                            {
+                                match crate::metadata::MediaMeta::from_yt_dlp(&line) {
+                                    Ok(meta) => {
+                                        self.events.push_back(Event::JobMetadata { job: id, meta })
+                                    }
+                                    Err(error) => {
+                                        record_failure(
+                                            &mut self.events,
+                                            id,
+                                            &mut active.failure,
+                                            JobFailure::Output {
+                                                stream: Some(event.stream),
+                                                detail: error.to_string(),
+                                            },
+                                        );
+                                        if let Err(error) = active.process.request_abort() {
+                                            record_failure(
+                                                &mut self.events,
+                                                id,
+                                                &mut active.failure,
+                                                JobFailure::Observation {
+                                                    detail: error.to_string(),
+                                                },
+                                            );
+                                        }
+                                    }
+                                }
+                            }
                             Classified::Output(line) => self.events.push_back(Event::JobOutput {
                                 job: id,
                                 stream: event.stream,
@@ -206,6 +246,7 @@ impl Queue {
             }
         }
         for id in finished {
+            self.metadata_jobs.remove(&id);
             if let Some(active) = self.active.remove(&id) {
                 if let Some(mut exit) = active.exit {
                     exit.cancelled = active.cancelled;
@@ -306,6 +347,7 @@ impl Queue {
     }
 
     fn failed_admission(&mut self, id: JobId, failure: JobFailure) {
+        self.metadata_jobs.remove(&id);
         self.events.push_back(failure.notice(id));
         self.events.push_back(Event::JobError { job: id, failure });
         self.states.insert(id, JobState::Failed);

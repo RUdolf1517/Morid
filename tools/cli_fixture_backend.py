@@ -11,6 +11,12 @@ root = Path(sys.argv[1])
 url = sys.argv[-1]
 with (root / "spawns.jsonl").open("a", encoding="utf-8") as output:
     output.write(json.dumps(sys.argv[2:]) + "\n")
+if "--fixture-list" in sys.argv and url.endswith("/captured"):
+    # Replay captured bytes verbatim, not a reduced/reconstructed JSON document.
+    capture = Path(__file__).resolve().parents[1] / "fixtures/streams/yt-dlp/list.json"
+    sys.stdout.buffer.write(capture.read_bytes())
+    sys.stdout.buffer.flush()
+    sys.exit(0)
 if "--fixture-list" in sys.argv:
     print(json.dumps({"title": "fixture", "duration": 12, "formats": [{"format_id": "22", "ext": "mp4"}]}))
     sys.exit(0)

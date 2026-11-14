@@ -22,6 +22,10 @@ pub enum JobState {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event {
+    JobMetadata {
+        job: JobId,
+        meta: crate::metadata::MediaMeta,
+    },
     JobQueued {
         job: JobId,
     },

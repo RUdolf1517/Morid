@@ -93,6 +93,7 @@ jobs:
           for scenario in ["s01", "s02", "s03", "s04", "s05", "s09", "s10", "s11", "s12", "s17", "s19", "s20", "s21", "s22", "s37"]:
               name = f"dry_run_argv_matches_golden_{scenario}"
               assert f"{name} ... ok" in text, f"default Test omitted {name}"
+          assert "captured_format_projection_preserves_backend_fields_and_adds_id ... ok" in text, "default Test omitted MediaMeta capture projection"
           PYCODE
           cargo test -p morid-ext thin_files_resolve_by_file_name -- --nocapture --test-threads=1 2>&1 | tee variants.log
           cargo test -p morid-cli warning_demo_copy_of_ytdl_patched -- --nocapture --test-threads=1 2>&1 | tee warnings-demo.log
@@ -155,6 +156,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/test_cli_phase3.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase3-cli.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          prefixes = ("CAPTURED LIST INPUT", "CAPTURED FORMATS", "TABLE EXPECTED", "LANGUAGE REJECTION", "ENGINE VERSION unknown", "CANCELLED BATCH JSONL")
+          for line in Path("phase3-cli.log").read_text().splitlines():
+              if line.startswith(prefixes):
+                  print("::notice title=Phase 3 review follow-up::" + line.replace("%", "%25"))
+          PYCODE
 
       # Deliberately separate from offline tests: installs a real backend, then
       # downloads only from an ephemeral loopback server, outside the checkout.

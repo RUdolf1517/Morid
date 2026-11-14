@@ -17,6 +17,10 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 pub enum Command {
+    EnqueueMetadata {
+        request: Box<JobRequest>,
+        reply: Sender<Result<JobId, Rejection>>,
+    },
     Enqueue {
         request: Box<JobRequest>,
         reply: Sender<Result<JobId, Rejection>>,
@@ -51,6 +55,18 @@ pub struct Client(Sender<Command>);
 impl Client {
     pub fn send(&self, command: Command) -> Result<(), mpsc::SendError<Command>> {
         self.0.send(command)
+    }
+
+    pub fn enqueue_metadata(
+        &self,
+        request: JobRequest,
+    ) -> Result<Receiver<Result<JobId, Rejection>>, mpsc::SendError<Command>> {
+        let (reply, receiver) = mpsc::channel();
+        self.send(Command::EnqueueMetadata {
+            request: Box::new(request),
+            reply,
+        })?;
+        Ok(receiver)
     }
 
     /// The asynchronous reply avoids deadlocking the worker on an enqueue ack.
@@ -142,6 +158,14 @@ fn run(mut queue: Queue, commands: Receiver<Command>, events: Sender<ServiceEven
                 }
             };
             match command {
+                Command::EnqueueMetadata { request, reply } => {
+                    let result = if stopping.is_some() {
+                        Err(Rejection::Stopping)
+                    } else {
+                        queue.enqueue_metadata(*request).map_err(Rejection::Queue)
+                    };
+                    let _ = reply.send(result);
+                }
                 Command::Enqueue { request, reply } => {
                     let result = if stopping.is_some() {
                         Err(Rejection::Stopping)

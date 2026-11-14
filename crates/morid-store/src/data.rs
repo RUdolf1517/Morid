@@ -22,13 +22,17 @@ pub struct UrlRule {
 }
 impl UrlRule {
     pub fn matches(&self, url: &str) -> bool {
-        match (self.url.strip_prefix('*'), self.url.strip_suffix('*')) {
-            (Some(prefix), Some(_)) if self.url.len() > 1 => {
-                url.contains(prefix.strip_suffix('*').unwrap_or(prefix))
-            }
-            (Some(suffix), _) => url.ends_with(suffix),
-            (_, Some(prefix)) => url.starts_with(prefix),
-            _ => url.contains(&self.url),
+        // configure.cpp::urlType: preserve branch order, including "*"/"**".
+        if self.url.starts_with('*') && !self.url.ends_with('*') {
+            url.ends_with(&self.url[1..])
+        } else if !self.url.starts_with('*') && self.url.ends_with('*') {
+            url.starts_with(&self.url[..self.url.len() - 1])
+        } else if self.url.starts_with('*') && self.url.ends_with('*') {
+            let inner = &self.url[1..];
+            // Qt mid(0, -1) keeps the empty string for the single-star case.
+            url.contains(inner.strip_suffix('*').unwrap_or(inner))
+        } else {
+            url.contains(&self.url)
         }
     }
 }
@@ -154,6 +158,40 @@ mod tests {
             assert!(url_rule(&rules, no).is_none());
         }
     }
+    #[test]
+    fn url_rule_operators_follow_original_branch_order() {
+        let matches = |pattern: &str, url: &str| {
+            UrlRule {
+                url: pattern.into(),
+                engine: "backend".into(),
+                download_option: String::new(),
+                extra: Map::new(),
+            }
+            .matches(url)
+        };
+        for (url, suffix, prefix, contains) in [
+            ("mid-end", true, false, true),
+            ("start-mid", false, true, true),
+            ("a-mid-b", false, false, true),
+            ("end-no", false, false, false),
+            ("not-start", false, false, false),
+        ] {
+            assert_eq!(matches("*end", url), suffix, "suffix: {url}");
+            assert_eq!(matches("start*", url), prefix, "prefix: {url}");
+            assert_eq!(matches("mid", url), contains, "bare: {url}");
+            assert_eq!(matches("*mid*", url), contains, "wrapped: {url}");
+        }
+        // Bare and wrapped contains are equivalent, not four disjoint operators.
+        // Both stars reach the third legacy branch and produce an empty needle.
+        for pattern in ["*", "**"] {
+            for url in ["", "anything", "https://example.test/"] {
+                assert!(matches(pattern, url), "{pattern:?}: {url:?}");
+            }
+        }
+        assert!(matches("***", "a*b"));
+        assert!(!matches("***", "no-star"));
+    }
+
     #[test]
     fn engine_defaults_take_the_first_enabled_row() {
         let mut rows: Vec<EngineDefault> = serde_json::from_slice(include_bytes!(

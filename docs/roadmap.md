@@ -243,10 +243,14 @@ command line as the C++ version?* If the answer is no, everything after this poi
 
 ### Phase 4 — User data
 
-**Status:** implementation in progress; not accepted. The store/CLI checking draft covers the Qt
-string/list INI cycle, typed JSON schemas and transactional import/export. Opening an exported directory
-with a live build of the original remains a required gate; a Morid-only round trip is not its substitute.
-No trustworthy actual person-day measurement is available yet; the estimate below is unchanged.
+**Status:** implemented; PR #14 under review, not accepted. The Qt string/list INI cycle,
+JSON schemas, transactional import/export and live original readback gate are implemented.
+[CI at `6a08289`](https://github.com/RUdolf1517/Morid/actions/runs/43615582264) passed on Linux,
+Windows and macOS; Linux opened the exported fixture with the actual legacy Qt build in a
+network namespace. The review follow-up makes URL-rule branch order explicit and adds a
+swapped-direction mutation gate; its own CI must also pass before handoff. Edited-history
+readback remains a Phase 0 capture question, not a claim of this fixture gate.
+No trustworthy actual person-day measurement is available; the 10–14 day estimate is unchanged.
 
 **Deliverable:** a real Media Downloader data directory imports without loss, and the round trip works.
 

@@ -72,6 +72,21 @@ jobs:
           cargo clippy --locked --workspace --all-targets --all-features -- -D warnings 2>&1 | tee clippy.log
           cargo clippy --manifest-path xtask/Cargo.toml --all-targets -- -D warnings 2>&1 | tee -a clippy.log
 
+      - name: URL rule direction mutation proof
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/test_url_rule_mutation.py 2>&1 | tee url-mutation.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("url-mutation.log").read_text()
+          for index, start in enumerate(range(0, len(text), 3500)):
+              block = text[start:start + 3500]
+              escaped = block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::notice title=URL mutation proof {index}::" + escaped)
+          PYCODE
+
       - name: Test
         shell: bash
         run: |

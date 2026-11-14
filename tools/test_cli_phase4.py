@@ -41,6 +41,14 @@ class UserData(unittest.TestCase):
         print("CLI", args, "exit", result.returncode, "stdout", result.stdout, "stderr", result.stderr)
         return result
 
+    def test_report_inside_source_is_usage_error_1(self):
+        result = self.cli("import", self.source, "--report", self.source / "report.json")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("report must be a new file outside source and destination", result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(snapshot(self.source), self.before)
+        self.assertFalse(self.config.exists())
+
     def test_source_not_recognized_exit_7(self):
         self.assertEqual(self.cli("import", self.root / "absent").returncode, 7)
         self.assertFalse(self.config.exists())

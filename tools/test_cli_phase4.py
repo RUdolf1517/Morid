@@ -53,6 +53,11 @@ class UserData(unittest.TestCase):
         self.assertEqual(set(data["dropped_keys"]), {"WindowsUpdateChannel", "CheckForUpdates", "ShowVersionInfoAndAutoDownloadUpdates"})
         self.assertIn("dropped self-update key", result.stdout)
         self.assertEqual(snapshot(self.source), self.before)
+        normalized = json.loads((self.config / "data/downloadHistory.json").read_bytes())
+        self.assertEqual(len(normalized), 20)
+        self.assertEqual((self.config / ".morid/original-downloadHistory.json").read_bytes(),
+                         (self.source / "data/downloadHistory.json").read_bytes())
+        print("IMPORT JSON REPORT", json.dumps(data, sort_keys=True))
         stored = snapshot(self.config)
         second = self.cli("import", self.source)
         self.assertEqual(second.returncode, 8)
@@ -60,6 +65,7 @@ class UserData(unittest.TestCase):
         self.assertEqual(snapshot(self.config), stored)
         exported = self.root / "exported"
         self.assertEqual(self.cli("export", exported).returncode, 0)
+        self.assertFalse((exported / ".morid").exists())
         for name in self.before:
             if name != "settings/settings.ini":
                 self.assertEqual((exported / name).read_bytes(), (self.source / name).read_bytes(), name)
@@ -109,6 +115,84 @@ class UserData(unittest.TestCase):
         self.assertEqual(argv[argv.index("--encoding") + 1], "UTF-8")
         self.assertNotIn("--download-archive", argv)
         print("CONFIG INI DRY-RUN AND JSON OVERLAY VERIFIED")
+
+    def test_history_normalization_keeps_original_and_export_does_not_drop_new_rows(self):
+        raw = (self.source / "data/downloadHistory.json").read_bytes()
+        self.assertEqual(self.cli("import", self.source).returncode, 8)
+        history = self.config / "data/downloadHistory.json"
+        rows = json.loads(history.read_bytes())
+        self.assertEqual(len(rows), 20)
+        self.assertEqual((self.config / ".morid/original-downloadHistory.json").read_bytes(), raw)
+        rows.append({"Url": "https://example.test/new-history", "UnknownFutureField": [1, 2]})
+        history.write_text(json.dumps(rows), encoding="utf-8")
+        exported = self.root / "edited-export"
+        self.assertEqual(self.cli("export", exported).returncode, 0)
+        self.assertEqual((exported / "data/downloadHistory.json").read_bytes(), history.read_bytes())
+        self.assertEqual(len(json.loads((exported / "data/downloadHistory.json").read_bytes())), 21)
+        self.assertFalse((exported / ".morid").exists())
+        self.assertEqual((self.source / "data/downloadHistory.json").read_bytes(), raw)
+
+    def test_corrupt_history_fragments_are_reported_as_raw_bytes(self):
+        history = self.source / "data/downloadHistory.json"
+        raw = bytearray(history.read_bytes())
+        offset = raw.index(b"example.com/history")
+        raw[offset] = 0xff
+        history.write_bytes(raw)
+        report = self.root / "history-report.json"
+        self.assertEqual(self.cli("import", self.source, "--report", report).returncode, 8)
+        data = json.loads(report.read_bytes())
+        self.assertTrue(any(255 in item["bytes"] for item in data["history_fragments"]))
+        self.assertEqual(len(json.loads((self.config / "data/downloadHistory.json").read_bytes())), 19)
+        self.assertEqual((self.config / ".morid/original-downloadHistory.json").read_bytes(), raw)
+        self.assertEqual(history.read_bytes(), raw)
+        exported = self.root / "corrupt-history-export"
+        self.assertEqual(self.cli("export", exported).returncode, 0)
+        self.assertEqual((exported / "data/downloadHistory.json").read_bytes(), raw)
+        self.assertFalse((exported / ".morid").exists())
+
+    def test_tab_engine_and_overrides_select_their_own_ini_fields(self):
+        shutil.copytree(REPO / "extensions", self.source / "extensions")
+        settings = self.source / "settings/settings.ini"
+        raw = settings.read_bytes().replace(b"BatchDownloaderDefaultEngine=yt-dlp\n",
+                                            b"BatchDownloaderDefaultEngine=yt-dlp-nightly\n")
+        settings.write_bytes(raw + b"TextEncoding_yt-dlp-nightly=KOI8-R\nCookieBrowser_yt-dlp-nightly=nightly-browser\n")
+        batch = self.root / "batch.txt"
+        batch.write_text("https://example.test/video\n")
+        result = self.cli("download", "--batch", batch, "--dry-run", config=self.source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        argv = json.loads(result.stdout)
+        self.assertIn("nightly", argv[0])
+        self.assertEqual(argv[argv.index("--encoding") + 1], "KOI8-R")
+        self.assertEqual(argv[argv.index("--cookies-from-browser") + 1], "nightly-browser")
+        overrides = self.root / "selected.json"
+        overrides.write_text(json.dumps({"engine": "yt-dlp-nightly"}))
+        result = self.cli("list", "https://example.test/video", "--dry-run", "--settings", overrides, config=self.source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        argv = json.loads(result.stdout)
+        self.assertEqual(argv[argv.index("--encoding") + 1], "KOI8-R")
+        result = self.cli("list", "https://example.test/video", "--dry-run", "--settings", overrides,
+                          "--engine", "yt-dlp", config=self.source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        argv = json.loads(result.stdout)
+        self.assertNotIn("nightly", argv[0])
+        self.assertEqual(argv[argv.index("--encoding") + 1], "ISO-8859-1")
+        self.assertEqual(argv[argv.index("--cookies-from-browser") + 1], "fixture-browser")
+        overrides.write_text(json.dumps({"engine": "yt-dlp-nightly", "text_encoding": "UTF-8", "cookie_browser": None}))
+        result = self.cli("download", "https://example.test/video", "--dry-run", "--settings", overrides, config=self.source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        argv = json.loads(result.stdout)
+        self.assertEqual(argv[argv.index("--encoding") + 1], "UTF-8")
+        self.assertNotIn("--cookies-from-browser", argv)
+
+    def test_option_payload_is_not_reparsed_as_an_adapter_flag(self):
+        shutil.copytree(REPO / "extensions", self.source / "extensions")
+        for payload in ["--engine", "--no-archive", "--settings"]:
+            result = self.cli("download", "https://example.test/video", "--dry-run", "--options", payload, config=self.source)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            argv = json.loads(result.stdout)
+            self.assertIn(payload, argv)
+            self.assertIn("--download-archive", argv)
+            self.assertNotIn("nightly", argv[0])
 
     def test_archive_is_never_rewritten(self):
         archive_name = "data/archiveFile-yt-dlp.txt"

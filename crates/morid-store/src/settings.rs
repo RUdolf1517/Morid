@@ -18,6 +18,7 @@ const DROPPED: &[&str] = &[
 // Fixed keys observed in settings.cpp and the captured Qt document. Dynamic
 // engine/tab families are matched separately, never by an arbitrary substring.
 const KNOWN: &[&str] = &[
+    "YtDlpTextEncoding", // settings.cpp::textEncoding legacy fallback
     "AutoDownload",
     "AutoDownloadWhenAddedInBatchDownloader",
     "AutoHideDownloadWhenCompleted",

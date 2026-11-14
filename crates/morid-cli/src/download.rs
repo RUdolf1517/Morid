@@ -30,61 +30,8 @@ pub fn run(
     err: &mut dyn Write,
 ) -> Result<u8, Error> {
     let list = args[0] == "list";
-    let value = |flag: &str| -> Result<Option<String>, Error> {
-        let Some(index) = args.iter().position(|arg| arg == flag) else {
-            return Ok(None);
-        };
-        args.get(index + 1)
-            .cloned()
-            .map(Some)
-            .ok_or_else(|| usage(format!("missing value for {flag}")))
-    };
-    let config = value("--config")?
-        .map(PathBuf::from)
-        .unwrap_or_else(super::data_directory);
-    let mut settings = Settings::from_data_directory(&config)?;
-    if let Some(path) = value("--settings")? {
-        let overrides: Value =
-            serde_json::from_str(&std::fs::read_to_string(path).map_err(|e| usage(e.to_string()))?)
-                .map_err(|e| usage(format!("settings JSON: {e}")))?;
-        let mut merged = serde_json::to_value(&settings).map_err(|e| usage(e.to_string()))?;
-        let object = overrides
-            .as_object()
-            .ok_or_else(|| usage("settings JSON must be an object"))?;
-        for (key, value) in object {
-            merged[key] = value.clone();
-        }
-        settings =
-            serde_json::from_value(merged).map_err(|e| usage(format!("settings JSON: {e}")))?;
-    }
-    if settings.data_directory == Path::new(".") {
-        settings.data_directory = config.clone();
-    }
-    if settings.destination == Path::new("Downloads") {
-        settings.destination = std::env::var_os("HOME")
-            .or_else(|| std::env::var_os("USERPROFILE"))
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("Downloads");
-    }
-    if let Some(engine) = value("--engine")? {
-        settings.engine = engine;
-    }
-    if let Some(to) = value("--to")? {
-        settings.destination = to.into();
-    }
-    if args.iter().any(|v| v == "--no-archive") && value("--archive")?.is_some() {
-        return Err(usage("--archive conflicts with --no-archive"));
-    }
-    if let Some(archive) = value("--archive")? {
-        settings.archive = Some(archive);
-        settings.internal_archive = false;
-    }
-    if args.iter().any(|v| v == "--no-archive") {
-        settings.archive = None;
-        settings.internal_archive = false;
-    }
-    EngineId::parse(&settings.engine)?;
+    let mut values = BTreeMap::<String, String>::new();
+    let mut no_archive = false;
     let mut options = Vec::new();
     let mut urls = Vec::new();
     let mut batch = false;
@@ -99,9 +46,10 @@ pub fn run(
         match arg.as_str() {
             "--settings" | "--config" | "--engine" | "--to" | "--archive" => {
                 index += 1;
-                if index >= args.len() {
-                    return Err(usage("missing option value"));
-                }
+                let next = args
+                    .get(index)
+                    .ok_or_else(|| usage(format!("missing value for {arg}")))?;
+                values.insert(arg.clone(), next.clone());
             }
             "--options" | "-f" | "--format" | "--kind" | "--batch" => {
                 let next = args
@@ -133,7 +81,8 @@ pub fn run(
             "--verbose" => verbose = true,
             "--quiet" => quiet = true,
             "--playlist" => playlist = true,
-            "--no-archive" | "--from-file" | "--wait" | "--no-color" => {}
+            "--no-archive" => no_archive = true,
+            "--from-file" | "--wait" | "--no-color" => {}
             "--lang" => {
                 index += 1;
                 if args.get(index).map(String::as_str) != Some("en") {
@@ -147,6 +96,77 @@ pub fn run(
         }
         index += 1;
     }
+    let value = |flag: &str| -> Result<Option<String>, Error> { Ok(values.get(flag).cloned()) };
+    let config = value("--config")?
+        .map(PathBuf::from)
+        .unwrap_or_else(super::data_directory);
+    let overrides = if let Some(path) = value("--settings")? {
+        let value: Value =
+            serde_json::from_str(&std::fs::read_to_string(path).map_err(|e| usage(e.to_string()))?)
+                .map_err(|e| usage(format!("settings JSON: {e}")))?;
+        if !value.is_object() {
+            return Err(usage("settings JSON must be an object"));
+        }
+        Some(value)
+    } else {
+        None
+    };
+    let selected_engine = value("--engine")?.or_else(|| {
+        overrides
+            .as_ref()
+            .and_then(|value| value.get("engine"))
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    });
+    let mut settings = Settings::from_data_directory_for_request(
+        &config,
+        if batch {
+            Kind::Batch
+        } else if list {
+            Kind::List
+        } else {
+            Kind::Download
+        },
+        selected_engine.as_deref(),
+    )?;
+    if let Some(overrides) = overrides {
+        let mut merged = serde_json::to_value(&settings).map_err(|e| usage(e.to_string()))?;
+        if let Some(object) = overrides.as_object() {
+            for (key, value) in object {
+                merged[key] = value.clone();
+            }
+        }
+        settings =
+            serde_json::from_value(merged).map_err(|e| usage(format!("settings JSON: {e}")))?;
+    }
+    if settings.data_directory == Path::new(".") {
+        settings.data_directory = config.clone();
+    }
+    if settings.destination == Path::new("Downloads") {
+        settings.destination = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Downloads");
+    }
+    if let Some(engine) = value("--engine")? {
+        settings.engine = engine;
+    }
+    if let Some(to) = value("--to")? {
+        settings.destination = to.into();
+    }
+    if no_archive && value("--archive")?.is_some() {
+        return Err(usage("--archive conflicts with --no-archive"));
+    }
+    if let Some(archive) = value("--archive")? {
+        settings.archive = Some(archive);
+        settings.internal_archive = false;
+    }
+    if no_archive {
+        settings.archive = None;
+        settings.internal_archive = false;
+    }
+    EngineId::parse(&settings.engine)?;
     if urls.is_empty() || (!batch && urls.len() != 1) || (list && batch) {
         return Err(usage("expected one URL, or download --batch FILE"));
     }

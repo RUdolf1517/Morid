@@ -87,6 +87,31 @@ fn absolute(path: &Path) -> io::Result<PathBuf> {
         .canonicalize()?
         .join(path.strip_prefix(ancestor).map_err(io::Error::other)?))
 }
+fn clone_tree(source: &Path, destination: &Path) -> io::Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        let target = destination.join(entry.file_name());
+        if kind.is_dir() {
+            clone_tree(&entry.path(), &target)?;
+        } else if kind.is_file() {
+            fs::copy(entry.path(), target)?;
+        } else {
+            return Err(io::Error::other(
+                "special file or symlink in destination refused",
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CopyPoint {
+    StagedFile(usize),
+    BeforePublish,
+}
+
 /// Stage a complete tree beside destination; publish only after every write
 /// succeeds. Existing destination moves to a backup before the staged rename.
 /// The caller's transform is pure; all reads/validation precede publication.
@@ -98,6 +123,28 @@ pub fn copy_directory<F>(
 ) -> io::Result<Report>
 where
     F: FnMut(&Path, Vec<u8>, &mut Report) -> io::Result<Vec<u8>>,
+{
+    copy_with_checkpoints(
+        source,
+        destination,
+        force,
+        |path, bytes, report| Ok(vec![(path.to_owned(), transform(path, bytes, report)?)]),
+        |_| Ok(()),
+    )
+}
+
+// Private deterministic fault seam. Production has no environment variable or
+// command-line switch capable of injecting migration failures.
+fn copy_with_checkpoints<F, C>(
+    source: &Path,
+    destination: &Path,
+    force: bool,
+    mut transform: F,
+    mut checkpoint: C,
+) -> io::Result<Report>
+where
+    F: FnMut(&Path, Vec<u8>, &mut Report) -> io::Result<Vec<(PathBuf, Vec<u8>)>>,
+    C: FnMut(CopyPoint) -> io::Result<()>,
 {
     let source = source.canonicalize()?;
     let destination = absolute(destination)?;
@@ -111,25 +158,38 @@ where
     collect(&source, &source, &mut files)?;
     let mut report = Report::default();
     let mut changes = Vec::new();
-    for relative in files {
-        let bytes = transform(&relative, fs::read(source.join(&relative))?, &mut report)?;
-        let target = destination.join(&relative);
-        let old = match fs::read(&target) {
-            Ok(data) => Some(data),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => None,
-            Err(e) => return Err(e),
-        };
-        if old.as_ref() == Some(&bytes) {
-            report.unchanged.push(relative.display().to_string());
-            continue;
-        }
-        if old.is_some() && !force {
-            report.skipped.push(format!(
-                "{}: different existing content; use --force",
-                relative.display()
-            ));
-        } else {
-            changes.push((relative, bytes));
+    let mut planned_paths = std::collections::BTreeSet::new();
+    for input in files {
+        let output = transform(&input, fs::read(source.join(&input))?, &mut report)?;
+        for (relative, bytes) in output {
+            if relative.as_os_str().is_empty()
+                || relative
+                    .components()
+                    .any(|part| !matches!(part, std::path::Component::Normal(_)))
+            {
+                return Err(io::Error::other("invalid planned output path"));
+            }
+            if !planned_paths.insert(relative.clone()) {
+                return Err(io::Error::other("duplicate planned output path"));
+            }
+            let target = destination.join(&relative);
+            let old = match fs::read(&target) {
+                Ok(data) => Some(data),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => None,
+                Err(e) => return Err(e),
+            };
+            if old.as_ref() == Some(&bytes) {
+                report.unchanged.push(relative.display().to_string());
+                continue;
+            }
+            if old.is_some() && !force {
+                report.skipped.push(format!(
+                    "{}: different existing content; use --force",
+                    relative.display()
+                ));
+            } else {
+                changes.push((relative, bytes));
+            }
         }
     }
     if changes.is_empty() {
@@ -156,22 +216,15 @@ where
     };
     let result = (|| {
         if destination.exists() {
-            let mut old_files = Vec::new();
-            collect(&destination, &destination, &mut old_files)?;
-            for relative in old_files {
-                let target = stage.join(&relative);
-                if let Some(dir) = target.parent() {
-                    fs::create_dir_all(dir)?;
-                }
-                fs::copy(destination.join(relative), target)?;
-            }
+            clone_tree(&destination, &stage)?;
         }
-        for (relative, bytes) in &changes {
+        for (index, (relative, bytes)) in changes.iter().enumerate() {
             let target = stage.join(relative);
             if let Some(dir) = target.parent() {
                 fs::create_dir_all(dir)?;
             }
             fs::write(target, bytes)?;
+            checkpoint(CopyPoint::StagedFile(index))?;
         }
         let backup = if destination.exists() {
             let mut number = 0u64;
@@ -199,7 +252,9 @@ where
         } else {
             None
         };
-        if let Err(error) = fs::rename(&stage, &destination) {
+        if let Err(error) =
+            checkpoint(CopyPoint::BeforePublish).and_then(|_| fs::rename(&stage, &destination))
+        {
             if let Some(backup) = &backup {
                 fs::rename(backup, &destination).map_err(|rollback| {
                     io::Error::other(format!(
@@ -207,6 +262,9 @@ where
                         backup.display()
                     ))
                 })?;
+                if let Some(container) = backup.parent() {
+                    fs::remove_dir(container)?;
+                }
             }
             return Err(error);
         }
@@ -239,17 +297,45 @@ pub fn recognized(path: &Path) -> bool {
         .any(|file| path.join("data").join(file).is_file())
 }
 
+// Morid-only original backing is not part of the directory exported to legacy.
+const ORIGINAL_HISTORY: &str = ".morid/original-downloadHistory.json";
+const HISTORY: &str = "data/downloadHistory.json";
+
 pub fn import(source: &Path, destination: &Path, force: bool) -> io::Result<Report> {
-    copy_directory(source, destination, force, |path, bytes, report| {
-        if path == Path::new("settings/settings.ini") {
-            let doc = crate::ini::Document::parse(&bytes).map_err(io::Error::other)?;
-            let (doc, findings) = crate::settings::import(&doc);
-            report.unknown_keys.extend(findings.unknown);
-            report.dropped_keys.extend(findings.dropped);
-            report.warnings.extend(findings.warnings);
-            Ok(doc.encode())
-        } else {
+    copy_with_checkpoints(
+        source,
+        destination,
+        force,
+        |path, bytes, report| {
+            if path.starts_with(".morid") {
+                return Err(io::Error::other(
+                    "reserved .morid metadata in import source; no source bytes changed",
+                ));
+            }
+            if path == Path::new("settings/settings.ini") {
+                let doc = crate::ini::Document::parse(&bytes).map_err(io::Error::other)?;
+                let (doc, findings) = crate::settings::import(&doc);
+                report.unknown_keys.extend(findings.unknown);
+                report.dropped_keys.extend(findings.dropped);
+                report.warnings.extend(findings.warnings);
+                return Ok(vec![(path.to_owned(), doc.encode())]);
+            }
             use crate::data;
+            if path == Path::new(HISTORY) {
+                let (rows, fragments) = data::read_history(&bytes);
+                for fragment in fragments {
+                    report.warnings.push(format!("history corrupt fragment at byte {}; raw bytes preserved in original backing", fragment.offset));
+                    report.history_fragments.push(HistoryFinding {
+                        offset: fragment.offset,
+                        bytes: fragment.bytes,
+                    });
+                }
+                let normalized = data::write_history(&rows).map_err(io::Error::other)?;
+                return Ok(vec![
+                    (path.to_owned(), normalized),
+                    (ORIGINAL_HISTORY.into(), bytes),
+                ]);
+            }
             let validation = match path.strip_prefix("data").ok().and_then(Path::to_str) {
                 Some("presetOptions.json") => data::read_presets(&bytes).map(|_| ()),
                 Some("downloadDefaultOptions.json") => data::read_url_rules(&bytes).map(|_| ()),
@@ -266,34 +352,49 @@ pub fn import(source: &Path, destination: &Path, force: bool) -> io::Result<Repo
                     path.display()
                 ));
             }
-            if path == Path::new("data/downloadHistory.json") {
-                let (_, fragments) = data::read_history(&bytes);
-                for fragment in fragments {
-                    report.warnings.push(format!(
-                        "history corrupt fragment at byte {}; original bytes preserved",
-                        fragment.offset
-                    ));
-                    report.history_fragments.push(HistoryFinding {
-                        offset: fragment.offset,
-                        bytes: fragment.bytes,
-                    });
-                }
-            }
-            Ok(bytes)
-        }
-    })
+            Ok(vec![(path.to_owned(), bytes)])
+        },
+        |_| Ok(()),
+    )
 }
+
 pub fn export(source: &Path, destination: &Path, force: bool) -> io::Result<Report> {
-    copy_directory(source, destination, force, |path, bytes, _| {
-        if path == Path::new("settings/settings.ini") {
-            Ok(crate::settings::export(
-                &crate::ini::Document::parse(&bytes).map_err(io::Error::other)?,
-            )
-            .encode())
-        } else {
-            Ok(bytes)
-        }
-    })
+    copy_with_checkpoints(
+        source,
+        destination,
+        force,
+        |path, bytes, _| {
+            if path.starts_with(".morid") {
+                return Ok(Vec::new());
+            }
+            let bytes = if path == Path::new("settings/settings.ini") {
+                crate::settings::export(
+                    &crate::ini::Document::parse(&bytes).map_err(io::Error::other)?,
+                )
+                .encode()
+            } else if path == Path::new(HISTORY) {
+                match fs::read(source.join(ORIGINAL_HISTORY)) {
+                    Ok(original) => {
+                        let (rows, _) = crate::data::read_history(&original);
+                        // Unchanged imported history returns its exact original bytes.
+                        // If Morid has edited history, copy the current array as-is;
+                        // never discard new entries in favor of an old backing file.
+                        if crate::data::write_history(&rows).map_err(io::Error::other)? == bytes {
+                            original
+                        } else {
+                            bytes
+                        }
+                    }
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => bytes,
+                    Err(e) => return Err(e),
+                }
+            } else {
+                bytes
+            };
+            Ok(vec![(path.to_owned(), bytes)])
+        },
+        |_| Ok(()),
+    )
 }
 
 #[cfg(test)]
@@ -353,6 +454,80 @@ mod tests {
         assert!(report.imported.is_empty());
         assert_eq!(snapshot(&destination), before);
     }
+    #[test]
+    fn failed_copy_after_staging_or_backup_restores_previous_tree() {
+        for existing in [false, true] {
+            for fail_at in [
+                CopyPoint::StagedFile(0),
+                CopyPoint::StagedFile(1),
+                CopyPoint::BeforePublish,
+            ] {
+                let temp = Temp::new();
+                let source = temp.0.join("source");
+                let destination = temp.0.join("dest");
+                fs::create_dir(&source).expect("source");
+                fs::write(source.join("a"), b"new-a").expect("a");
+                fs::write(source.join("b"), b"new-b").expect("b");
+                if existing {
+                    fs::create_dir_all(destination.join("empty-child")).expect("empty directory");
+                    fs::write(destination.join("a"), b"old-a").expect("old");
+                }
+                let before = snapshot(&temp.0);
+                let mut before_children = fs::read_dir(&temp.0)
+                    .expect("before")
+                    .map(|e| e.expect("entry").file_name())
+                    .collect::<Vec<_>>();
+                before_children.sort();
+                let mut reached = false;
+                let result = copy_with_checkpoints(
+                    &source,
+                    &destination,
+                    true,
+                    |path, bytes, _| Ok(vec![(path.to_owned(), bytes)]),
+                    |point| {
+                        if point == fail_at {
+                            reached = true;
+                            Err(io::Error::other("injected write/publication failure"))
+                        } else {
+                            Ok(())
+                        }
+                    },
+                );
+                assert!(reached, "fault seam not reached: {fail_at:?}");
+                assert!(result.is_err());
+                assert_eq!(snapshot(&temp.0), before);
+                assert_eq!(destination.exists(), existing);
+                if existing {
+                    assert!(destination.join("empty-child").is_dir());
+                }
+                let mut after_children = fs::read_dir(&temp.0)
+                    .expect("after")
+                    .map(|e| e.expect("entry").file_name())
+                    .collect::<Vec<_>>();
+                after_children.sort();
+                assert_eq!(
+                    after_children, before_children,
+                    "no staging or backup residue"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn successful_force_preserves_unrelated_empty_directories() {
+        let temp = Temp::new();
+        let source = temp.0.join("source");
+        let destination = temp.0.join("dest");
+        fs::create_dir(&source).expect("source");
+        fs::write(source.join("a"), b"new").expect("new");
+        fs::create_dir_all(destination.join("empty/nested")).expect("empty");
+        fs::write(destination.join("a"), b"old").expect("old");
+        let report =
+            copy_directory(&source, &destination, true, |_, bytes, _| Ok(bytes)).expect("publish");
+        assert!(destination.join("empty/nested").is_dir());
+        assert!(report.backup.expect("backup").join("empty/nested").is_dir());
+    }
+
     #[test]
     fn force_backs_up_and_failure_does_not_publish() {
         let temp = Temp::new();

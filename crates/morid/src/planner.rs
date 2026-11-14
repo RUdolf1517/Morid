@@ -47,10 +47,23 @@ impl Default for Settings {
 }
 impl Settings {
     pub fn from_data_directory(directory: &std::path::Path) -> Result<Self, Error> {
+        Self::from_data_directory_for_request(directory, Kind::Download, None)
+    }
+
+    /// Choose the tab/explicit engine BEFORE reading per-engine settings. JSON
+    /// field overrides and flags are still applied by the adapter afterwards.
+    pub fn from_data_directory_for_request(
+        directory: &std::path::Path,
+        kind: Kind,
+        engine: Option<&str>,
+    ) -> Result<Self, Error> {
         let mut settings = Self {
             data_directory: directory.join("data"),
             ..Self::default()
         };
+        if let Some(engine) = engine {
+            settings.engine = engine.into();
+        }
         let path = directory.join("settings/settings.ini");
         let bytes = match std::fs::read(&path) {
             Ok(bytes) => bytes,
@@ -66,8 +79,15 @@ impl Settings {
                     _ => None,
                 })
         };
-        if let Some(value) = scalar("BasicDownloaderDefaultEngine") {
-            settings.engine = value;
+        if engine.is_none() {
+            let key = if kind == Kind::Batch {
+                "BatchDownloaderDefaultEngine"
+            } else {
+                "BasicDownloaderDefaultEngine"
+            };
+            if let Some(value) = scalar(key) {
+                settings.engine = value;
+            }
         }
         if let Some(value) = scalar("DownloadFolder") {
             settings.destination = value.into();
@@ -78,8 +98,9 @@ impl Settings {
         if let Some(value) = scalar("MaxConcurrentDownloads") {
             settings.concurrency = value;
         }
-        settings.text_encoding =
-            scalar(&format!("TextEncoding_{}", settings.engine)).filter(|value| !value.is_empty());
+        settings.text_encoding = scalar(&format!("TextEncoding_{}", settings.engine))
+            .or_else(|| scalar("YtDlpTextEncoding"))
+            .filter(|value| !value.is_empty());
         if scalar("CookieSourceSetToBrowerName").as_deref() == Some("true") {
             settings.cookie_browser = scalar(&format!("CookieBrowser_{}", settings.engine))
                 .filter(|value| !value.is_empty());

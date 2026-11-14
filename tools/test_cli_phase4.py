@@ -48,6 +48,9 @@ class UserData(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         self.assertEqual(snapshot(self.source), self.before)
         self.assertFalse(self.config.exists())
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            message = f"exit={result.returncode}; stdout={result.stdout!r}; stderr={result.stderr!r}"
+            print("::notice title=Report inside source refusal::" + message.replace("%", "%25").replace("\n", "%0A"))
 
     def test_source_not_recognized_exit_7(self):
         self.assertEqual(self.cli("import", self.root / "absent").returncode, 7)

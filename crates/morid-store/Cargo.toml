@@ -12,3 +12,5 @@ description = "Settings and data files, INI-compatible; no processes"
 
 [dependencies]
 morid-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

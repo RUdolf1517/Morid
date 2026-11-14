@@ -15,6 +15,9 @@ pub fn run(
     err: &mut dyn Write,
 ) -> Result<u8, Error> {
     let output_error = |_| Error::Internal("cannot write CLI output".to_owned());
+    if matches!(args.first().map(String::as_str), Some("import" | "export")) {
+        return transfer::run(args, out);
+    }
     if matches!(args.first().map(String::as_str), Some("download" | "list")) {
         return download::run(args, directory, target, search, out, err);
     }
@@ -141,7 +144,7 @@ pub fn normalize_arguments(args: &mut Vec<String>) {
     let mut index = 0;
     while index < args.len() {
         match args[index].as_str() {
-            "list" | "download" | "engines" => {
+            "list" | "download" | "engines" | "import" | "export" => {
                 let verb = args.remove(index);
                 args.insert(0, verb);
                 return;
@@ -152,3 +155,5 @@ pub fn normalize_arguments(args: &mut Vec<String>) {
         }
     }
 }
+
+pub mod transfer;

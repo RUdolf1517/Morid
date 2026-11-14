@@ -243,6 +243,11 @@ command line as the C++ version?* If the answer is no, everything after this poi
 
 ### Phase 4 — User data
 
+**Status:** implementation in progress; not accepted. The store/CLI checking draft covers the Qt
+string/list INI cycle, typed JSON schemas and transactional import/export. Opening an exported directory
+with a live build of the original remains a required gate; a Morid-only round trip is not its substitute.
+No trustworthy actual person-day measurement is available yet; the estimate below is unchanged.
+
 **Deliverable:** a real Media Downloader data directory imports without loss, and the round trip works.
 
 - `morid-store`: settings (the Qt dialect of D-016), presets, URL rules, per-engine defaults, subscriptions,

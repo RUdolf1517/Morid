@@ -2284,6 +2284,8 @@ name = "morid-store"
 version = "0.1.0"
 dependencies = [
  "morid-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

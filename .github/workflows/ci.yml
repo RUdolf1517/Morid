@@ -164,6 +164,75 @@ jobs:
                   print("::notice title=Phase 3 review follow-up::" + line.replace("%", "%25"))
           PYCODE
 
+      - name: Phase 4 store evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test -p morid-store -- --nocapture 2>&1 | tee phase4-store.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("phase4-store.log").read_text(encoding="utf-8", errors="replace")
+          assert "settings_ini_from_fixture_decodes_without_loss ... ok" in text
+          assert "failed_copy_after_staging_or_backup_restores_previous_tree ... ok" in text
+          for index, start in enumerate(range(0, min(len(text), 24000), 3500)):
+              block = text[start:start + 3500]
+              print(f"::notice title=Phase 4 store tests {index}::" + block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
+          PYCODE
+
+      - name: Phase 4 offline user-data CLI checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! python3 tools/test_cli_phase4.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase4-cli.log; then
+            python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("phase4-cli.log").read_text(encoding="utf-8", errors="replace")
+          start = text.find("FAIL:")
+          if start < 0:
+              start = text.find("ERROR:")
+          text = text[start:] if start >= 0 else text[-14000:]
+          for index, start in enumerate(range(0, min(len(text), 16000), 3500)):
+              block = text[start:start + 3500]
+              print(f"::error title=Phase 4 CLI failure {index}::" + block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
+          PYCODE
+            exit 1
+          fi
+
+      - name: Phase 4 live original readback (Linux, network isolated)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ pkg-config qtbase5-dev
+          # The captured/anonymized download-folder value must name a real
+          # directory, otherwise the original correctly resets it on startup.
+          sudo install -d -o "$USER" -g "$(id -gn)" /home/user
+          cmake -S legacy -B target/phase4-legacy -DBUILD_WITH_QT6=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build target/phase4-legacy --parallel 2
+          g++ -std=c++14 -fPIC -shared tools/phase4_original_probe.cpp -o target/phase4-original-probe.so $(pkg-config --cflags --libs Qt5Widgets Qt5Core) -ldl
+          if ! python3 tools/test_phase4_original.py target/release/morid target/phase4-legacy/media-downloader target/phase4-original-probe.so 2>&1 | tee phase4-original.log; then
+            python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("phase4-original.log").read_text(encoding="utf-8", errors="replace")[-16000:]
+          for index, start in enumerate(range(0, len(text), 3500)):
+              block = text[start:start + 3500]
+              print(f"::error title=Phase 4 original readback {index}::" + block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
+          PYCODE
+            exit 1
+          fi
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          lines = Path("phase4-original.log").read_text(encoding="utf-8", errors="replace").splitlines()
+          lines = [line for line in lines if line.startswith(("ORIGINAL_", "EXPORTED FILE LIST"))]
+          # Group notices: Actions caps per-step annotations; one notice per row
+          # would drop the final success marker and most of the actual output.
+          text = "\n".join(lines)
+          for index, start in enumerate(range(0, min(len(text), 24000), 3500)):
+              block = text[start:start + 3500]
+              print(f"::notice title=Live original readback {index}::" + block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
+          PYCODE
+
       # Deliberately separate from offline tests: installs a real backend, then
       # downloads only from an ephemeral loopback server, outside the checkout.
       - name: Phase 3 real yt-dlp HTTP smoke
@@ -425,6 +494,9 @@ jobs:
           path: |
             test.log
             phase3-cli.log
+            phase4-cli.log
+            phase4-store.log
+            phase4-original.log
             phase3-http.log
             phase3-goldens.log
             variants.log

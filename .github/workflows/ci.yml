@@ -238,14 +238,12 @@ jobs:
           fi
           python3 - <<'PYCODE'
           from pathlib import Path
-          lines = Path("phase4-original.log").read_text(encoding="utf-8", errors="replace").splitlines()
-          lines = [line for line in lines if line.startswith(("ORIGINAL_", "EXPORTED FILE LIST"))]
-          # Group notices: Actions caps per-step annotations; one notice per row
-          # would drop the final success marker and most of the actual output.
-          text = "\n".join(lines)
-          for index, start in enumerate(range(0, min(len(text), 24000), 3500)):
-              block = text[start:start + 3500]
-              print(f"::notice title=Live original readback {index}::" + block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
+          text = Path("phase4-original.log").read_text(encoding="utf-8", errors="replace")
+          # The annotated lines are a summary; the file itself is what a reviewer reads.
+          summary = [line for line in text.splitlines() if line.startswith(("ORIGINAL_", "EXPORTED FILE LIST"))]
+          print("\n".join(summary))
+          if "ORIGINAL_ROUNDTRIP_OK" not in text:
+              raise SystemExit("the readback gate did not report ORIGINAL_ROUNDTRIP_OK")
           PYCODE
 
       # Deliberately separate from offline tests: installs a real backend, then

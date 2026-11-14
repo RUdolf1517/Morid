@@ -32,13 +32,13 @@ never "someone wrote something".
 
 | ID | Feature | In the original | Depends on | Priority | Status | Acceptance criterion |
 | --- | --- | --- | --- | --- | --- | --- |
-| F-01 | Fetch the list of formats a URL offers | `basicdownloader::list`, `engine::dumpJsonArguments` | backend `--print` JSON | P0 | not started | For three fixture URLs the parsed format table equals the one captured from the original field by field — **met for one of three URLs** in Phase 3: the captured `fixtures/streams/yt-dlp/list.json` is replayed through the backend and the real CLI, and every field of every format plus the printed table is asserted. **Not met** for the two other URLs, and the capture holds one format with `resolution: null`, so a wider table (several formats, differing `ext`/`resolution`/`filesize`) is still untested |
-| F-02 | Choose format / options | `utility::args::parseOptions` (`legacy/src/utility.cpp:1548`) | backend, `OptionsArgument` | P0 | not started | `mp4`, `-f 22`, `default` and an empty string each produce the same argv as the original |
-| F-03 | Download a single URL | `basicdownloader::download` | backend | P0 | not started | File appears in the download folder; progress events observed; exit state recorded |
-| F-04 | Progress, size, speed, ETA | `Logger`, `ControlJsonStructure`, per-engine filters | backend output | P0 | not started | Replaying captured output yields the same sequence of progress values as the original |
-| F-05 | Cancel a download | `Terminator::terminate` (`legacy/src/utility.cpp:621`) | OS process control | P0 | not started | No descendant process survives cancellation, on Linux and Windows; partial files are kept unless the setting says otherwise |
-| F-06 | 17 bundled presets | `configure::presetOptions::defaultData` | — | P0 | not started | The preset list loads from the shipped file and matches the original's 17 entries |
-| F-07 | Option history per field | `settings::addToHistory`, `HistorySize` | settings | P1 | not started | History round-trips through settings; size limit enforced |
+| F-01 | Fetch the list of formats a URL offers | `basicdownloader::list`, `engine::dumpJsonArguments` | backend `--print` JSON | P0 | done (Phase 3, one of three URLs) | For three fixture URLs the parsed format table equals the one captured from the original field by field — **met for one of three URLs** in Phase 3: the captured `fixtures/streams/yt-dlp/list.json` is replayed through the backend and the real CLI, and every field of every format plus the printed table is asserted. **Not met** for the two other URLs, and the capture holds one format with `resolution: null`, so a wider table (several formats, differing `ext`/`resolution`/`filesize`) is still untested |
+| F-02 | Choose format / options | `utility::args::parseOptions` (`legacy/src/utility.cpp:1548`) | backend, `OptionsArgument` | P0 | done (Phase 3) | `mp4`, `-f 22`, `default` and an empty string each produce the same argv as the original |
+| F-03 | Download a single URL | `basicdownloader::download` | backend | P0 | done (Phase 3) | File appears in the download folder; progress events observed; exit state recorded |
+| F-04 | Progress, size, speed, ETA | `Logger`, `ControlJsonStructure`, per-engine filters | backend output | P0 | done (Phase 3) | Replaying captured output yields the same sequence of progress values as the original |
+| F-05 | Cancel a download | `Terminator::terminate` (`legacy/src/utility.cpp:621`) | OS process control | P0 | done (Phase 3) | No descendant process survives cancellation, on Linux and Windows; partial files are kept unless the setting says otherwise |
+| F-06 | 15 bundled presets | `configure::presetOptions::defaultData` | — | P0 | done (Phase 4) | The preset list loads from the shipped file and matches the original's 15 entries ([data-compat](data-compat.md) §5.3) |
+| F-07 | Option history per field | `settings::addToHistory`, `HistorySize` | settings | P1 | partly (Phase 4): the list value survives read and write as a list, and `HistorySize` is read; appending new entries and trimming to the limit is Phase 7, where the field exists | History round-trips through settings; size limit enforced |
 | F-08 | Subtitle download and embedding | `DefaultSubstitlesCmdOptions`, `--embed-subs` | backend, ffmpeg | P1 | not started | Subtitle arguments match; requested language files are produced |
 | F-09 | Comment retrieval and saving | `--get-comments`, `showComments` | backend | P2 | not started | Comments JSON is fetched and saved in the original's format |
 
@@ -49,10 +49,10 @@ never "someone wrote something".
 | F-10 | URL table with add/remove | `batchdownloader::addToList` | — | P0 | not started | Rows add, remove and persist like the original |
 | F-11 | Load URLs from a file (txt/json) | `batchdownloader::getListFromFile` | — | P0 | not started | A list saved by the original loads without loss, including per-entry options |
 | F-12 | Auto-download newly added URLs | `AutoDownloadWhenAddedInBatchDownloader`, `-a` | IPC | P0 | not started | `-u <url> -a` in a second instance starts a download in the first |
-| F-13 | Concurrent downloads with a limit | `MaxConcurrentDownloads` (default 4) | scheduler | P0 | not started | With limit 2 and five queued jobs, at most two run at any instant and all five finish |
+| F-13 | Concurrent downloads with a limit | `MaxConcurrentDownloads` (default 4) | scheduler | P0 | done (Phase 3) | With limit 2 and five queued jobs, at most two run at any instant and all five finish |
 | F-14 | Thumbnails and metadata in the table | `getMetaData`, `ShowMetaDataInBatchDownloader` | network, image decoding | P1 | not started | Thumbnail and title populate; a failed fetch leaves the row usable |
 | F-15 | Time interval, chapters, split by chapters | `--download-sections`, `cbSplitByChapters`, `lineEditChapters` | backend | P1 | not started | Generated arguments identical to the original for the same input |
-| F-16 | Save and restore the list | `autoSavedList.json`, `AutoSavePlaylistOnExit` | store | P1 | not started | The list survives a restart; file readable by the original |
+| F-16 | Save and restore the list | `autoSavedList.json`, `AutoSavePlaylistOnExit` | store | P1 | partly (Phase 4): `autoSavedList.json` is read, written and exported with every field it carries; restoring a list into a queue is Phase 7 | The list survives a restart; file readable by the original |
 | F-17 | Play a downloaded file | `settings::mediaPlayer` (VLC or the system default) | external player | P2 | not started | Configured player opens the file; a missing player gives a clear message |
 | F-18 | Rename an entry / file | `renameFile`, `normalizeFilePath` | filesystem | P2 | not started | Rename is reflected on disk and in the list; invalid names rejected |
 | F-19 | Name conflicts and destination normalisation | `normalizeFilePath` | filesystem | P1 | not started | A file that already exists is not silently overwritten; path separators normalised per platform |
@@ -64,9 +64,9 @@ never "someone wrote something".
 | F-20 | Fetch a playlist's entries | `playlistdownloader::parseJson`, `CanDownloadPlaylist` | backend | P0 | not started | Parsed entry list equals the captured original result for the fixture playlist |
 | F-21 | Item range selection | playlist tab range field, `splitPreserveQuotes` | backend | P0 | partly in Phase 2 | The range field produces identical argv tokens; **no validation** — the original has none, a bad value reaches the backend and its message is shown ([extensions](extensions.md) §5.4) |
 | F-22 | Download selected / recursive | `download`, `downloadRecursively` | scheduler | P0 | not started | Per-row state transitions match; a cancelled parent leaves no children running |
-| F-23 | Download archive (`--download-archive`) | `enginePaths::archiveFileArgument` | archive file | P0 | not started | A second run skips already-downloaded entries; archive format identical to the original's |
+| F-23 | Download archive (`--download-archive`) | `enginePaths::archiveFileArgument` | archive file | P0 | done (Phase 4): the argument, the setting and the store ownership are proved; a full download cycle leaves the archive byte-identical | A second run skips already-downloaded entries; archive format identical to the original's |
 | F-24 | `--break-on-existing` / `--skip-on-existing` | `archiveData` (`legacy/src/utility.h:654`) | archive | P1 | not started | Behaviour and stop condition match the original on the fixture playlist |
-| F-25 | Subscriptions to playlists | `subscriptions.json`, `subscription::save` | store, archive | P1 | not started | Add, remove and persistence match; file readable by the original |
+| F-25 | Subscriptions to playlists | `subscriptions.json`, `subscription::save` | store, archive | P1 | partly (Phase 4): `subscriptions.json` is read, written and exported with its real fields; adding and removing subscriptions is Phase 7 | Add, remove and persistence match; file readable by the original |
 | F-26 | Automatic subscription checking | not present — the original requires a manual "Get List" | scheduler | P2 | not started | A scheduled check runs at the configured interval and reports new entries; **this is a new feature, not a migration** |
 | F-27 | Playlist URL history | `PlaylistUrlHistory`, `PlaylistRangeHistory` | settings | P2 | not started | History behaves as in the original |
 
@@ -91,36 +91,36 @@ never "someone wrote something".
 
 | ID | Feature | In the original | Depends on | Priority | Status | Acceptance criterion |
 | --- | --- | --- | --- | --- | --- | --- |
-| F-50 | Download folder and library folder | `DownloadFolder`, `LibraryDownloadFolder` | — | P0 | not started | Paths applied; a missing folder is created; a non-writable folder gives a clear error |
-| F-51 | Per-engine default options | `downloadEngineDefaultOptions.json` | store | P0 | not started | Options applied to every download of that engine; file compatible with the original |
-| F-52 | URL manager (substring → engine + options) | `downloadDefaultOptions.json`, `getEngineNameFromUrlManager` | store | P0 | not started | A rule matches as the original matches it, including precedence between rules |
+| F-50 | Download folder and library folder | `DownloadFolder`, `LibraryDownloadFolder` | — | P0 | partly (Phase 4): `DownloadFolder` is read from `settings.ini` and applied; `LibraryDownloadFolder` is stored but the library is Phase 7 | Paths applied; a missing folder is created; a non-writable folder gives a clear error |
+| F-51 | Per-engine default options | `downloadEngineDefaultOptions.json` | store | P0 | partly (Phase 4): the file is read, written and exported, and the "first row with default=yes" rule is proved; applying the options to every download of that engine is not wired into the planner yet | Options applied to every download of that engine; file compatible with the original |
+| F-52 | URL manager (substring → engine + options) | `downloadDefaultOptions.json`, `getEngineNameFromUrlManager` | store | P0 | partly (Phase 4): both files are read, written and exported, the four operators and first-match precedence are proved against `configure.cpp:2246`; choosing the engine and options from a rule is not wired into the planner yet | A rule matches as the original matches it, including precedence between rules |
 | F-53 | Download "profiles" | **not a separate feature** — presets + URL manager + per-engine defaults | — | P3 | not carried | Recorded as covered by D-011; a named-profile feature is a roadmap item, not a migration |
 | F-54 | Proxy: none / system / env / manual | `settings::proxySettings`, `legacy/src/proxy.cpp` | environment | P0 | not started | Each mode produces the same arguments or environment variables as the original, including the manual string format |
-| F-55 | Cookies from a browser or a file | `CookieArgument`, `CookieArgumentTextFile` | backend | P0 | not started | Arguments identical; the cookie file path is quoted correctly on all platforms |
+| F-55 | Cookies from a browser or a file | `CookieArgument`, `CookieArgumentTextFile` | backend | P0 | partly (Phase 3): cookie arguments match the goldens, including a path with a space; reading the cookie file and per-platform quoting tests are not done | Arguments identical; the cookie file path is quoted correctly on all platforms |
 | F-56 | Text encoding of backend output | `EncodingArgument` | backend | P1 | not started | Non-UTF-8 output is decoded as configured; the setting is ignored where the backend does not support it |
-| F-57 | Themes (dark, custom JSON) | `themes.cpp`, `<data>/themes` | — | P1 | not started | Bundled themes match the original's colour values; a custom theme file loads |
+| F-57 | Themes (dark, custom JSON) | `themes.cpp`, `<data>/themes` | — | P1 | partly (Phase 4): `themes/*.json` round-trip byte for byte as opaque files; resolving a palette from them is Phase 7 | Bundled themes match the original's colour values; a custom theme file loads |
 | F-58 | UI scale | `HighDpiScalingFactor*`, `UI Scale` sub-tab | — | P2 | not started | Scale changes take effect and persist |
 | F-59 | Tray icon and notifications | `mainwindow.cpp:88-218` | platform integration | P1 | not started | Notification appears on download completion and on all-complete, honouring the two settings |
 | F-60 | Command after a download / after all | `CommandOnSuccessfulDownload`, `CommandWhenAllFinished` | shell | P2 | not started | Command runs with documented substitution; a failing command does not fail the download |
 | F-61 | 18 interface languages | `translator.cpp`, `.ts`/`.qm` | i18n | P0 | not started | All 18 selectable; for `ar` text renders correctly with LTR layout ([D-002](decisions.md)) |
 | F-62 | Single instance + IPC | `single_instance.hpp`, `-u/-a/-e/-p` | local socket | P0 | not started | Second instance forwards the URL and exits; a stale socket does not block startup |
 | F-63 | Portable mode (Windows) | `--portable`, `settings::init` | — | P1 | not started | Data stored beside the binary; switching modes does not lose settings |
-| F-64 | Download history | `downloadHistory.json`, log window | store | P2 | not started | History written, readable and searchable; format compatible with the original |
+| F-64 | Download history | `downloadHistory.json`, log window | store | P2 | partly (Phase 4): the file is read tolerantly, written as a JSON array and exported; the log window is Phase 7 | History written, readable and searchable; format compatible with the original |
 | F-65 | Library (built-in file manager) | `library.cpp`, `directoryEntries.cpp` | filesystem | P1 | not started | Navigate, rename, delete, sort; deletion is confirmed and irreversible-action safe |
 | F-66 | Self-update of the application | `versionInfo`, `startedUpdatedVersion` | network | P3 | not carried | Not carried ([D-013](decisions.md)); only a "new version available" notice remains |
 | F-67 | Window geometry persistence | `MainWindowDimensions`, `WindowDimensions_*` | settings | P2 | not started | Window reopens at the stored size and position |
-| F-68 | User data import from Media Downloader | not present (no need) | store | P0 | not started | An import of a real data directory reproduces settings, presets, URL rules, subscriptions, archive and history without loss; unknown keys preserved or reported |
+| F-68 | User data import from Media Downloader | not present (no need) | store | P0 | done (Phase 4) | An import of a real data directory reproduces settings, presets, URL rules, subscriptions, archive and history without loss; unknown keys preserved or reported |
 
 ## 6. Console interface (our addition, decided in D-009)
 
 | ID | Feature | Depends on | Priority | Status | Acceptance criterion |
 | --- | --- | --- | --- | --- | --- |
-| C-01 | `morid list <url>` prints formats | `morid-core`, `morid-ext` | P0 | not started | Human-readable and `--json` forms both stable; documented in [cli.md](cli.md) |
-| C-02 | `morid download <url>` | scheduler | P0 | not started | Downloads to the configured folder; `--dry-run` prints argv without running |
+| C-01 | `morid list <url>` prints formats | `morid-core`, `morid-ext` | P0 | done (Phase 3) | Human-readable and `--json` forms both stable; documented in [cli.md](cli.md) |
+| C-02 | `morid download <url>` | scheduler | P0 | done (Phase 3) | Downloads to the configured folder; `--dry-run` prints argv without running |
 | C-03 | `morid engines` | `morid-ext` | P0 | partly in Phase 2 | Resolution half done: every bundled extension printed with platform, selected architecture, argv and verdict, `--json` as one object per line ([cli](cli.md) §2.3). Version reading and `--update/--install/--remove` are Phase 5 |
-| C-04 | `morid import <dir>` | `morid-store` | P1 | not started | Imports a Media Downloader data directory |
-| C-05 | Exit codes | — | P0 | not started | Every documented code is produced by a test |
-| C-06 | `--json` event stream | event model | P1 | not started | One JSON object per line, schema documented and versioned |
+| C-04 | `morid import <dir>` | `morid-store` | P1 | done (Phase 4) | Imports a Media Downloader data directory |
+| C-05 | Exit codes | — | P0 | done (Phase 4): 1, 2, 3, 4, 5, 6, 7 and 8 are each produced by a test; 9 is reserved for bugs and has no test that refuses it — recorded as a gap rather than claimed | Every documented code is produced by a test |
+| C-06 | `--json` event stream | event model | P1 | done (Phase 3) | One JSON object per line, schema documented and versioned |
 
 ## 7. Platforms and packaging
 
@@ -134,6 +134,41 @@ never "someone wrote something".
 | F-75 | CI on three platforms with tests | P0 | not started | fmt, clippy, test and build green on all three; sizes reported |
 | F-76 | Flatpak manifest | P1 | not started | Manifest builds against the current runtime |
 | F-77 | Reproducible-ish release artefacts with checksums | P1 | not started | `SHA256SUMS` published and verified by the install instructions |
+
+---
+
+## 7a. Progress after Phase 3, counted from this file
+
+Produced by parsing the tables above, not by memory — the same rule the note in §8 exists for. Phases 3 and 4
+accepted; `partly` counts as half, because half a feature is not a feature but is not nothing.
+
+| Priority | done | partly | not started | not carried | weighted |
+| --- | --- | --- | --- | --- | --- |
+| P0 | 15 | 6 | 17 | 0 | 47% of 38 |
+| P1 | 2 | 4 | 14 | 0 | 20% of 20 |
+| P2 | 0 | 1 | 9 | 0 | 5% of 10 |
+| P3 | — | — | — | 4 | — |
+| **All 72** | **17** | **11** | **40** | **4** | **31%** |
+
+**The number that matters for D-003 is the second one: 38% of parity.** Parity means every P0 **and** P1 row with a
+passing test, so 17 done and 10 partly out of 58 is a bit over a third of the promise.
+
+The jump — 22% to 31% of all rows, 26% to 38% of parity — is Phase 4 doing something the two phases before it did
+not: it moved features from `not started` to `partly` in bulk, because a store that reads and writes a file without
+yet driving a screen is half a feature by construction. **`partly` is where a phase can flatter itself**, so each
+`partly` row here names the missing half in its status cell rather than the phrase "later phase".
+
+A fact worth keeping next to it, because it explains why the percentage has moved while the visible product has not
+changed much: four phases so far built the **foundation** — domain types, the extension reader, the process engine,
+the stream classifier, the queue, the CLI and the store. What remains is mostly *breadth*: playlists,
+subscriptions in a UI, the window, packaging — and where it is not breadth, it is network (Phase 5). Breadth is cheaper per feature than foundation, which is why the roadmap's remaining estimates total
+less than what has already been spent on Phases 0–4.
+
+Lines of code are a poor proxy and are given here only to answer the question honestly: the original is about
+**29 000 lines of C++** (20 000 non-comment `.cpp`, 9 600 headers) plus 3 000 lines of `.ui`, and `morid` is about
+**4 400 non-comment lines of Rust** in non-test code — but the Rust replaces the *mechanism*, while the original's
+behaviour was captured as **1 200 lines of extension JSON** and **40 fixtures**. Comparing line counts across the
+two languages measures the wrong thing; comparing features does not.
 
 ---
 

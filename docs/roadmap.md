@@ -29,8 +29,10 @@ planning aids, not commitments, and they are **not retro-fitted** when a phase r
 | 0 Reference behaviour | 5–8 | **accepted 7 Nov 2026** | PR #2 (`8fba615`); 36 of 40 cases, 7 backends, `VERIFY_OK` |
 | 1 Skeleton | 5–7 | **accepted 8 Nov 2026** | PR #4 (`b6c2a58`), [CI 42461122995](https://github.com/RUdolf1517/Morid/actions/runs/42461122995) |
 | 2 Domain and extensions | 10–14 | **accepted 10 Nov 2026** | PR #8 (`fe97a75`), [CI 42881799249](https://github.com/RUdolf1517/Morid/actions/runs/42881799249) |
-| 3 One backend, end to end | 12–16 | **next — task not yet written** | — |
-| 4–8 | 10–20 each | not started | — |
+| 3 One backend, end to end | 12–16 | **accepted 14 Nov 2026 with four named gaps** | PR #12 (`3b3fa32`), [CI 43601974208](https://github.com/RUdolf1517/Morid/actions/runs/43601974208) |
+| 4 User data | 10–14 | **accepted and merged 14 Nov 2026** | PR #14 (`5780005`), merge `6510143`, [CI 43619103137](https://github.com/RUdolf1517/Morid/actions/runs/43619103137) |
+| 5 Network and installation | 10–14 | **next — task not written** | — |
+| 6–8 | 15–45 each | not started | — |
 
 **What exists in code:** eight crates that compile on three platforms; a Qt-INIdialect settings reader/writer with
 30 tests and a seeded fuzz; `morid-core` (URL, format, option tokens, playlist-range tokens, versions, typed errors);
@@ -195,13 +197,21 @@ spawned by any test. **All met.**
 
 ### Phase 3 — One backend, end to end
 
-**Status: review candidate, not accepted.** The service queue/cancellation/stream increments are followed by
+**Status: accepted 14 November 2026, with the four gaps below closed by later phases rather than by this one.**
+The service queue/cancellation/stream increments are followed by
 `list`/`download`/batch adapters, the JSON settings override seam, fifteen in-scope CLI dry-run goldens, version-1
 JSONL and executable-adjacent → per-user extension lookup. Offline fixture-process tests and the separate real
-loopback-HTTP yt-dlp acceptance are distinct CI steps. Evidence and explicit interface limitations are in PR #12;
-this paragraph does not promote the phase to accepted. The original 12–16-day estimate below is retained: the
-work spanned multiple implementation/review rounds, but active engineering days were not measured, so an actual
-person-day figure cannot honestly be substituted.
+loopback-HTTP yt-dlp acceptance are distinct CI steps. Evidence is in PR #12 (`3b3fa32`).
+
+**The four gaps, each with an owner and a phase:** F-01 is proved for one of three URLs, not three (needs a
+multi-format `--list-formats` capture — a follow-up for Phase 0); `engine_version` is reported as `null` (Phase 5
+reads versions); `JobStarted` carries no `argv` and `JobFinished` no `files` (Phase 6, with the event model's
+remaining fields); `--lang` accepts only `en` (Phase 7). A fifth, smaller one: the stream lifted from
+`--progress-template` is classified but not yet re-emitted under its own event name (Phase 6). None of them
+changes argv, cancellation or exit codes, which is why the phase is accepted with them named rather than held.
+
+The original 12–16-day estimate is retained: the work spanned multiple implementation/review rounds, but active
+engineering days were not measured, so an actual person-day figure cannot honestly be substituted.
 
 **Deliverable:** `morid list` and `morid download` work against a real yt-dlp, and the argv matches the golden
 fixtures.
@@ -243,25 +253,39 @@ command line as the C++ version?* If the answer is no, everything after this poi
 
 ### Phase 4 — User data
 
-**Status:** implemented; PR #14 under review, not accepted. The Qt string/list INI cycle,
-JSON schemas, transactional import/export and live original readback gate are implemented.
-[CI at `6a08289`](https://github.com/RUdolf1517/Morid/actions/runs/43615582264) passed on Linux,
-Windows and macOS; Linux opened the exported fixture with the actual legacy Qt build in a
-network namespace. The review follow-up makes URL-rule branch order explicit and adds a
-swapped-direction mutation gate; its own CI must also pass before handoff. Edited-history
-readback remains a Phase 0 capture question, not a claim of this fixture gate.
-No trustworthy actual person-day measurement is available; the 10–14 day estimate is unchanged.
+**Status: accepted and merged 14 November 2026** — PR #14, merge `6510143`, [CI 43619103137](https://github.com/RUdolf1517/Morid/actions/runs/43619103137)
+green on Linux, Windows and macOS.
+
+- The Qt INI dialect is reproduced byte for byte: the captured `settings.ini` decodes to 94 keys, one of them a
+  21-item `QStringList`, and re-encodes to the same **3 351 bytes**.
+- The six data files keep their real field names and their unknown members; presets are the 15 post-rewrite
+  entries; the URL rule takes the **first** matching pattern and its four operators are proved by a mutation gate
+  that swaps them in the real source and requires the test to fail.
+- Import and export are transactional, idempotent, and leave the source byte-identical; the archive is compared
+  after a real download cycle; unknown keys and unknown files are preserved and reported.
+- The original program opened the export in CI — a Qt 5 build of `legacy/`, `ORIGINAL_ROUNDTRIP_OK`. That is the
+  acceptance criterion the phase was written around, and it was not a Morid-only round trip.
+
+**Two limits, stated rather than implied.** `url_rule` and `engine_default` are parsed and proved but **not yet
+wired into the planner**: a URL rule does not choose the engine and per-engine options are not prepended, which is
+why F-51 and F-52 stay `partly`. And exit code `9` has no test that produces it.
+
+**One question the phase raised and did not answer:** whether the original recognises its own history entries for
+URLs that `QJsonDocument` escaped (`\/`, `\uXXXX`) — `historyFound` is a byte search. That is a Phase 0 capture,
+recorded in [data-compat](data-compat.md) §5.1. No code was written to the hypothesis.
 
 **Deliverable:** a real Media Downloader data directory imports without loss, and the round trip works.
-
-- `morid-store`: settings (the Qt dialect of D-016), presets, URL rules, per-engine defaults, subscriptions,
-  archive handling (**never rewriting it**), history (tolerant read of the concatenated-JSON file).
-- `morid import` / `morid export`, with a report.
-- The round-trip test of [data-compat](data-compat.md) §6.
 
 **Estimate:** 10–14 days. **Exit criteria:** F-68 done; unknown settings keys preserved; the original program can
 read what Morid exports — checked by actually opening the exported directory with `legacy/`'s build, not by
 inspecting the bytes.
+
+**What the fixtures decided, and what a correct implementation therefore cannot "improve":** all of it shipped.
+The Qt escapes (values `\x<hex>` with the digit defence, keys `%XX`/`%UXXXX`, never Latin-1 on read); unknown keys
+preserved under an `[imported]` section and reported; presets as the 15 post-rewrite entries; URL rules with four
+operators and first-match precedence; the archive passed through and never parsed for logic; history read tolerantly
+and repaired with a report. The rules and their sources are in [data-compat](data-compat.md) §2, §3.0, §3.0a, §3.1
+and §5.1.
 
 **The lesson of Phase 0 applies here in full:** this phase is one file format after another, and each format has a
 detail that is silent when wrong. Every rule must come from `legacy/` or from a fixture, and every rule must have a
@@ -342,9 +366,9 @@ unfinished screen.
 | 0 Reference behaviour | 5–8 | 5–8 | accepted |
 | 1 Skeleton | 5–7 | 10–15 | accepted |
 | 2 Domain + extensions | 10–14 | 20–29 | accepted |
-| 3 One backend | 12–16 | 32–45 | next |
-| 4 User data | 10–14 | 42–59 | — |
-| 5 Network + installation | 10–14 | 52–73 | — |
+| 3 One backend | 12–16 | 32–45 | accepted |
+| 4 User data | 10–14 | 42–59 | accepted |
+| 5 Network + installation | 10–14 | 52–73 | next |
 | 6 Remaining backends | 15–20 | 67–93 | — |
 | 7 Interface | 30–45 | 97–138 | — |
 | 8 Parity + release | 15–20 | 112–158 | — |

@@ -8,10 +8,13 @@ text = original.decode()
 command = ["cargo", "test", "--locked", "-p", "morid-store",
            "url_rule_operators_follow_original_branch_order", "--", "--nocapture"]
 try:
-    assert text.count("url.ends_with(") == 1
-    assert text.count("url.starts_with(") == 1
-    mutated = text.replace("url.ends_with(", "url.SWAP(").replace(
-        "url.starts_with(", "url.ends_with(").replace("url.SWAP(", "url.starts_with(")
+    # Only swap the receiver argument, not self.url's pattern classification.
+    ends = "            url.ends_with("
+    starts = "            url.starts_with("
+    assert text.count(ends) == 1
+    assert text.count(starts) == 1
+    mutated = text.replace(ends, "            url.SWAP(").replace(
+        starts, ends).replace("            url.SWAP(", starts)
     path.write_text(mutated)
     result = subprocess.run(command, capture_output=True, text=True)
     print("=== ends_with/starts_with SWAPPED ===", flush=True)

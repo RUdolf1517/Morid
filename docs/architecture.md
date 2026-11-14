@@ -177,11 +177,16 @@ Notes that come from the original's actual behaviour and must not be "improved" 
 - Each job is a `tokio`-free structure: a `std::thread` per running backend is acceptable and simpler than an
   async runtime for a program whose work is dominated by child processes and line parsing. **Decision pending
   in Phase 3** — see [roadmap](roadmap.md) §"Open engineering choices".
-- Cancellation sends a termination request to the **process tree**: `setsid`/process group on Unix,
-  `CreateJobObject` with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` on Windows. A cancelled job is not "the process
-  was signalled"; it is "no descendant of the job is alive".
+- Cancellation sends a termination request to the **process tree**. A cancelled job is not "the process was
+  signalled"; it is "no descendant of the job is alive". The mechanism per platform is Phase 3's to choose
+  ([tasks/phase-3-one-backend.md](tasks/phase-3-one-backend.md) §3.1 item 6); on Unix a process group is enough,
+  and `CommandExt::process_group(0)` creates it without `unsafe` or `pre_exec`.
 - On Windows the original shells out to `taskkill`. That is a security and reliability liability (argument
-  quoting, missing binary, locale); job objects replace it.
+  quoting, missing binary, locale), and job objects replace it — **but job objects only contain what they contain.**
+  A process started between `spawn` and `AssignProcessToJobObject` is outside the job, and so is anything it
+  created first. Race-free containment needs the child created suspended and assigned before its first instruction
+  runs, which is `unsafe` and is why [D-019](decisions.md) exists. A design that assigns after spawn and calls
+  itself tree containment is wrong, however well it passes a test that waits for the child to appear first.
 
 ---
 
@@ -190,17 +195,18 @@ Notes that come from the original's actual behaviour and must not be "improved" 
 The service layer exposes one stream of events and one set of commands. Everything else subscribes.
 
 ```rust
+// As delivered in Phase 3 — this is the target model, corrected to what exists.
+// The gaps are named in the note below rather than left to be discovered.
 pub enum Event {
     JobQueued { job: JobId },
-    JobStarted { job: JobId, pid: u32, argv: Vec<String> },
-    JobProgress { job: JobId, progress: Progress },   // percent, size, speed, eta, current line
+    JobStarted { job: JobId, pid: u32 },              // no argv yet: the CLI adds it from its plan
     JobOutput { job: JobId, stream: Stream, line: String },
-    JobMetadata { job: JobId, meta: MediaMeta },      // title, duration, thumbnail, formats
-    JobFinished { job: JobId, state: JobState, files: Vec<PathBuf> },
-    EngineVersion { engine: EngineId, version: Version },
-    EngineInstallProgress { engine: EngineId, fraction: Option<f32> },
-    EngineListChanged,
-    Notice { level: Level, text: String },            // user-facing, translatable key + args
+    JobProgress { job: JobId, progress: Progress },   // percent, size, speed, eta, line
+    JobExited { job: JobId, exit: ExitState },
+    JobError { job: JobId, failure: JobFailure },
+    JobFinished { job: JobId, state: JobState },
+    Notice { job: JobId, key: &'static str, args: BTreeMap<String, String> },
+    JobMetadata { job: JobId, meta: MediaMeta },
 }
 
 pub enum Command {
@@ -219,6 +225,19 @@ Why events rather than callbacks into the UI (the original's approach):
 
 `Notice` carries a translation **key and arguments**, never a pre-formatted string: the service layer does not
 know the user's language.
+
+**What Phase 3 delivered, and the three places it is short of the model above.** Recorded here because "the event
+stream exists" and "the event stream is the model" are different statements, and the second one is not true yet:
+
+| Gap | Consequence today | Owner |
+| --- | --- | --- |
+| `JobStarted` carries no `argv`; the CLI re-derives it from its own plan when emitting JSON | the window will have to do the same until the service owns the plan; two sources of one truth | Phase 3 follow-up or Phase 6, whichever touches `JobStarted` first |
+| `files` is absent from `JobFinished`; the CLI reports the destination it observed | a GUI cannot show what was written without repeating the CLI's guess | Phase 6 (`JobFinished` gains the field) |
+| `EngineVersion`, `EngineInstallProgress`, `EngineListChanged` do not exist | `morid engines --json` reports `engine_version: null`; `--lang` accepts `en` only | Phase 5 for the engine events, Phase 7 for localisation |
+
+None of these is invisible to a user: `engine_version: null` is in the JSON a script reads, and a `finished` event
+without `files` is a window that cannot say what it downloaded. They are listed as deviations in the Phase 3 report
+for that reason.
 
 ---
 

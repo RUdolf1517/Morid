@@ -276,8 +276,45 @@ is kept in [`archive/ru/`](../archive/ru/) — see [D-012](#d-012-documentation-
   Phases 3 and later are written as contracts. The coder's stopping rule — report a contradiction with evidence and
   stop on that point — is unchanged and remains the backstop.
 
+### D-019 — `unsafe` is allowed in two modules of `morid-engine`, and nowhere else
+
+- **Date:** 10 November 2026 · **Question:** raised by the coder before writing a line: Phase 3 requires cancelling
+  a process **tree**, and every available mechanism needs `unsafe`, which the task and
+  [dependencies](dependencies.md) §1 forbade unconditionally. Asked in PR #11.
+- **Decision:** the ban becomes a scope. `morid-engine` gets `#![deny(unsafe_code)]` instead of `forbid`, and
+  exactly two modules — one Unix process group, one Windows Job Object — carry `#![allow(unsafe_code)]`. Every
+  other crate keeps `forbid`, and `morid-engine` keeps no other exemption.
+- **Reasoning:** the unconditional ban was written when nothing in the project spawned a process, and it was never
+  checked against the mechanics of cancellation. It cannot survive contact with the requirement: `setsid`/`killpg`
+  are `unsafe` in `libc`, `CreateJobObjectW` and friends are `unsafe` in `windows-sys`, and `CommandExt::pre_exec`
+  is itself `unsafe`. The alternatives are worse, not safer:
+  - a safe wrapper crate (`win32job`, `process_control`) is `unsafe` inside, adds a supply-chain edge, another
+    licence and another maintenance dependency, to hide a few dozen lines we would still have to review — and
+    `process_control`'s Unix half is built around *not* using process groups, which is the opposite of what A5 and
+    the tree requirement need;
+  - `taskkill /F /T /PID` is rejected in [dependencies](dependencies.md) §2.9 for good reasons (quoting,
+    localisation, and it is the defect being replaced);
+  - "cancel one process" is not a tree cancel and would fail the Phase 3 criterion that no descendant survives.
+  The project already accepts `unsafe` **inside** a reviewed dependency (`ring`, through `rustls`,
+  [dependencies](dependencies.md) §2.6). Refusing twenty visible lines while accepting a transitive tree of them is
+  a rule that measures the wrong thing.
+- **What it does not mean:** `unsafe` is not now welcome in `morid-engine`. It is confined to the two modules whose
+  only job is to own the platform primitive, the public API stays safe (no `unsafe fn`, no raw handle across the
+  crate boundary), each block carries a `// SAFETY:` comment stating the invariant, and the review greps for
+  `unsafe` outside those modules as a defect.
+- **Consequences:**
+  - [tasks/phase-3-one-backend.md](tasks/phase-3-one-backend.md) §4 carries the new rule, replacing "no `unsafe`";
+  - [dependencies](dependencies.md) §1's "no `unsafe` in our code" is amended to point here;
+  - [workspace-manifest.md](workspace-manifest.md) §7 records the change to `morid-engine`'s crate attribute, next
+    to the existing `morid-gui` deviation, and why they are different (Slint's attribute is forced by macro
+    expansion; this one is a decision);
+  - the FakeIOSafety story is not weakened: `morid-core`, `morid-ext` and the rest stay `forbid`, so the
+    platform-independent layers remain provably safe;
+  - if either module ever grows beyond owning one primitive, that is a new question, not an extension of this one.
+
 **None.** All fifteen questions of the audit were decided on 4 November 2026. D-016 and D-017 were raised
-afterwards, by the Phase 0 review. D-018 came from the owner on 10 November 2026, after the Phase 2 task.
+afterwards, by the Phase 0 review. D-018 came from the owner on 10 November 2026, after the Phase 2 task. D-019
+came the same day, from the coder's blocking report on Phase 3.
 
 | Question | Decision | Question | Decision |
 | --- | --- | --- | --- |

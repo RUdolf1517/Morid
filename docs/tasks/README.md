@@ -9,6 +9,7 @@ project manager through the owner, and a task is not started before the previous
 | 1 | [phase-0-fixtures.md](phase-0-fixtures.md) | Phase 0 — reference behaviour and fixtures | 5–8 days | **accepted 7 Nov 2026** in `cc04893`; CI of its checks deferred to Phase 1 by D-017 |
 | 2 | [phase-1-skeleton.md](phase-1-skeleton.md) | Phase 1 — workspace skeleton and CI | 5–7 days | **accepted** in PR #4 (`b6c2a58`), merged |
 | 3 | [phase-2-domain.md](phase-2-domain.md) | Phase 2 — domain types, extension schema, command resolution | 10–14 days | **accepted 10 Nov 2026** in PR #8 (`564284b4`), merged |
+| 4 | [phase-3-one-backend.md](phase-3-one-backend.md) | Phase 3 — one backend end to end: spawn, stream, cancel, argv equals golden | 12–16 days | **accepted 11 Nov 2026** by the manager with four named gaps ([roadmap](../roadmap.md) Phase 3); code in PR #12, awaiting the owner's merge instruction |
 
 Task 1 produces no Rust code and must not be skipped: without it there is no definition of "same behaviour" to
 test against. Task 2 produces no functionality: it produces the pipeline that later phases are checked by.

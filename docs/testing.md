@@ -145,6 +145,18 @@ breaks and the suite stays green. The mitigations, in order of importance:
 
 ---
 
+### Gap recorded 11 November 2026: no captured stream with a progress template
+
+`fixtures/streams/yt-dlp/progress.txt` was captured with `--no-colors --progress --progress-delta 0.1` and **no
+`--progress-template`**, so it holds only yt-dlp's console progress shape. The scenario `log.txt` files record the
+argv the wrapper received, which is where `--progress-template` appears — as an argument, not as output. As a result
+there is **no captured stream produced with the template in force**, and the template parser's field extraction is
+tested against a constructed line whose shape comes from `s01`'s argv.
+
+This is a Phase 3 gap, not a defect in the fixture set: Phase 0 never claimed to carry every option combination. It
+is recorded here so that (a) the Phase 3 test says honestly which input is captured, and (b) a future Phase 0 round
+can close it by capturing one stream with a template rather than leaving the next phase to rediscover it.
+
 ## 5. What is explicitly not tested, and why
 
 - **Fuzzing.** Not planned for Phase 1–6. The parser input is line-oriented text from a trusted local binary,

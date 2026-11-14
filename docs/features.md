@@ -32,7 +32,7 @@ never "someone wrote something".
 
 | ID | Feature | In the original | Depends on | Priority | Status | Acceptance criterion |
 | --- | --- | --- | --- | --- | --- | --- |
-| F-01 | Fetch the list of formats a URL offers | `basicdownloader::list`, `engine::dumpJsonArguments` | backend `--print` JSON | P0 | not started | For three fixture URLs the parsed format table equals the one captured from the original field by field |
+| F-01 | Fetch the list of formats a URL offers | `basicdownloader::list`, `engine::dumpJsonArguments` | backend `--print` JSON | P0 | not started | For three fixture URLs the parsed format table equals the one captured from the original field by field — **met for one of three URLs** in Phase 3: the captured `fixtures/streams/yt-dlp/list.json` is replayed through the backend and the real CLI, and every field of every format plus the printed table is asserted. **Not met** for the two other URLs, and the capture holds one format with `resolution: null`, so a wider table (several formats, differing `ext`/`resolution`/`filesize`) is still untested |
 | F-02 | Choose format / options | `utility::args::parseOptions` (`legacy/src/utility.cpp:1548`) | backend, `OptionsArgument` | P0 | not started | `mp4`, `-f 22`, `default` and an empty string each produce the same argv as the original |
 | F-03 | Download a single URL | `basicdownloader::download` | backend | P0 | not started | File appears in the download folder; progress events observed; exit state recorded |
 | F-04 | Progress, size, speed, ETA | `Logger`, `ControlJsonStructure`, per-engine filters | backend output | P0 | not started | Replaying captured output yields the same sequence of progress values as the original |

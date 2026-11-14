@@ -5,13 +5,63 @@ use morid_ext::{SearchPath, Target};
 use std::path::PathBuf;
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    // Bundled data is deliberately located relative to the checkout for Phase 2.
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../extensions");
-    let bin = std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(|parent| parent.join("bin")))
-        .unwrap_or_else(|| PathBuf::from("bin"));
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    // Global options may precede the verb; adapters accept the same flags after it.
+    if let Some(index) = args
+        .iter()
+        .position(|arg| ["list", "download", "engines"].contains(&arg.as_str()))
+    {
+        let command = args.remove(index);
+        args.insert(0, command);
+    }
+    let data = args
+        .iter()
+        .position(|v| v == "--config")
+        .and_then(|i| args.get(i + 1))
+        .map(PathBuf::from)
+        .unwrap_or_else(morid_cli::data_directory);
+    let executable = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(error) => {
+            eprintln!("morid: {error}");
+            return ExitCode::from(4);
+        }
+    };
+    let searched = morid_cli::extension_paths(&executable, &data);
+    let root = searched
+        .iter()
+        .find(|path| path.is_dir())
+        .cloned()
+        .unwrap_or_else(|| searched[0].clone());
+    if !root.is_dir()
+        && !args
+            .iter()
+            .any(|v| ["--version", "-V", "--help", "-h"].contains(&v.as_str()))
+    {
+        eprintln!(
+            "morid: extensions unavailable; searched {}",
+            searched
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        return ExitCode::from(4);
+    }
+    if args.first().map(String::as_str) == Some("engines") {
+        eprintln!(
+            "extension paths searched: {}",
+            searched
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        if let Some(index) = args.iter().position(|v| v == "--config") {
+            args.drain(index..(index + 2).min(args.len()));
+        }
+    }
+    let bin = data.join("bin");
     match morid_cli::run(
         &args,
         &root,

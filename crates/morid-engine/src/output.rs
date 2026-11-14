@@ -89,6 +89,7 @@ impl Splitter {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Progress {
     pub percent: Option<f64>,
+    pub downloaded_bytes: Option<f64>,
     pub total_bytes: Option<f64>,
     pub speed: Option<f64>,
     pub eta: Option<f64>,
@@ -273,6 +274,7 @@ fn yt_dlp_progress(line: &str) -> Option<Progress> {
                 .zip(total_bytes)
                 .map(|(done, total)| 100.0 * done / total)
                 .filter(|value| value.is_finite()),
+            downloaded_bytes: downloaded,
             total_bytes,
             speed,
             eta,
@@ -299,6 +301,7 @@ fn yt_dlp_progress(line: &str) -> Option<Progress> {
     };
     Some(Progress {
         percent: Some(percent),
+        downloaded_bytes: total_bytes.map(|total| total * percent / 100.0),
         total_bytes,
         speed: after("at").and_then(byte_quantity),
         eta: after("ETA").and_then(clock_eta),

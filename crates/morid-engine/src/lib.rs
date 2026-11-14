@@ -17,3 +17,8 @@ pub mod process_group;
 pub mod spawn;
 
 pub mod stream;
+
+#[cfg(windows)]
+pub use job_object::{install_interrupt_handler, interrupted};
+#[cfg(unix)]
+pub use process_group::{install_interrupt_handler, interrupted};

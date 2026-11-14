@@ -112,6 +112,26 @@ pub(crate) fn leader_exited(child: &Child) -> io::Result<bool> {
     }
 }
 
+static INTERRUPTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+extern "C" fn interrupt_handler(_: libc::c_int) {
+    INTERRUPTED.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn install_interrupt_handler() -> io::Result<()> {
+    INTERRUPTED.store(false, std::sync::atomic::Ordering::Relaxed);
+    // SAFETY: handler has the C signal ABI, never unwinds, allocates, or accesses
+    // non-atomic mutable data. It remains a valid function for the process lifetime.
+    let old = unsafe { libc::signal(libc::SIGINT, interrupt_handler as libc::sighandler_t) };
+    if old == libc::SIG_ERR {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+pub fn interrupted() -> bool {
+    INTERRUPTED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

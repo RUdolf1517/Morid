@@ -246,3 +246,29 @@ mod tests {
         job.terminate(1)
     }
 }
+
+static INTERRUPTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+extern "system" fn interrupt_handler(event: u32) -> windows_sys::core::BOOL {
+    if event == 0 || event == 1 {
+        INTERRUPTED.store(true, std::sync::atomic::Ordering::Relaxed);
+        1
+    } else {
+        0
+    }
+}
+pub fn install_interrupt_handler() -> io::Result<()> {
+    INTERRUPTED.store(false, std::sync::atomic::Ordering::Relaxed);
+    // SAFETY: function has the Windows console-handler ABI, static lifetime and
+    // only stores to an atomic. It never calls console APIs or unwinds.
+    if unsafe {
+        windows_sys::Win32::System::Console::SetConsoleCtrlHandler(Some(interrupt_handler), 1)
+    } == 0
+    {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+pub fn interrupted() -> bool {
+    INTERRUPTED.load(std::sync::atomic::Ordering::Relaxed)
+}

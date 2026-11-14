@@ -126,6 +126,10 @@ jobs:
           set -euo pipefail
           cargo build --locked --release --workspace 2>&1 | tee build.log
 
+      - name: Install executable-adjacent extensions for release smoke
+        shell: bash
+        run: cp -R extensions target/release/extensions
+
       - name: Resolve all bundled engines without starting them
         shell: bash
         run: |

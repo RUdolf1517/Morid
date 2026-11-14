@@ -9,3 +9,5 @@ pub mod jobs;
 
 pub mod limit;
 pub mod queue;
+
+pub mod service;

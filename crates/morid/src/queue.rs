@@ -220,13 +220,12 @@ impl Queue {
                         JobState::Succeeded
                     };
                     if state == JobState::Failed && active.failure.is_none() {
-                        self.events.push_back(Event::JobError {
-                            job: id,
-                            failure: JobFailure::BackendExit {
-                                code: exit.code,
-                                signal: exit.signal,
-                            },
-                        });
+                        let failure = JobFailure::BackendExit {
+                            code: exit.code,
+                            signal: exit.signal,
+                        };
+                        self.events.push_back(failure.notice(id));
+                        self.events.push_back(Event::JobError { job: id, failure });
                     }
                     self.events.push_back(Event::JobExited { job: id, exit });
                     self.states.insert(id, state);

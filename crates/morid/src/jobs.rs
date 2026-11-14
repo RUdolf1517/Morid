@@ -89,9 +89,41 @@ impl JobFailure {
             Self::BackendExit { .. } => "job.backend_exit",
             Self::Observation { .. } => "job.observation_failed",
         };
-        // Technical details are arguments, never the translated Notice text.
         let mut args = std::collections::BTreeMap::new();
-        args.insert("detail".into(), format!("{self:?}"));
+        match self {
+            Self::Destination { path, detail } => {
+                args.insert("path".into(), path.to_string_lossy().into_owned());
+                args.insert("detail".into(), detail.clone());
+            }
+            Self::FailedToStart { program, detail } => {
+                args.insert("program".into(), program.to_string_lossy().into_owned());
+                args.insert("detail".into(), detail.clone());
+            }
+            Self::Output { stream, detail } => {
+                if let Some(stream) = stream {
+                    args.insert(
+                        "stream".into(),
+                        match stream {
+                            Stream::Stdout => "stdout",
+                            Stream::Stderr => "stderr",
+                        }
+                        .into(),
+                    );
+                }
+                args.insert("detail".into(), detail.clone());
+            }
+            Self::BackendExit { code, signal } => {
+                if let Some(code) = code {
+                    args.insert("code".into(), code.to_string());
+                }
+                if let Some(signal) = signal {
+                    args.insert("signal".into(), signal.to_string());
+                }
+            }
+            Self::Observation { detail } => {
+                args.insert("detail".into(), detail.clone());
+            }
+        }
         Event::Notice { job, key, args }
     }
 

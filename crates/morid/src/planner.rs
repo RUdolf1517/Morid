@@ -83,7 +83,26 @@ pub fn plan(
         });
     }
     if request.playlist {
+        if !extension.metadata.can_download_playlist {
+            return Err(Error::Extension {
+                file: extension.file.clone(),
+                rule: 1,
+                message: "engine does not support playlists".into(),
+            });
+        }
         base.retain(|arg| arg != "--no-playlist");
+        // The list policy's !playlist guard is for single-URL inspection; it
+        // would reject every playlist entry if retained under --playlist.
+        if list {
+            let mut index = 0;
+            while index + 1 < base.len() {
+                if base[index] == "--match-filter" && base[index + 1] == "!playlist" {
+                    base.drain(index..index + 2);
+                } else {
+                    index += 1;
+                }
+            }
+        }
     }
     args.extend(base);
     if yt {

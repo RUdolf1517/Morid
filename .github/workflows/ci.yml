@@ -102,12 +102,23 @@ jobs:
         run: |
           set -euo pipefail
           cargo test --locked -p morid-engine --test cancel_tree -- --nocapture 2>&1 | tee cancel-tree.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          lines = Path("cancel-tree.log").read_text().splitlines()
+          proof = "\n".join(line for line in lines if "process table:" in line or "CANCEL_TREE_OK" in line or "NAIVE_KILL_CONTROL_OK" in line)
+          print("::notice title=contained cancellation process tables::" + proof.replace("%", "%25").replace("\n", "%0A"))
+          PYCODE
 
       - name: Service cancellation event acceptance
         shell: bash
         run: |
           set -euo pipefail
           cargo test --locked -p morid --test service_cancel -- --nocapture 2>&1 | tee service-cancel.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          proof = "\n".join(line for line in Path("service-cancel.log").read_text().splitlines() if "process table:" in line or "SERVICE_CANCELLED_OK" in line)
+          print("::notice title=service cancellation process tables::" + proof.replace("%", "%25").replace("\n", "%0A"))
+          PYCODE
 
       - name: Live pipe interleaving and both progress shapes
         shell: bash

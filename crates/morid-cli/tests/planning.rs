@@ -334,3 +334,33 @@ fn global_options_do_not_mistake_values_for_commands() {
         ]
     );
 }
+
+#[test]
+fn list_playlist_removes_single_url_guard_and_checks_engine_capability() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../extensions");
+    let search = SearchPath {
+        bin: root.join("absent"),
+        paths: vec![],
+    };
+    let mut extension =
+        read_path(&root.join("yt-dlp.json"), &Target::current(), &search).expect("extension");
+    let request = Request {
+        url: Url::parse("https://example.test/playlist").expect("URL"),
+        options: DownloadOptions(vec![]),
+        ui_options: DownloadOptions(vec![]),
+        kind: Kind::List,
+        playlist: true,
+    };
+    let argv = planner::plan(&extension, &Settings::default(), &request).expect("playlist plan");
+    assert!(!argv
+        .iter()
+        .any(|arg| arg == "--no-playlist" || arg == "!playlist"));
+    assert!(argv.iter().any(|arg| arg == "--print"));
+    extension.metadata.can_download_playlist = false;
+    assert_eq!(
+        planner::plan(&extension, &Settings::default(), &request)
+            .expect_err("unsupported playlist")
+            .exit_code(),
+        4
+    );
+}

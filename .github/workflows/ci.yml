@@ -130,6 +130,12 @@ jobs:
         shell: bash
         run: cp -R extensions target/release/extensions
 
+      - name: Phase 3 offline CLI acceptance outside checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/test_cli_phase3.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase3-cli.log
+
       - name: Resolve all bundled engines without starting them
         shell: bash
         run: |
@@ -364,6 +370,7 @@ jobs:
           name: phase2-evidence-${{ matrix.os }}
           path: |
             test.log
+            phase3-cli.log
             variants.log
             warnings-demo.log
             windows-race.log

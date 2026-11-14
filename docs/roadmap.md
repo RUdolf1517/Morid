@@ -29,8 +29,9 @@ planning aids, not commitments, and they are **not retro-fitted** when a phase r
 | 0 Reference behaviour | 5–8 | **accepted 7 Nov 2026** | PR #2 (`8fba615`); 36 of 40 cases, 7 backends, `VERIFY_OK` |
 | 1 Skeleton | 5–7 | **accepted 8 Nov 2026** | PR #4 (`b6c2a58`), [CI 42461122995](https://github.com/RUdolf1517/Morid/actions/runs/42461122995) |
 | 2 Domain and extensions | 10–14 | **accepted 10 Nov 2026** | PR #8 (`fe97a75`), [CI 42881799249](https://github.com/RUdolf1517/Morid/actions/runs/42881799249) |
-| 3 One backend, end to end | 12–16 | **next — task not yet written** | — |
-| 4–8 | 10–20 each | not started | — |
+| 3 One backend, end to end | 12–16 | **accepted 14 Nov 2026 with four named gaps** | PR #12 (`3b3fa32`), [CI 43601974208](https://github.com/RUdolf1517/Morid/actions/runs/43601974208) |
+| 4 User data | 10–14 | **next — task issued** ([tasks/phase-4-user-data.md](tasks/phase-4-user-data.md)) | — |
+| 5–8 | 10–20 each | not started | — |
 
 **What exists in code:** eight crates that compile on three platforms; a Qt-INIdialect settings reader/writer with
 30 tests and a seeded fuzz; `morid-core` (URL, format, option tokens, playlist-range tokens, versions, typed errors);
@@ -195,13 +196,21 @@ spawned by any test. **All met.**
 
 ### Phase 3 — One backend, end to end
 
-**Status: review candidate, not accepted.** The service queue/cancellation/stream increments are followed by
+**Status: accepted 14 November 2026, with the four gaps below closed by later phases rather than by this one.**
+The service queue/cancellation/stream increments are followed by
 `list`/`download`/batch adapters, the JSON settings override seam, fifteen in-scope CLI dry-run goldens, version-1
 JSONL and executable-adjacent → per-user extension lookup. Offline fixture-process tests and the separate real
-loopback-HTTP yt-dlp acceptance are distinct CI steps. Evidence and explicit interface limitations are in PR #12;
-this paragraph does not promote the phase to accepted. The original 12–16-day estimate below is retained: the
-work spanned multiple implementation/review rounds, but active engineering days were not measured, so an actual
-person-day figure cannot honestly be substituted.
+loopback-HTTP yt-dlp acceptance are distinct CI steps. Evidence is in PR #12 (`3b3fa32`).
+
+**The four gaps, each with an owner and a phase:** F-01 is proved for one of three URLs, not three (needs a
+multi-format `--list-formats` capture — a follow-up for Phase 0); `engine_version` is reported as `null` (Phase 5
+reads versions); `JobStarted` carries no `argv` and `JobFinished` no `files` (Phase 6, with the event model's
+remaining fields); `--lang` accepts only `en` (Phase 7). A fifth, smaller one: the stream lifted from
+`--progress-template` is classified but not yet re-emitted under its own event name (Phase 6). None of them
+changes argv, cancellation or exit codes, which is why the phase is accepted with them named rather than held.
+
+The original 12–16-day estimate is retained: the work spanned multiple implementation/review rounds, but active
+engineering days were not measured, so an actual person-day figure cannot honestly be substituted.
 
 **Deliverable:** `morid list` and `morid download` work against a real yt-dlp, and the argv matches the golden
 fixtures.
@@ -245,6 +254,11 @@ command line as the C++ version?* If the answer is no, everything after this poi
 
 **Deliverable:** a real Media Downloader data directory imports without loss, and the round trip works.
 
+**Status: task issued 4 November 2026** — [tasks/phase-4-user-data.md](tasks/phase-4-user-data.md). Scope is
+narrower than the paragraphs below, in one place: `morid import` / `morid export` are the acceptance surface, and
+the settings file is read *by* the import and by `--config`, not yet by a GUI. The window's settings screen stays
+in Phase 7, because a settings screen without a window is not a deliverable.
+
 - `morid-store`: settings (the Qt dialect of D-016), presets, URL rules, per-engine defaults, subscriptions,
   archive handling (**never rewriting it**), history (tolerant read of the concatenated-JSON file).
 - `morid import` / `morid export`, with a report.
@@ -253,6 +267,22 @@ command line as the C++ version?* If the answer is no, everything after this poi
 **Estimate:** 10–14 days. **Exit criteria:** F-68 done; unknown settings keys preserved; the original program can
 read what Morid exports — checked by actually opening the exported directory with `legacy/`'s build, not by
 inspecting the bytes.
+
+**What this phase inherits from Phase 3, so it is not re-decided here:** `Settings` is already a value
+(`crates/morid/src/planner.rs`) built by the CLI from defaults → `--settings <json>` → flags. Phase 4 replaces the
+left-hand end of that chain with the real data directory and **keeps the flag**, because scripts depend on it.
+The `--settings` file is not a second product format ([cli](cli.md) §2.2) and must not become one.
+
+**What the fixtures already decide, and therefore what a correct implementation cannot "improve":**
+
+| Rule | Where it is stated | What getting it wrong looks like |
+| --- | --- | --- |
+| Values use `\x<hex>` with the digit defence; keys use `%XX`/`%UXXXX`; never Latin-1 on read | [data-compat](data-compat.md) §3.0, §3.0a | a download folder that silently becomes mojibake, then a folder that does not exist, then a reset — three symptoms, one bug |
+| Unknown keys are preserved under an `[imported]`-prefixed section and reported | [data-compat](data-compat.md) §3.1 | a user who goes back to the original finds settings missing |
+| Presets shipped as 15 entries in their **post-rewrite** form | [data-compat](data-compat.md) §2 | presets the original never had, exported to a file the original then reads |
+| URL rules: `*x` / `x*` / `*x*` / bare, **first** match in file order | [data-compat](data-compat.md) §2 | a rule that fires on the wrong site, with no error |
+| The archive file is passed through, never rewritten, never parsed for logic | [data-compat](data-compat.md) §2 | every user re-downloads their library |
+| History is concatenated JSON objects, read tolerantly, repaired with a report | [data-compat](data-compat.md) §5.1 | a single unparsable fragment loses the whole history |
 
 **The lesson of Phase 0 applies here in full:** this phase is one file format after another, and each format has a
 detail that is silent when wrong. Every rule must come from `legacy/` or from a fixture, and every rule must have a

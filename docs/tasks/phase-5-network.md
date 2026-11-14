@@ -60,7 +60,21 @@ The trait returns bytes and status; it does not parse JSON and it does not know 
 
 ### 3.2 Release metadata → an asset for *this* platform
 
-From the recorded metadata, choose the asset for the current platform and architecture. The rule is where the
+**The recorded metadata this section originally assumed does not exist.** The fixture set has `scenarios/`,
+`streams/` and `userdata/`; the "HTTP responses: recorded GitHub API bodies" row of
+[../testing.md](../testing.md) §4.1 is a **specification that was never captured**, and that document now says so
+instead of leaving you to discover it. Two consequences, and they are requirements rather than suggestions:
+
+- **Write the parser against the shape the API actually documents**, and cover it with synthetic responses that are
+  labelled synthetic — in the fixture file and in the test name. A synthetic body proves the parser handles that
+  shape; it does **not** prove anything about what the live API returns, and the hand-back must not describe it as if
+  it did.
+- **Capture is a separate, follow-up round.** It needs the same kind of harness work as Phase 0, and this phase must
+  not grow one; if the parser needs a fact that only a real response can settle, report that as a Phase 0 follow-up
+  and stop on that point, as §4 of the constraints says.
+
+The selection rule itself is testable without the network: from the metadata, choose the asset for the current
+platform and architecture. The rule is where the
 original's behaviour is easiest to get wrong silently, so state it in one function with a table of inputs:
 
 - the platform/architecture names used by each project differ, and so does the **format** (`.tar.gz`, `.zip`, a bare
@@ -135,26 +149,53 @@ every time.
 
 ### 3.7 The endpoint rule, enforced rather than promised
 
-D-014 has three clauses and only one of them is about URLs. Make the rule mechanical: one allow-list built from the
-`DownloadUrl`/`DownloadUrlMAC` values of the bundled extensions, and a request to anything outside it is an
-**internal error, not a network error** — exit `9` with a message naming the host. A test proves that a fixture
-extension with `DownloadUrl: "https://example.invalid/x"` is refused before any socket is opened, using the trait
-double's call count as the assertion.
+D-014 has three clauses and only one of them is about URLs. Make the rule mechanical: one allow-list of **exact
+release endpoints**, and a request to anything outside it is an **internal error, not a network error** — exit `9`
+with a message naming the endpoint. The list is a data table in `morid-net`, one row per endpoint with a comment
+naming where it comes from, in two kinds:
+
+1. rows derived from the bundled extensions' `DownloadUrl` / `DownloadUrlMAC`;
+2. **one hand-written row** for `https://api.github.com/repos/mhogomchungu/packages/releases/latest`, the original
+   author's own package channel for Windows `ffmpeg` and `python` ([D-021](../decisions.md)).
+
+Not a host, not a prefix, not a wildcard: three tests prove that an endpoint differing only by host, only by path, or
+only by scheme is refused, and that each refusal happens **before** any socket — asserted by the transport double's
+call count.
 
 For Morid's own "a newer version exists" notice (D-013): one endpoint, Morid's, and it **only reports** — it never
 downloads, and there is no code path that could install it.
 
-### 3.8 Supporting engines (F-38)
+### 3.8 Supporting engines (F-38) — six, built in, and decided
 
-ffmpeg, deno, quickjs-ng, python and bsdtar are identified by `SupportingEngine`, are not offered in the downloader
-list, and follow their own per-platform rules. The audit fixed their shape at five names
-([../audit-original.md](../audit-original.md) §"Engines"); if the code shows a different set, that is a finding.
+**This section was wrong in the first version of this task, and the correction is [D-020](../decisions.md).** It said
+five names taken from the audit's summary. The original builds **six** descriptors in code
+(`legacy/src/engines.cpp:498-526`), and the tree contains none of them as an extension file:
 
-- They are installed by the same verified path, and reported in their own section of `morid engines`, never mixed
+| Helper | Platforms / condition |
+| --- | --- |
+| `ffmpeg` | every platform |
+| `deno` | every platform |
+| `tar` | Linux and macOS |
+| `bsdtar` | Windows |
+| `quickjs-ng` | Linux x86 |
+| `python` | only when `you-get` is present |
+
+`tar` and `bsdtar` are **not** one helper: the platform that takes one does not take the other.
+
+- The descriptors live **inside `morid-ext`**, not in `extensions/`: a helper is not a downloader a user picks, and
+  `extensions/` is a contract with third-party authors (D-003, D-010). A test asserts the selected set per platform,
+  including that Linux x86 gets **both** `quickjs-ng` and `tar`, and that `python` appears only with `you-get`.
+- They are installed by the verified path of §3.3, and reported in their own section of `morid engines`, never mixed
   into the downloader list.
-- A supported helper that is already provided by the system is **not** downloaded when the setting says to use the
-  system one (`UseSystemSupportingEngine`, imported in Phase 4) — and when it is missing, the message names the
-  helper and what needs it, not "engine not found".
+- A helper the system already provides is **not** downloaded when the setting says to use the system one
+  (`UseSystemSupportingEngine`, imported in Phase 4); when it is missing, the message names the helper and what needs
+  it, not "engine not found".
+
+**Windows `ffmpeg` and `python` have a different source from every other asset**, and it is a named exception, not a
+host rule ([D-021](../decisions.md)): `https://api.github.com/repos/mhogomchungu/packages/releases/latest`
+(`legacy/src/engines/ffmpeg.cpp:96`, `python.cpp:130`). It is one row in the allow-list of §3.7 with its source line
+next to it. If you had instead relaxed the rule to "anything on `api.github.com`", every GitHub release in existence
+would pass — that is the defect this exception exists to avoid.
 
 ---
 

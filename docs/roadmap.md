@@ -300,6 +300,12 @@ phase that touches the network, so the order inside it is: the transport trait a
 then integrity, then unpacking, then the three verbs — and version reading last, because `morid engines` reporting a
 version is the visible result of the other four.
 
+**Two specification errors of this task were corrected by the coder's pre-flight report, before any code:**
+the supporting engines are **six**, not the five the audit's summary listed ([D-020](decisions.md)), and one helper
+source on Windows is a **named endpoint** rather than a host rule ([D-021](decisions.md)). Both are the same failure
+mode the project keeps recording — a summary read as a contract — and both were caught by the rule that says stop and
+report.
+
 **Three dependency questions are closed by this phase rather than assumed** ([dependencies](dependencies.md)
 §2.5–2.7): `ureq` versus `reqwest`, the TLS trust store, and `tar`/`flate2`/`zip` versus a shelled-out `bsdtar`.
 The document already carries the arguments; the phase carries the measured sizes.

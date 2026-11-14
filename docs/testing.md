@@ -119,7 +119,28 @@ that lands, a golden only matches on the capture host.
 | argv golden files | a wrapper backend recording `sys.argv[1:]`, `program`, `cwd` and proxy environment as JSONL; the golden is copied mechanically from the first record | capture-host paths and the Node path replaced by placeholders |
 | Extension JSON | copies of `extensions/*.json` plus deliberate mutations | — |
 | Data directory | a real Media Downloader data directory with paths and names replaced | yes, and reviewed before commit |
-| HTTP responses | recorded GitHub API bodies | URLs kept; hashes are real values from a real release |
+| HTTP responses | recorded GitHub API bodies | **not captured — see §4.1a** |
+
+### 4.1a The HTTP fixture class was specified and never captured
+
+The row above said "recorded GitHub API bodies, URLs kept, hashes are real values from a real release". **No such
+fixture exists in this repository.** Phase 0 captured backend *process* output (`streams/`), argument vectors
+(`scenarios/`) and a data directory (`userdata/`); it did not capture a single HTTP response, and the row was written
+as if it had. Corrected on 4 November 2026, when the Phase 5 task asked for those bodies and the coder found nothing
+to read.
+
+What this changes:
+
+- **`morid-net` is tested against synthetic responses, labelled as such.** A body written by hand proves the parser
+  handles a documented shape. It cannot prove what any project's API returns today, and a test name that implies
+  otherwise is a false claim.
+- **The guarantee that survives is integrity, not shape.** Size and SHA-256 come from the metadata and are checked
+  against the bytes actually downloaded; a wrong shape produces a refusal, not an installation.
+- **Capturing real responses is a Phase 0 follow-up**, listed with the other two open capture questions ([roadmap](roadmap.md)
+  Phase 0). It needs a harness that stores bodies *without* storing tokens, and it is not part of Phase 5.
+
+The rule that produced this correction is the one the project keeps relearning: a fixture table describes what is in
+`fixtures/`, and nothing may be written there because it *should* exist.
 
 ### 4.2 Storage rules
 

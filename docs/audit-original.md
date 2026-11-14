@@ -293,8 +293,9 @@ The full functional map, with a priority and an acceptance criterion per feature
 - **Playlists:** entry listing, ranges, selective and recursive download, download archive,
   break-on-existing / skip-on-existing, subscriptions, histories.
 - **Engines:** extension loading, command selection by OS/architecture, version reading and comparison, binary
-  update with hash verification, install/remove, yt-dlp family behaviour, supporting engines (ffmpeg, deno,
-  quickjs-ng, python, bsdtar), custom extension.
+  update with hash verification, install/remove, yt-dlp family behaviour, supporting engines (six: ffmpeg, deno, tar,
+  bsdtar, quickjs-ng, python — corrected in [D-020](decisions.md); this line previously said five and folded
+  `tar`/`bsdtar` into one), custom extension.
 - **Configuration:** folders, per-engine defaults, URL manager, proxy (four modes), cookies, encoding, themes,
   UI scale, per-tab default engine, history sizes.
 - **Integration:** 18 languages, tray and notifications, clipboard monitoring, single instance and IPC,

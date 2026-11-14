@@ -342,6 +342,15 @@ mechanism is not carried over.
 | `ytdl-patched.json` | **no** | yes, with the `ExtraArguments` correction of §4.1 |
 | `deno.json`, `quickjs.json`, `quickjs_ng.json` | **no** (supporting engines, not downloaders) | listed as supporting engines, not in the user-facing downloader menu |
 
+**Six supporting engines have no file in `extensions/` at all**, because the original builds their descriptors in
+code (`legacy/src/engines.cpp:498-526`, [D-020](decisions.md)): `ffmpeg` (every platform), `deno` (every platform),
+`tar` (Linux and macOS), `bsdtar` (Windows), `quickjs-ng` (Linux x86), and `python` only when `you-get` is present.
+Morid keeps them built in for the same reason, and those six are the only engines whose descriptor is not a file.
+Their `SupportingEngine` flag is what keeps them out of the downloader list.
+
+Windows builds of `ffmpeg` and `python` come from the original author's own package releases rather than from the
+projects' pages; that single endpoint is a named member of the network allow-list ([D-021](decisions.md)).
+
 ---
 
 ## 8. Validation rules for a reader

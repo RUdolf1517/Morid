@@ -30,8 +30,9 @@ planning aids, not commitments, and they are **not retro-fitted** when a phase r
 | 1 Skeleton | 5–7 | **accepted 8 Nov 2026** | PR #4 (`b6c2a58`), [CI 42461122995](https://github.com/RUdolf1517/Morid/actions/runs/42461122995) |
 | 2 Domain and extensions | 10–14 | **accepted 10 Nov 2026** | PR #8 (`fe97a75`), [CI 42881799249](https://github.com/RUdolf1517/Morid/actions/runs/42881799249) |
 | 3 One backend, end to end | 12–16 | **accepted 14 Nov 2026 with four named gaps** | PR #12 (`3b3fa32`), [CI 43601974208](https://github.com/RUdolf1517/Morid/actions/runs/43601974208) |
-| 4 User data | 10–14 | **next — task issued** ([tasks/phase-4-user-data.md](tasks/phase-4-user-data.md)) | — |
-| 5–8 | 10–20 each | not started | — |
+| 4 User data | 10–14 | **accepted 14 Nov 2026** | PR #14 (`5780005`), [CI 43619103137](https://github.com/RUdolf1517/Morid/actions/runs/43619103137) |
+| 5 Network and installation | 10–14 | **next — task not yet written** | — |
+| 6–8 | 15–45 each | not started | — |
 
 **What exists in code:** eight crates that compile on three platforms; a Qt-INIdialect settings reader/writer with
 30 tests and a seeded fuzz; `morid-core` (URL, format, option tokens, playlist-range tokens, versions, typed errors);
@@ -254,13 +255,23 @@ command line as the C++ version?* If the answer is no, everything after this poi
 
 **Deliverable:** a real Media Downloader data directory imports without loss, and the round trip works.
 
-**Status: review round 1 — not accepted.** Delivered and green on three platforms: the Qt INI cycle (94 keys, one
-21-item `QStringList`, 3 351 bytes byte-identical), the six typed data files, the offline import/export cycle with
-the archive compared after a real download cycle, and the original program opening the export in CI
-(`ORIGINAL_ROUNDTRIP_OK`). Withheld on **one** criterion: the URL-manager operator test passes when the
-implementation is inverted, and the implementation reads `*x` as *contains* where the original reads it as
-*ends-with* — in `getEngineNameFromUrlManager`, which decides **which backend runs** for a user rule. Task:
-[tasks/phase-4-user-data.md](tasks/phase-4-user-data.md). Scope is
+**Status: accepted 14 November 2026** at `5780005` ([CI 43619103137](https://github.com/RUdolf1517/Morid/actions/runs/43619103137),
+Linux, Windows and macOS). The Qt INI cycle reproduces the captured file byte for byte (94 keys, one 21-item
+`QStringList`, 3 351 bytes); the six data files keep their real field names and their unknown members; import and
+export are transactional, idempotent and leave the source byte-identical; the archive is compared after a real
+download cycle; and the original program opened the export in CI — `ORIGINAL_ROUNDTRIP_OK`, a Qt 5 build of
+`legacy/`, not a Morid-only round trip.
+
+The URL-manager rule was corrected during review to the original's branch order
+(`configure.cpp:2246`): `*x` ends-with, `x*` starts-with, `*x*` and a bare `x` contains. The direction is now
+proved by a mutation gate that swaps the two operators in the real source, requires the test to fail, and restores
+it — so the test can no longer agree with an inverted implementation. Task:
+[tasks/phase-4-user-data.md](tasks/phase-4-user-data.md).
+
+**One question this phase raised and deliberately did not answer:** whether the original recognises its own history
+entries for URLs that `QJsonDocument` escaped (`\/`, `\uXXXX`) — its `historyFound` is a byte search
+(`legacy/src/utility.cpp:2470`). That is a Phase 0 capture, recorded in [data-compat](data-compat.md) §5.1; no code
+was written to the hypothesis. Scope is
 narrower than the paragraphs below, in one place: `morid import` / `morid export` are the acceptance surface, and
 the settings file is read *by* the import and by `--config`, not yet by a GUI. The window's settings screen stays
 in Phase 7, because a settings screen without a window is not a deliverable.

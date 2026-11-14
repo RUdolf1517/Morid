@@ -37,16 +37,42 @@ Portable mode on Windows keeps everything beside the executable (`--portable`).
 
 | File | Purpose | Format | Import |
 | --- | --- | --- | --- |
-| `presetOptions.json` | 17 bundled download presets plus user additions | JSON array of `{uiName, options, website}` | full |
-| `downloadDefaultOptions.json` | URL manager: substring → engine + options | JSON array of `{url, engineName, options, inUse}` | full |
-| `downloadEngineDefaultOptions.json` | default options per engine | JSON array of `{engineName, options, inUse}` | full |
-| `subscriptions.json` | playlist subscriptions | JSON array of `{uiName, url, options}` | full |
-| `autoSavedList.json` | batch/playlist list saved on exit | JSON array of table entries (`url`, `title`, `options`, …) | full |
+| `presetOptions.json` | bundled download presets plus user additions | JSON array of `{options, uiName, website}` | full |
+| `downloadDefaultOptions.json` | URL manager: pattern → engine + options | JSON array of `{downloadOption, engine, url}` | full |
+| `downloadEngineDefaultOptions.json` | default options per engine | JSON array of `{default, engineName, options}`, `default` is `"yes"`/`"no"` | full |
+| `subscriptions.json` | playlist subscriptions | JSON array of `{getListOptions, uiName, url}` | full |
+| `autoSavedList.json` | batch/playlist list saved on exit | JSON array of table-entry objects; the key set varies per entry (`url` always, plus `title`, `id`, `duration`, `intDuration`, `upload_date`, `uploader`, `downloadOptions`, `engineName`, `downloadExtraOptions`, …) | full |
 | `downloadHistory.json` | download history | concatenated JSON objects, **not** a JSON array | full, with repair (§5) |
 | `archiveFile-<engine>.txt` | yt-dlp-style "already downloaded" archive | one id per line, `youtube <id>` | **not rewritten** |
 | `archiveFile-gallery-dl.db` | gallery-dl archive | SQLite database owned by gallery-dl | **not touched at all** |
 | `themes/*.json` | theme colour definitions | JSON object of colour values | full |
 | `settings.ini` | all settings | INI | selective, §3 |
+
+The field names above are read from the captured directory in `fixtures/userdata/`, not from the original's
+headers, because the headers disagree with the files: `downloadDefaultOptions` declares `inUse` and writes
+`default`, and the URL rule is stored under `downloadOption`, not `options`. Where this document and a fixture
+differ, **the fixture wins** — it is what the original wrote.
+
+**Three of these files have a rule that is not visible in the bytes**, and each is the kind of thing a reader
+implemented from the file alone gets silently wrong:
+
+1. **Presets are 15, not 17,** and the shipped file is *not* the constant in the source.
+   `configure::presetOptions::defaultData()` (`legacy/src/configure.cpp:1913`) holds 15 entries whose YouTube
+   resolutions are written `bestvideo[height=144]`; the constructor then rewrites every one of `144…2160` to
+   `bestvideo[format_note*=144p]` and rewrites one long format string for a second time
+   (`legacy/src/configure.cpp:1805-1839`). The captured `presetOptions.json` is the **post-rewrite** form, and the
+   rewrite is verified: applying those two replacements to the in-source array reproduces the fixture exactly, in
+   order, all 15 entries. An import that copies the source constant without the rewrite produces presets the
+   original never had, and an export that writes the source constant has the same defect in reverse.
+2. **A URL rule is a pattern with three operators.** The field is not a substring: `configure::downloadDefaultOptions::urlType`
+   (`legacy/src/configure.cpp:2246`) reads `*x` as *ends-with*, `x*` as *starts-with*, `*x*` as *contains*, and a
+   bare `x` as *contains*. Matching walks the array in file order and takes the **first** rule that matches, because
+   the callback returns `true` to stop the walk (`legacy/src/configure.h:262`, `forEach` at `:227-245`).
+   Direction matters and is easy to invert: first match, not last.
+3. **Per-engine defaults: two entries for one engine, one wins.** `engineDefaultDownloadOptions`
+   (`legacy/src/configure.cpp:1123`) returns the first entry for that engine whose `default` is `"yes"`. The
+   captured file has two `yt-dlp` rows with opposite `default` values, so "read them all and concatenate" is
+   wrong in a way that still parses.
 
 Two entries deserve emphasis:
 
@@ -173,7 +199,8 @@ specification in executable form; the Rust implementation in Phase 4 has to repr
 
 ### 3.1 Keys
 
-`settings.ini` holds ~51 distinct keys plus dynamically named families
+`settings.ini` holds 94 keys in the captured fixture: 81 fixed names plus 13 dynamically named ones
+(`<engine>` is an extension's `Name`, `<tab>` is `basic`, `batch`, `playlist` or `LogWindow`)
 (`CookieBrowser_<engine>`, `CookieTextFilePath_<engine>`, `LastUsedOption<tab>_<engine>`,
 `TextEncoding_<engine>`, `WindowDimensions_<tab>`). The full list extracted from `legacy/src/settings.cpp` is:
 
@@ -189,6 +216,10 @@ PlaylistDownloaderOptionsHistory          PlaylistDownloaderSaveHistory
 CheckForEnginesUpdates                    CheckForUpdates
 CommandOnSuccessfulDownload               CommandWhenAllFinished
 ConcurrentDownloading                     MaxConcurrentDownloads
+BasicDownloaderOptionsHistory-<engine>    BatchDownloaderOptionsHistory-<engine>
+PlaylistDownloaderOptionsHistory-<engine> PlaylistRangeHistory-<engine>
+PlaylistUrlHistory-<engine>               playlistRangeHistoryLastUsed-<engine>
+ThumbnailHeight_<tab>                     ThumbnailWidth_<tab>
 CookieBrowser_<engine>                    CookieTextFilePath_<engine>
 CookieSourceSetToBrowerName               DeleteFilesOnCanceledDownload
 DenoEnableAutoDownloading                 DesktopNotificationTimeOut
@@ -214,7 +245,9 @@ StringTruncationSize                      TabNumber
 TextEncoding_<engine>                     ThemeName
 ThumbnailHeight                           ThumbnailWidth
 TimeOutWaitingForClipboardData            UseInternalArchiveFile
-UseSystemEngine                           UseSystemProvidingEngineIfAvailable
+UseSystemEngine                           UseSystemProvidedVersionIfAvailable
+UseSystemProvidingEngineIfAvailable       UseSystemSupportingEngine
+denoInFlatpakUpdated
 WindowsUpdateChannel                      WindowDimensions_<tab>
 ```
 

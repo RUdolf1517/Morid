@@ -37,7 +37,7 @@ never "someone wrote something".
 | F-03 | Download a single URL | `basicdownloader::download` | backend | P0 | done (Phase 3) | File appears in the download folder; progress events observed; exit state recorded |
 | F-04 | Progress, size, speed, ETA | `Logger`, `ControlJsonStructure`, per-engine filters | backend output | P0 | done (Phase 3) | Replaying captured output yields the same sequence of progress values as the original |
 | F-05 | Cancel a download | `Terminator::terminate` (`legacy/src/utility.cpp:621`) | OS process control | P0 | done (Phase 3) | No descendant process survives cancellation, on Linux and Windows; partial files are kept unless the setting says otherwise |
-| F-06 | 17 bundled presets | `configure::presetOptions::defaultData` | — | P0 | not started | The preset list loads from the shipped file and matches the original's 17 entries |
+| F-06 | 15 bundled presets | `configure::presetOptions::defaultData` | — | P0 | not started | The preset list loads from the shipped file and matches the original's 15 entries ([data-compat](data-compat.md) §5.3) |
 | F-07 | Option history per field | `settings::addToHistory`, `HistorySize` | settings | P1 | not started | History round-trips through settings; size limit enforced |
 | F-08 | Subtitle download and embedding | `DefaultSubstitlesCmdOptions`, `--embed-subs` | backend, ffmpeg | P1 | not started | Subtitle arguments match; requested language files are produced |
 | F-09 | Comment retrieval and saving | `--get-comments`, `showComments` | backend | P2 | not started | Comments JSON is fetched and saved in the original's format |
@@ -144,8 +144,8 @@ Produced by parsing the tables above, not by memory — the same rule the note i
 
 | Priority | done | partly | not started | not carried | weighted |
 | --- | --- | --- | --- | --- | --- |
-| P0 | 11 | 6 | 17 | 0 | 37% of 34 |
-| P1 | 1 | 0 | 15 | 0 | 5% of 16 |
+| P0 | 11 | 6 | 21 | 0 | 37% of 38 |
+| P1 | 1 | 0 | 19 | 0 | 5% of 20 |
 | P2 | 0 | 0 | 10 | 0 | 0% of 10 |
 | P3 | — | — | — | 4 | — |
 | **All 72** | **12** | **6** | **50** | **4** | **22%** |

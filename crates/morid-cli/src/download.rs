@@ -184,13 +184,19 @@ pub fn run(
         }
         return Ok(0);
     }
-    let program = extension
-        .executable
-        .clone()
-        .ok_or_else(|| Error::Extension {
+    if extension.executable.is_none() {
+        return Err(Error::Extension {
             file: extension.file.clone(),
             rule: 6,
             message: "backend unavailable".into(),
+        });
+    }
+    let program = search
+        .find(&extension.command.args[0])
+        .ok_or_else(|| Error::Extension {
+            file: extension.file.clone(),
+            rule: 6,
+            message: "command launcher unavailable".into(),
         })?;
     morid_engine::install_interrupt_handler().map_err(|e| Error::Internal(e.to_string()))?;
     let limit = ConcurrencyLimit::default().updated_from_configure_text(&settings.concurrency);

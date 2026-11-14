@@ -36,7 +36,8 @@ fn main() -> ExitCode {
         .find(|path| path.is_dir())
         .cloned()
         .unwrap_or_else(|| searched[0].clone());
-    if !root.is_dir()
+    if !matches!(args.first().map(String::as_str), Some("import" | "export"))
+        && !root.is_dir()
         && !args
             .iter()
             .any(|v| ["--version", "-V", "--help", "-h"].contains(&v.as_str()))

@@ -13,6 +13,7 @@ pub const DEFAULT_PROGRESS: &str = "download:[download] downloaded_bytes:%(progr
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
     pub engine: String,
+    pub text_encoding: Option<String>,
     pub destination: PathBuf,
     pub data_directory: PathBuf,
     pub internal_archive: bool,
@@ -29,6 +30,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             engine: "yt-dlp".into(),
+            text_encoding: None,
             destination: "Downloads".into(),
             data_directory: ".".into(),
             internal_archive: true,
@@ -43,6 +45,55 @@ impl Default for Settings {
         }
     }
 }
+impl Settings {
+    pub fn from_data_directory(directory: &std::path::Path) -> Result<Self, Error> {
+        let mut settings = Self {
+            data_directory: directory.join("data"),
+            ..Self::default()
+        };
+        let path = directory.join("settings/settings.ini");
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(settings),
+            Err(e) => return Err(Error::Usage(format!("{}: {e}", path.display()))),
+        };
+        let doc = morid_store::ini::Document::parse(&bytes).map_err(Error::Usage)?;
+        let scalar = |key: &str| {
+            doc.entries()
+                .find(|entry| entry.section.eq_ignore_ascii_case("General") && entry.key == key)
+                .and_then(|entry| match &entry.value {
+                    morid_store::value::IniValue::String(value) => Some(value.clone()),
+                    _ => None,
+                })
+        };
+        if let Some(value) = scalar("BasicDownloaderDefaultEngine") {
+            settings.engine = value;
+        }
+        if let Some(value) = scalar("DownloadFolder") {
+            settings.destination = value.into();
+        }
+        if let Some(value) = scalar("UseInternalArchiveFile") {
+            settings.internal_archive = value == "true";
+        }
+        if let Some(value) = scalar("MaxConcurrentDownloads") {
+            settings.concurrency = value;
+        }
+        settings.text_encoding =
+            scalar(&format!("TextEncoding_{}", settings.engine)).filter(|value| !value.is_empty());
+        if scalar("CookieSourceSetToBrowerName").as_deref() == Some("true") {
+            settings.cookie_browser = scalar(&format!("CookieBrowser_{}", settings.engine))
+                .filter(|value| !value.is_empty());
+        } else {
+            settings.cookie_file = scalar(&format!("CookieTextFilePath_{}", settings.engine))
+                .filter(|value| !value.is_empty());
+        }
+        if scalar("ProxySettingsType").as_deref() == Some("Manual") {
+            settings.proxy = scalar("ProxySettingsCustomSource").filter(|value| !value.is_empty());
+        }
+        Ok(settings)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Download,
@@ -105,6 +156,11 @@ pub fn plan(
         }
     }
     args.extend(base);
+    if let Some(encoding) = settings.text_encoding.as_ref().filter(|_| list) {
+        if !p.encoding_argument.is_empty() {
+            args.extend([p.encoding_argument.clone(), encoding.clone()]);
+        }
+    }
     if yt {
         args.extend([
             "--output-na-placeholder".into(),
@@ -168,6 +224,27 @@ pub fn plan(
             args.extend(["--proxy".into(), proxy.clone()]);
         }
     }
+    if let Some(encoding) = settings.text_encoding.as_ref().filter(|_| !list) {
+        if !p.encoding_argument.is_empty() {
+            args.extend([p.encoding_argument.clone(), encoding.clone()]);
+        }
+    }
     args.push(request.url.as_str().into());
     Ok(args)
+}
+
+#[cfg(test)]
+mod store_tests {
+    use super::*;
+    #[test]
+    fn download_reads_the_fixture_settings_ini() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/userdata/media-downloader");
+        let settings = Settings::from_data_directory(&path).expect("fixture INI");
+        assert_eq!(settings.engine, "yt-dlp");
+        assert_eq!(settings.text_encoding.as_deref(), Some("ISO-8859-1"));
+        assert_eq!(settings.cookie_browser.as_deref(), Some("fixture-browser"));
+        assert!(settings.internal_archive);
+        assert_eq!(settings.data_directory, path.join("data"));
+    }
 }

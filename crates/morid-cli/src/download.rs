@@ -42,14 +42,21 @@ pub fn run(
     let config = value("--config")?
         .map(PathBuf::from)
         .unwrap_or_else(super::data_directory);
-    let mut settings = if let Some(path) = value("--settings")? {
-        serde_json::from_str::<Settings>(
-            &std::fs::read_to_string(path).map_err(|e| usage(e.to_string()))?,
-        )
-        .map_err(|e| usage(format!("settings JSON: {e}")))?
-    } else {
-        Settings::default()
-    };
+    let mut settings = Settings::from_data_directory(&config)?;
+    if let Some(path) = value("--settings")? {
+        let overrides: Value =
+            serde_json::from_str(&std::fs::read_to_string(path).map_err(|e| usage(e.to_string()))?)
+                .map_err(|e| usage(format!("settings JSON: {e}")))?;
+        let mut merged = serde_json::to_value(&settings).map_err(|e| usage(e.to_string()))?;
+        let object = overrides
+            .as_object()
+            .ok_or_else(|| usage("settings JSON must be an object"))?;
+        for (key, value) in object {
+            merged[key] = value.clone();
+        }
+        settings =
+            serde_json::from_value(merged).map_err(|e| usage(format!("settings JSON: {e}")))?;
+    }
     if settings.data_directory == Path::new(".") {
         settings.data_directory = config.clone();
     }

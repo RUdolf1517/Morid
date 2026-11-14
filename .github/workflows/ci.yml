@@ -164,6 +164,12 @@ jobs:
                   print("::notice title=Phase 3 review follow-up::" + line.replace("%", "%25"))
           PYCODE
 
+      - name: Phase 4 offline user-data CLI checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/test_cli_phase4.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase4-cli.log
+
       # Deliberately separate from offline tests: installs a real backend, then
       # downloads only from an ephemeral loopback server, outside the checkout.
       - name: Phase 3 real yt-dlp HTTP smoke
@@ -425,6 +431,7 @@ jobs:
           path: |
             test.log
             phase3-cli.log
+            phase4-cli.log
             phase3-http.log
             phase3-goldens.log
             variants.log

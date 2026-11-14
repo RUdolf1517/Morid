@@ -156,6 +156,12 @@ jobs:
           fi
           "$py" -m pip install yt-dlp
           "$py" tools/phase3_http_smoke.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase3-http.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          for line in Path("phase3-http.log").read_text().splitlines():
+              if line.startswith(("JSONL FIRST", "JSONL LAST", "JSONL WC-L", "REAL HTTP FILE")):
+                  print("::notice title=real HTTP evidence::" + line.replace("%", "%25"))
+          PYCODE
 
       - name: Resolve all bundled engines without starting them
         shell: bash
@@ -296,6 +302,11 @@ jobs:
         run: |
           set -euo pipefail
           cargo run --offline --quiet --manifest-path xtask/Cargo.toml -- size | tee size-report.txt
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("size-report.txt").read_text().replace("%", "%25").replace("\n", "%0A")
+          print("::notice title=release binary sizes::" + text)
+          PYCODE
           {
             echo '### Size report (${{ matrix.os }}, release)'
             echo '```'

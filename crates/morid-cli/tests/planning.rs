@@ -273,3 +273,40 @@ fn list_parses_fixture_metadata() {
     assert_eq!(meta["formats"][0]["id"], "mp4");
     assert!(morid_cli::download::parse_metadata("[]").is_err());
 }
+
+#[test]
+fn url_round_trips_byte_for_byte_from_phase0_fixtures_and_s07_range_is_opaque() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/scenarios");
+    let mut urls = 0;
+    for directory in std::fs::read_dir(&root).expect("scenarios") {
+        let argv = directory.expect("directory").path().join("argv.json");
+        if !argv.is_file() {
+            continue;
+        }
+        let values: Vec<String> =
+            serde_json::from_str(&std::fs::read_to_string(argv).expect("fixture")).expect("argv");
+        for value in values {
+            if value.starts_with("http://") || value.starts_with("https://") {
+                assert_eq!(
+                    Url::parse(&value).expect("fixture URL").as_str().as_bytes(),
+                    value.as_bytes()
+                );
+                urls += 1;
+            }
+        }
+    }
+    assert!(
+        urls >= 30,
+        "must cover real scenario URLs, not invented samples"
+    );
+    let range = morid_core::PlaylistRange::parse("--playlist-items 2-3");
+    let golden: Vec<String> = serde_json::from_str(include_str!(
+        "../../../fixtures/scenarios/s07-playlist-item-range/argv.json"
+    ))
+    .expect("s07");
+    assert!(golden.windows(2).any(|pair| pair == range.tokens()));
+    assert_eq!(
+        morid_core::PlaylistRange::parse("garbage --x").tokens(),
+        ["garbage", "--x"]
+    );
+}

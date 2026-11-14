@@ -198,12 +198,16 @@ pub fn run(
             rule: 6,
             message: "command launcher unavailable".into(),
         })?;
+    if !list && settings.internal_archive && extension.metadata.like_youtube_dl {
+        std::fs::create_dir_all(&settings.data_directory)
+            .map_err(|e| Error::Destination(e.to_string()))?;
+    }
     morid_engine::install_interrupt_handler().map_err(|e| Error::Internal(e.to_string()))?;
     let limit = ConcurrencyLimit::default().updated_from_configure_text(&settings.concurrency);
     let mut service = Service::start(limit).map_err(|e| Error::Internal(e.to_string()))?;
     let mut vectors = BTreeMap::new();
     for mut argv in plans {
-        // Resolution changes only argv[0], which is what std::process executes.
+        // Resolution changes only argv[0], which is the executable passed to the OS.
         argv[0] = program.to_string_lossy().into_owned();
         let job = service
             .client
@@ -315,6 +319,13 @@ pub fn run(
         };
         if json_output {
             write(out, &record)?;
+        } else if record["type"] == "error" {
+            writeln!(
+                err,
+                "morid: {}",
+                record["message"].as_str().unwrap_or("backend failure")
+            )
+            .map_err(|_| usage("cannot write diagnostics"))?;
         } else if !quiet && record["type"] == "metadata" {
             writeln!(
                 out,

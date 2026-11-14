@@ -15,7 +15,7 @@ FIXTURE = REPO / "fixtures/userdata/media-downloader"
 
 
 def snapshot(root):
-    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+    return {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted(root.rglob("*")) if p.is_file()}
 
 
@@ -26,7 +26,8 @@ class UserData(unittest.TestCase):
         self.root = Path(self.temp.name)
         # Isolate the executable from CI's release-adjacent bundled extensions.
         # Production correctly prefers adjacent resources over --config ones.
-        self.binary = self.root / BINARY.name
+        self.binary = self.root / "cli" / BINARY.name
+        self.binary.parent.mkdir()
         shutil.copy2(BINARY, self.binary)
         self.source = self.root / "source"
         shutil.copytree(FIXTURE, self.source)
@@ -96,7 +97,7 @@ class UserData(unittest.TestCase):
         result = self.cli("download", "https://example.test/video", "--dry-run", config=self.source)
         self.assertEqual(result.returncode, 0, result.stderr)
         argv = json.loads(result.stdout)
-        self.assertEqual(argv[0], "yt-dlp")
+        self.assertEqual(argv[0], "yt-dlp.exe" if os.name == "nt" else "yt-dlp_macos" if sys.platform == "darwin" else "yt-dlp")
         self.assertEqual(argv[argv.index("--encoding") + 1], "ISO-8859-1")
         self.assertEqual(Path(argv[argv.index("--download-archive") + 1]), self.source / "data/archiveFile-yt-dlp.txt")
         self.assertEqual(argv[argv.index("--cookies-from-browser") + 1], "fixture-browser")

@@ -168,7 +168,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/test_cli_phase4.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase4-cli.log
+          if ! python3 tools/test_cli_phase4.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase4-cli.log; then
+            python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("phase4-cli.log").read_text(encoding="utf-8", errors="replace")
+          start = text.find("FAIL:")
+          if start < 0:
+              start = text.find("ERROR:")
+          text = text[start:] if start >= 0 else text[-14000:]
+          for index, start in enumerate(range(0, min(len(text), 16000), 3500)):
+              block = text[start:start + 3500]
+              print(f"::error title=Phase 4 CLI failure {index}::" + block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
+          PYCODE
+            exit 1
+          fi
 
       # Deliberately separate from offline tests: installs a real backend, then
       # downloads only from an ephemeral loopback server, outside the checkout.

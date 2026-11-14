@@ -36,7 +36,13 @@ fn io_error(error: std::io::Error) -> Error {
     failure(format!("install: {error}"))
 }
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut result = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        result.push(DIGITS[(byte >> 4) as usize] as char);
+        result.push(DIGITS[(byte & 15) as usize] as char);
+    }
+    result
 }
 
 /// Size is checked before hashing. The caller cannot publish a failed result.

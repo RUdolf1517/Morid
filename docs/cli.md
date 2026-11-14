@@ -136,7 +136,9 @@ Exit codes: `0` success, `7` source directory not recognised, `8` partially impo
 
 `8` exists because "some of it worked" is a real outcome and must not be reported as success. `export` uses the
 same code when the copy or a validation step failed, with the cause in the report: an export that dropped a file is
-not a success either, and a separate code would be a second place to look.
+not a success either, and a separate code would be a second place to look. A `--report` target must be a new file
+outside both the source and the destination tree — reporting must not change the data it describes — and placement
+inside either is a usage error (`1`), not a partial import.
 
 ### 2.5 `morid gui`
 

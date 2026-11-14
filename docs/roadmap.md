@@ -30,8 +30,8 @@ planning aids, not commitments, and they are **not retro-fitted** when a phase r
 | 1 Skeleton | 5–7 | **accepted 8 Nov 2026** | PR #4 (`b6c2a58`), [CI 42461122995](https://github.com/RUdolf1517/Morid/actions/runs/42461122995) |
 | 2 Domain and extensions | 10–14 | **accepted 10 Nov 2026** | PR #8 (`fe97a75`), [CI 42881799249](https://github.com/RUdolf1517/Morid/actions/runs/42881799249) |
 | 3 One backend, end to end | 12–16 | **accepted 14 Nov 2026 with four named gaps** | PR #12 (`3b3fa32`), [CI 43601974208](https://github.com/RUdolf1517/Morid/actions/runs/43601974208) |
-| 4 User data | 10–14 | **accepted 14 Nov 2026** | PR #14 (`5780005`), [CI 43619103137](https://github.com/RUdolf1517/Morid/actions/runs/43619103137) |
-| 5 Network and installation | 10–14 | **next — task not yet written** | — |
+| 4 User data | 10–14 | **accepted and merged 14 Nov 2026** | PR #14 (`5780005`), merge `6510143`, [CI 43619103137](https://github.com/RUdolf1517/Morid/actions/runs/43619103137) |
+| 5 Network and installation | 10–14 | **next — task not written** | — |
 | 6–8 | 15–45 each | not started | — |
 
 **What exists in code:** eight crates that compile on three platforms; a Qt-INIdialect settings reader/writer with
@@ -253,53 +253,39 @@ command line as the C++ version?* If the answer is no, everything after this poi
 
 ### Phase 4 — User data
 
+**Status: accepted and merged 14 November 2026** — PR #14, merge `6510143`, [CI 43619103137](https://github.com/RUdolf1517/Morid/actions/runs/43619103137)
+green on Linux, Windows and macOS.
+
+- The Qt INI dialect is reproduced byte for byte: the captured `settings.ini` decodes to 94 keys, one of them a
+  21-item `QStringList`, and re-encodes to the same **3 351 bytes**.
+- The six data files keep their real field names and their unknown members; presets are the 15 post-rewrite
+  entries; the URL rule takes the **first** matching pattern and its four operators are proved by a mutation gate
+  that swaps them in the real source and requires the test to fail.
+- Import and export are transactional, idempotent, and leave the source byte-identical; the archive is compared
+  after a real download cycle; unknown keys and unknown files are preserved and reported.
+- The original program opened the export in CI — a Qt 5 build of `legacy/`, `ORIGINAL_ROUNDTRIP_OK`. That is the
+  acceptance criterion the phase was written around, and it was not a Morid-only round trip.
+
+**Two limits, stated rather than implied.** `url_rule` and `engine_default` are parsed and proved but **not yet
+wired into the planner**: a URL rule does not choose the engine and per-engine options are not prepended, which is
+why F-51 and F-52 stay `partly`. And exit code `9` has no test that produces it.
+
+**One question the phase raised and did not answer:** whether the original recognises its own history entries for
+URLs that `QJsonDocument` escaped (`\/`, `\uXXXX`) — `historyFound` is a byte search. That is a Phase 0 capture,
+recorded in [data-compat](data-compat.md) §5.1. No code was written to the hypothesis.
+
 **Deliverable:** a real Media Downloader data directory imports without loss, and the round trip works.
-
-**Status: accepted 14 November 2026** at `5780005` ([CI 43619103137](https://github.com/RUdolf1517/Morid/actions/runs/43619103137),
-Linux, Windows and macOS). The Qt INI cycle reproduces the captured file byte for byte (94 keys, one 21-item
-`QStringList`, 3 351 bytes); the six data files keep their real field names and their unknown members; import and
-export are transactional, idempotent and leave the source byte-identical; the archive is compared after a real
-download cycle; and the original program opened the export in CI — `ORIGINAL_ROUNDTRIP_OK`, a Qt 5 build of
-`legacy/`, not a Morid-only round trip.
-
-The URL-manager rule was corrected during review to the original's branch order
-(`configure.cpp:2246`): `*x` ends-with, `x*` starts-with, `*x*` and a bare `x` contains. The direction is now
-proved by a mutation gate that swaps the two operators in the real source, requires the test to fail, and restores
-it — so the test can no longer agree with an inverted implementation. Task:
-[tasks/phase-4-user-data.md](tasks/phase-4-user-data.md).
-
-**One question this phase raised and deliberately did not answer:** whether the original recognises its own history
-entries for URLs that `QJsonDocument` escaped (`\/`, `\uXXXX`) — its `historyFound` is a byte search
-(`legacy/src/utility.cpp:2470`). That is a Phase 0 capture, recorded in [data-compat](data-compat.md) §5.1; no code
-was written to the hypothesis. Scope is
-narrower than the paragraphs below, in one place: `morid import` / `morid export` are the acceptance surface, and
-the settings file is read *by* the import and by `--config`, not yet by a GUI. The window's settings screen stays
-in Phase 7, because a settings screen without a window is not a deliverable.
-
-- `morid-store`: settings (the Qt dialect of D-016), presets, URL rules, per-engine defaults, subscriptions,
-  archive handling (**never rewriting it**), history (tolerant read of the concatenated-JSON file).
-- `morid import` / `morid export`, with a report.
-- The round-trip test of [data-compat](data-compat.md) §6.
 
 **Estimate:** 10–14 days. **Exit criteria:** F-68 done; unknown settings keys preserved; the original program can
 read what Morid exports — checked by actually opening the exported directory with `legacy/`'s build, not by
 inspecting the bytes.
 
-**What this phase inherits from Phase 3, so it is not re-decided here:** `Settings` is already a value
-(`crates/morid/src/planner.rs`) built by the CLI from defaults → `--settings <json>` → flags. Phase 4 replaces the
-left-hand end of that chain with the real data directory and **keeps the flag**, because scripts depend on it.
-The `--settings` file is not a second product format ([cli](cli.md) §2.2) and must not become one.
-
-**What the fixtures already decide, and therefore what a correct implementation cannot "improve":**
-
-| Rule | Where it is stated | What getting it wrong looks like |
-| --- | --- | --- |
-| Values use `\x<hex>` with the digit defence; keys use `%XX`/`%UXXXX`; never Latin-1 on read | [data-compat](data-compat.md) §3.0, §3.0a | a download folder that silently becomes mojibake, then a folder that does not exist, then a reset — three symptoms, one bug |
-| Unknown keys are preserved under an `[imported]`-prefixed section and reported | [data-compat](data-compat.md) §3.1 | a user who goes back to the original finds settings missing |
-| Presets shipped as 15 entries in their **post-rewrite** form | [data-compat](data-compat.md) §2 | presets the original never had, exported to a file the original then reads |
-| URL rules: `*x` / `x*` / `*x*` / bare, **first** match in file order | [data-compat](data-compat.md) §2 | a rule that fires on the wrong site, with no error |
-| The archive file is passed through, never rewritten, never parsed for logic | [data-compat](data-compat.md) §2 | every user re-downloads their library |
-| History is concatenated JSON objects, read tolerantly, repaired with a report | [data-compat](data-compat.md) §5.1 | a single unparsable fragment loses the whole history |
+**What the fixtures decided, and what a correct implementation therefore cannot "improve":** all of it shipped.
+The Qt escapes (values `\x<hex>` with the digit defence, keys `%XX`/`%UXXXX`, never Latin-1 on read); unknown keys
+preserved under an `[imported]` section and reported; presets as the 15 post-rewrite entries; URL rules with four
+operators and first-match precedence; the archive passed through and never parsed for logic; history read tolerantly
+and repaired with a report. The rules and their sources are in [data-compat](data-compat.md) §2, §3.0, §3.0a, §3.1
+and §5.1.
 
 **The lesson of Phase 0 applies here in full:** this phase is one file format after another, and each format has a
 detail that is silent when wrong. Every rule must come from `legacy/` or from a fixture, and every rule must have a
@@ -380,9 +366,9 @@ unfinished screen.
 | 0 Reference behaviour | 5–8 | 5–8 | accepted |
 | 1 Skeleton | 5–7 | 10–15 | accepted |
 | 2 Domain + extensions | 10–14 | 20–29 | accepted |
-| 3 One backend | 12–16 | 32–45 | next |
-| 4 User data | 10–14 | 42–59 | — |
-| 5 Network + installation | 10–14 | 52–73 | — |
+| 3 One backend | 12–16 | 32–45 | accepted |
+| 4 User data | 10–14 | 42–59 | accepted |
+| 5 Network + installation | 10–14 | 52–73 | next |
 | 6 Remaining backends | 15–20 | 67–93 | — |
 | 7 Interface | 30–45 | 97–138 | — |
 | 8 Parity + release | 15–20 | 112–158 | — |

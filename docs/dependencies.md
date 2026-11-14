@@ -239,6 +239,7 @@ Required by [D-008](decisions.md): the size is measured and published, not gated
 | --- | --- | --- | --- | --- |
 | CI run 42459576443 | `4b3ae528` | 5,749,160 bytes (5.48 MiB) | 326,040 bytes (0.31 MiB) | Skeleton only; [three-platform CI](https://github.com/RUdolf1517/Morid/actions/runs/42459576443) |
 | CI run 42881799249 (Linux job) | `564284b4` | 5,749,160 bytes (5.48 MiB) | 514,472 bytes (0.49 MiB) | Phase 2 complete: domain, extension reader, `engines` CLI. The GUI binary is unchanged because Phase 2 adds no window code; the console binary grew by 188,432 bytes over the skeleton, which is the `serde`/`serde_json` reader and the resolver. [measurement](https://github.com/RUdolf1517/Morid/actions/runs/42881799249) |
+| 2026-11-04 | `57f9cc8` | 5,749,160 bytes (5.48 MiB) | 813,568 bytes (0.78 MiB) | Phase 3 review-candidate measurement, Linux x86_64 release; GUI unchanged. [CI 43588440682](https://github.com/RUdolf1517/Morid/actions/runs/43588440682), `release binary sizes` annotation. Not a claim of phase acceptance. |
 
 For reference, the program being replaced ships as a Qt bundle: a Qt6 Windows installer is in the tens of
 megabytes before backends are counted. The Rust target is expected to be in single-digit megabytes for the

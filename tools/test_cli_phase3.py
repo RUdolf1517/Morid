@@ -86,6 +86,9 @@ class Cli(unittest.TestCase):
     def test_reachable_exit_codes(self):
         self.assertEqual(self.command("download", "--wat").returncode, 1)
         self.assertEqual(self.command("download", "not-a-url").returncode, 2)
+        refused = self.command("download", "https://fixture.test/unsupported", "--json")
+        self.assertEqual(refused.returncode, 2, refused.stderr)
+        self.assertEqual(next(row["code"] for row in self.records(refused) if row["type"] == "error"), 2)
         self.assertEqual(self.command("download", "https://fixture.test/fail", "--json").returncode, 3)
         self.assertEqual(self.command("download", "https://fixture.test/one", "--engine", "absent").returncode, 4)
         blocked = self.root / "blocked"
@@ -110,6 +113,15 @@ class Cli(unittest.TestCase):
         result = self.run_cli("engines", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(str(self.extensions), result.stderr)
+        adjacent = self.root / "extensions"
+        shutil.copytree(REPO / "extensions", adjacent)
+        result = self.run_cli("engines", "--json")
+        self.assertIn(result.returncode, [0, 4])
+        rows = self.records(result)
+        self.assertEqual(len(rows), 17)
+        self.assertTrue(all(row["resolved"] for row in rows))
+        print("OUTSIDE CHECKOUT SEVENTEEN ENGINES", result.stdout)
+        shutil.rmtree(adjacent)
         shutil.rmtree(self.extensions)
         result = self.run_cli("engines")
         self.assertEqual(result.returncode, 4)

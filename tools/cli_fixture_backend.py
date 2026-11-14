@@ -21,6 +21,9 @@ if "cancel" in url:
     while time.monotonic() < deadline:
         time.sleep(0.01)
     sys.exit(1)
+if "unsupported" in url:
+    print("ERROR: Unsupported URL: " + url, file=sys.stderr)
+    sys.exit(1)
 if "fail" in url:
     print("fixture error", file=sys.stderr)
     sys.exit(7)

@@ -176,6 +176,11 @@ pub fn run(
             },
         )?);
     }
+    if let Some(launcher) = search.find(&extension.command.args[0]) {
+        for argv in &mut plans {
+            argv[0] = launcher.to_string_lossy().into_owned();
+        }
+    }
     // Exact same planned vectors below feed SpawnSpec. Dry-run returns before
     // executable availability, mkdir, handlers, worker creation, or spawning.
     if dry {

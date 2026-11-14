@@ -90,6 +90,9 @@ jobs:
               assert f"{name} ... ok" in text, f"default Test omitted {name}"
           for name in ["lifecycle_admission_failures_are_typed_and_do_not_block_next_job", "lifecycle_nonzero_exit_preserves_tails_cwd_progress_and_typed_status", "lifecycle_cancel_all_observes_running_trees_and_never_starts_queued_job", "transport_command_reply_event_stream_and_clean_shutdown", "transport_cancel_all_reaches_worker_and_publishes_no_live_descendants"]:
               assert f"{name} ... ok" in text, f"default Test omitted {name}"
+          for scenario in ["s01", "s02", "s03", "s04", "s05", "s09", "s10", "s11", "s12", "s17", "s19", "s20", "s21", "s22", "s37"]:
+              name = f"dry_run_argv_matches_golden_{scenario}"
+              assert f"{name} ... ok" in text, f"default Test omitted {name}"
           PYCODE
           cargo test -p morid-ext thin_files_resolve_by_file_name -- --nocapture --test-threads=1 2>&1 | tee variants.log
           cargo test -p morid-cli warning_demo_copy_of_ytdl_patched -- --nocapture --test-threads=1 2>&1 | tee warnings-demo.log

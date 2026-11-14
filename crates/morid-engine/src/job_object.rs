@@ -16,8 +16,8 @@ use windows_sys::Win32::System::JobObjects::{
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
 };
 use windows_sys::Win32::System::Threading::{
-    GetProcessIdOfThread, OpenThread, ResumeThread, CREATE_SUSPENDED, IO_COUNTERS,
-    THREAD_QUERY_LIMITED_INFORMATION, THREAD_SUSPEND_RESUME,
+    GetProcessIdOfThread, OpenThread, ResumeThread, CREATE_NEW_PROCESS_GROUP, CREATE_SUSPENDED,
+    IO_COUNTERS, THREAD_QUERY_LIMITED_INFORMATION, THREAD_SUSPEND_RESUME,
 };
 
 /// A non-inheritable, uniquely owned job. OwnedHandle closes it safely on every
@@ -84,7 +84,9 @@ impl Job {
     /// On every setup failure, terminate and reap the still-suspended child.
     pub fn spawn(&self, spec: &crate::spawn::SpawnSpec) -> io::Result<Child> {
         let mut command = spec.command();
-        command.creation_flags(CREATE_SUSPENDED);
+        // Console interrupts belong to the CLI, not a racing direct backend
+        // exit. Isolate its console group; CancelAll terminates the owned Job.
+        command.creation_flags(CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP);
         let mut child = command.spawn()?;
         let prepared = self
             .assign(&child)

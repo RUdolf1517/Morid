@@ -189,6 +189,15 @@ class UserData(unittest.TestCase):
         self.assertEqual(argv[argv.index("--encoding") + 1], "UTF-8")
         self.assertNotIn("--cookies-from-browser", argv)
 
+    def test_missing_cookie_source_uses_the_original_browser_default(self):
+        shutil.copytree(REPO / "extensions", self.source / "extensions")
+        settings = self.source / "settings/settings.ini"
+        settings.write_bytes(settings.read_bytes().replace(b"CookieSourceSetToBrowerName=true\n", b""))
+        result = self.cli("download", "https://example.test/video", "--dry-run", config=self.source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        argv = json.loads(result.stdout)
+        self.assertEqual(argv[argv.index("--cookies-from-browser") + 1], "fixture-browser")
+
     def test_option_payload_is_not_reparsed_as_an_adapter_flag(self):
         shutil.copytree(REPO / "extensions", self.source / "extensions")
         for payload in ["--engine", "--no-archive", "--settings"]:

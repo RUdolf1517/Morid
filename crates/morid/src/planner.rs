@@ -101,7 +101,12 @@ impl Settings {
         settings.text_encoding = scalar(&format!("TextEncoding_{}", settings.engine))
             .or_else(|| scalar("YtDlpTextEncoding"))
             .filter(|value| !value.is_empty());
-        if scalar("CookieSourceSetToBrowerName").as_deref() == Some("true") {
+        // settings.cpp::cookieSourceSetToBrowerName defaults to true.
+        if scalar("CookieSourceSetToBrowerName")
+            .as_deref()
+            .unwrap_or("true")
+            == "true"
+        {
             settings.cookie_browser = scalar(&format!("CookieBrowser_{}", settings.engine))
                 .filter(|value| !value.is_empty());
         } else {

@@ -57,7 +57,17 @@ fn check(case: &str, options: &str, kind: Kind) {
             .expect("golden"),
     )
     .expect("argv");
-    assert_eq!(&actual[1..], expected, "{case}");
+    let canonical = actual[1..]
+        .iter()
+        .map(|arg| {
+            if arg.starts_with("<case-dir>") {
+                arg.replace('\\', "/")
+            } else {
+                arg.clone()
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(canonical, expected, "{case}");
     // Exercise the real CLI override/flag adapter too, not merely planner output.
     let settings_path = std::env::temp_dir().join(format!("morid-{case}-settings.json"));
     std::fs::write(

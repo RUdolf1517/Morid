@@ -225,6 +225,7 @@ pub fn run(
     let mut remaining = vectors.len();
     let mut status = 0;
     let mut cancelled = false;
+    let mut unsupported = std::collections::BTreeSet::new();
     let mut durations = BTreeMap::new();
     let mut files: BTreeMap<u64, Vec<PathBuf>> = BTreeMap::new();
     while remaining > 0 {
@@ -268,6 +269,9 @@ pub fn run(
                 json!({"type":"progress","v":1,"job":job,"percent":progress.percent,"downloaded":progress.downloaded_bytes,"total":progress.total_bytes,"speed":progress.speed,"eta":progress.eta})
             }
             Event::JobOutput { job, stream, line } => {
+                if stream == Stream::Stderr && line.contains("Unsupported URL:") {
+                    unsupported.insert(job);
+                }
                 if list && stream == Stream::Stdout {
                     let meta = parse_metadata(&line)?;
                     json!({"type":"metadata","v":1,"job":job,"title":meta["title"],"duration":meta["duration"],"thumbnail":meta["thumbnail"],"formats":meta["formats"]})
@@ -288,7 +292,11 @@ pub fn run(
                 continue;
             }
             Event::JobError { job, failure } => {
-                status = failure.exit_code();
+                status = if unsupported.contains(&job) {
+                    2
+                } else {
+                    failure.exit_code()
+                };
                 let backend_exit = match failure {
                     JobFailure::BackendExit { code, .. } => code,
                     _ => None,
@@ -307,6 +315,28 @@ pub fn run(
         };
         if json_output {
             write(out, &record)?;
+        } else if !quiet && record["type"] == "metadata" {
+            writeln!(
+                out,
+                "title {}",
+                record["title"].as_str().unwrap_or("unknown")
+            )
+            .map_err(|_| usage("cannot write output"))?;
+            writeln!(out, "ID\tEXT\tRESOLUTION\tFILESIZE")
+                .map_err(|_| usage("cannot write output"))?;
+            if let Some(formats) = record["formats"].as_array() {
+                for row in formats {
+                    writeln!(
+                        out,
+                        "{}\t{}\t{}\t{}",
+                        row["id"].as_str().unwrap_or("?"),
+                        row["ext"].as_str().unwrap_or("?"),
+                        row["resolution"].as_str().unwrap_or("?"),
+                        row["filesize"]
+                    )
+                    .map_err(|_| usage("cannot write output"))?;
+                }
+            }
         } else if !quiet && (verbose || record["type"] != "output") {
             writeln!(
                 out,

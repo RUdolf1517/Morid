@@ -504,7 +504,7 @@ fn assert_pid_dead(pid: u32, fixture: &Fixture) {
     #[cfg(unix)]
     {
         assert!(result.status.success() || result.status.code() == Some(1));
-        assert!(!state.trim().chars().next().is_some_and(|ch| ch != 'Z'));
+        assert!(state.trim().chars().next().is_none_or(|ch| ch == 'Z'));
     }
     #[cfg(windows)]
     {

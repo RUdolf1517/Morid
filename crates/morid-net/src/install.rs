@@ -181,7 +181,10 @@ mod tests {
         let before_hash = hex(&Sha256::digest(&before));
         let expected = Integrity::from_metadata(11, SYNTHETIC_DIGEST).expect("synthetic metadata");
         println!("SYNTHETIC_EXPECTED_ORIGIN fixed test metadata size=11 digest={SYNTHETIC_DIGEST}; not derived from downloaded bytes");
-        for body in [b"short".as_slice(), b"bad-backend".as_slice()] {
+        for (body, failed_check) in [
+            (b"short".as_slice(), "size check failed: expected 11, got 5"),
+            (b"bad-backend".as_slice(), "SHA-256 check failed: expected"),
+        ] {
             let error = publish_binary(
                 &root.0,
                 old.file_name().unwrap().to_str().unwrap(),
@@ -190,6 +193,7 @@ mod tests {
             )
             .expect_err("corruption");
             assert_eq!(error.exit_code(), 3);
+            assert!(error.to_string().contains(failed_check), "{error}");
             let after = fs::read(&old).expect("after");
             assert_eq!(before, after);
             assert_eq!(hex(&Sha256::digest(&after)), before_hash);
@@ -234,6 +238,19 @@ mod tests {
             "SYNTHETIC_PUBLICATION first=Installed second=Unchanged bytes=equal stage_residue=0"
         );
         assert_eq!(fs::read_dir(&root.0).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn synthetic_verified_update_replaces_existing_bytes() {
+        let root = Directory::new();
+        fs::write(root.0.join("backend"), b"old-backend").unwrap();
+        let expected = Integrity::from_metadata(11, SYNTHETIC_DIGEST).unwrap();
+        assert_eq!(
+            publish_binary(&root.0, "backend", b"new-backend", &expected).unwrap(),
+            Published::Installed
+        );
+        assert_eq!(fs::read(root.0.join("backend")).unwrap(), b"new-backend");
+        println!("SYNTHETIC_VERIFIED_UPDATE old-backend -> new-backend; no backup move before verification");
     }
 
     #[test]

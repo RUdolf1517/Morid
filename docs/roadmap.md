@@ -243,6 +243,15 @@ command line as the C++ version?* If the answer is no, everything after this poi
 
 ### Phase 4 — User data
 
+**Status:** implemented; PR #14 under review, not accepted. The Qt string/list INI cycle,
+JSON schemas, transactional import/export and live original readback gate are implemented.
+[CI at `6a08289`](https://github.com/RUdolf1517/Morid/actions/runs/43615582264) passed on Linux,
+Windows and macOS; Linux opened the exported fixture with the actual legacy Qt build in a
+network namespace. The review follow-up makes URL-rule branch order explicit and adds a
+swapped-direction mutation gate; its own CI must also pass before handoff. Edited-history
+readback remains a Phase 0 capture question, not a claim of this fixture gate.
+No trustworthy actual person-day measurement is available; the 10–14 day estimate is unchanged.
+
 **Deliverable:** a real Media Downloader data directory imports without loss, and the round trip works.
 
 - `morid-store`: settings (the Qt dialect of D-016), presets, URL rules, per-engine defaults, subscriptions,

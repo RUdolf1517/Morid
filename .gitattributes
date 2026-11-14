@@ -1,0 +1,4 @@
+# Captured user data is a byte-level compatibility oracle on every OS.
+# In particular settings.ini must remain the captured 3351 bytes, not have
+# CRLF synthesized by a Windows checkout. This does not modify fixture blobs.
+/fixtures/userdata/** -text

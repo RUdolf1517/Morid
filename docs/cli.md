@@ -134,6 +134,9 @@ Import a Media Downloader data directory, or produce one
 Exit codes: `0` success, `7` source directory not recognised, `8` partially imported (report says what).
 
 `8` exists because "some of it worked" is a real outcome and must not be reported as success.
+The Phase 4 checking draft also returns `8` for export copy/validation failures, with the cause in the
+report. A `--report` target must be a new file outside the source and destination trees; invalid report
+placement is a usage error (`1`), preventing the reporting operation itself from changing the source.
 
 ### 2.5 `morid gui`
 

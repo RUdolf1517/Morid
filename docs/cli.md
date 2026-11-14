@@ -128,12 +128,15 @@ Import a Media Downloader data directory, or produce one
 
 | Option | Meaning |
 | --- | --- |
+| `--config <dir>` | The Morid data directory to import into, or to export from (§1) |
 | `--force` | Overwrite existing Morid files, after backing them up |
-| `--report <file>` | Write the import report as JSON |
+| `--report <file>` | Write the report as JSON. The file must be new and outside both the source and the destination tree — reporting must not change the data it describes |
 
 Exit codes: `0` success, `7` source directory not recognised, `8` partially imported (report says what).
 
-`8` exists because "some of it worked" is a real outcome and must not be reported as success.
+`8` exists because "some of it worked" is a real outcome and must not be reported as success. `export` uses the
+same code when the copy or a validation step failed, with the cause in the report: an export that dropped a file is
+not a success either, and a separate code would be a second place to look.
 
 ### 2.5 `morid gui`
 

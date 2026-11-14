@@ -332,6 +332,21 @@ Morid's approach:
   go back;
 - document the difference, because a user comparing the two files will notice.
 
+**Export puts the original bytes back when Morid never edited them.** Two rules make the round trip work, and both
+are needed because the original is a plain-text searcher:
+
+1. `morid export` restores the **exact captured history bytes** if Morid's copy still equals what the import wrote,
+   and writes the JSON array only if the history has been edited since. That is what makes "original data →
+   import → export" produce the file the user started with instead of a normalization of it.
+2. **The original's search is a byte search, not a JSON parse.** `historyFound` (`legacy/src/utility.cpp:2470`)
+   tests `QByteArray::contains(url)` on the file, while `QJsonDocument::Indented` writes a URL containing `/` as
+   `\/` and a Cyrillic URL as `\uXXXX`. So for those URLs the original does not find its own entry and appends a
+   duplicate on the next download. That is the original's defect, not ours to copy: Morid's own history file is
+   written **without** escaping `/` and without `\uXXXX` for non-ASCII, so a search by the URL text finds it.
+   Reading either form is unaffected.
+
+Neither rule alters the original's files themselves: during import and export they are copied, never regenerated.
+
 ### 5.2 `autoSavedList.json`
 
 Written on exit when `AutoSavePlaylistOnExit` is set. Its entries carry the whole table row, including fields

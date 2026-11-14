@@ -254,7 +254,13 @@ command line as the C++ version?* If the answer is no, everything after this poi
 
 **Deliverable:** a real Media Downloader data directory imports without loss, and the round trip works.
 
-**Status: task issued 4 November 2026** — [tasks/phase-4-user-data.md](tasks/phase-4-user-data.md). Scope is
+**Status: review round 1 — not accepted.** Delivered and green on three platforms: the Qt INI cycle (94 keys, one
+21-item `QStringList`, 3 351 bytes byte-identical), the six typed data files, the offline import/export cycle with
+the archive compared after a real download cycle, and the original program opening the export in CI
+(`ORIGINAL_ROUNDTRIP_OK`). Withheld on **one** criterion: the URL-manager operator test passes when the
+implementation is inverted, and the implementation reads `*x` as *contains* where the original reads it as
+*ends-with* — in `getEngineNameFromUrlManager`, which decides **which backend runs** for a user rule. Task:
+[tasks/phase-4-user-data.md](tasks/phase-4-user-data.md). Scope is
 narrower than the paragraphs below, in one place: `morid import` / `morid export` are the acceptance surface, and
 the settings file is read *by* the import and by `--config`, not yet by a GUI. The window's settings screen stays
 in Phase 7, because a settings screen without a window is not a deliverable.

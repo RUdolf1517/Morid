@@ -111,7 +111,7 @@ jobs:
         run: |
           set -euo pipefail
           export MORID_INTEGRITY_EVIDENCE="$PWD/target/phase5-integrity-evidence"
-          cargo test --locked --offline -p morid-net synthetic_bad_size_and_hash_preserve_old_executable_and_it_still_runs -- --nocapture 2>&1 | tee phase5-integrity.log
+          cargo test --locked --offline -p morid-engine --test install_integrity synthetic_bad_size_and_hash_preserve_old_executable_and_it_still_runs -- --nocapture 2>&1 | tee phase5-integrity.log
           {
             echo 'cmp before.bin after.bin'
             cmp "$MORID_INTEGRITY_EVIDENCE/before.bin" "$MORID_INTEGRITY_EVIDENCE/after.bin"

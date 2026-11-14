@@ -87,6 +87,24 @@ jobs:
               print(f"::notice title=URL mutation proof {index}::" + escaped)
           PYCODE
 
+      - name: Phase 5 policy foundation evidence (offline doubles only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/check_phase5_endpoints.py 2>&1 | tee phase5-policy.log
+          cargo test --locked --offline -p morid-ext supporting::tests -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
+          cargo test --locked --offline -p morid-net -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("phase5-policy.log").read_text(encoding="utf-8")
+          for marker in ["EXACT_ENDPOINT_TABLE_OK", "Generic/x86 you_get_present=false", "ENDPOINT_REFUSED exit=9 transport_calls=0", "REDIRECT_REFUSED", "HTTP_FAILURE exit=3"]:
+              assert marker in text, marker
+          for index, start in enumerate(range(0, len(text), 3500)):
+              block = text[start:start + 3500]
+              escaped = block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::notice title=Phase 5 policy foundation {index}::" + escaped)
+          PYCODE
+
       - name: Test
         shell: bash
         run: |
@@ -508,6 +526,7 @@ jobs:
             test.log
             phase3-cli.log
             phase4-cli.log
+            phase5-policy.log
             phase4-store.log
             phase4-original.log
             phase3-http.log

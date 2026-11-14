@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod control;
+pub mod supporting;
 pub mod thin;
 
 use morid_core::{EngineId, Error, Version};

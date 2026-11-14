@@ -3,3 +3,6 @@
 //! Must not contain: decisions about *what* to download.
 
 #![forbid(unsafe_code)]
+
+pub mod endpoints;
+pub mod transport;

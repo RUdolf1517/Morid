@@ -22,6 +22,7 @@ enum Line {
 pub struct Document {
     lines: Vec<Line>,
     final_newline: bool,
+    line_ending: String,
 }
 
 impl Document {
@@ -78,6 +79,7 @@ impl Document {
         Ok(Self {
             lines,
             final_newline: text.ends_with('\n'),
+            line_ending: if text.contains("\r\n") { "\r\n" } else { "\n" }.into(),
         })
     }
 
@@ -102,6 +104,7 @@ impl Document {
         Self {
             lines,
             final_newline: true,
+            line_ending: "\n".into(),
         }
     }
 
@@ -139,9 +142,9 @@ impl Document {
                 Line::Trivia(raw) => raw.clone(),
             })
             .collect::<Vec<_>>()
-            .join("\n");
+            .join(&self.line_ending);
         if self.final_newline {
-            out.push('\n');
+            out.push_str(&self.line_ending);
         }
         out.into_bytes()
     }

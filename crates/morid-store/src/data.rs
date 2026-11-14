@@ -247,10 +247,8 @@ mod file_tests {
     }
     #[test]
     fn six_captured_data_files_use_real_fields_and_preserve_unknown_keys() {
-        let base = std::path::Path::new(file!())
-            .parent()
-            .expect("source")
-            .join("../../../fixtures/userdata/media-downloader/data");
+        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/userdata/media-downloader/data");
         macro_rules! check {
             ($file:literal, $read:ident, $write:ident, $count:expr) => {{
                 let bytes = std::fs::read(base.join($file)).expect("capture");

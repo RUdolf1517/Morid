@@ -334,10 +334,8 @@ mod tests {
     }
     #[test]
     fn import_leaves_the_source_byte_identical() {
-        let source = Path::new(file!())
-            .parent()
-            .expect("source")
-            .join("../../../fixtures/userdata/media-downloader");
+        let source =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/userdata/media-downloader");
         let before = snapshot(&source);
         let temp = Temp::new();
         import(&source, &temp.0.join("morid"), false).expect("import");
@@ -345,10 +343,8 @@ mod tests {
     }
     #[test]
     fn import_is_idempotent() {
-        let source = Path::new(file!())
-            .parent()
-            .expect("source")
-            .join("../../../fixtures/userdata/media-downloader");
+        let source =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/userdata/media-downloader");
         let temp = Temp::new();
         let destination = temp.0.join("morid");
         import(&source, &destination, false).expect("first");

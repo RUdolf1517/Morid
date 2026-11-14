@@ -135,3 +135,20 @@ pub fn data_directory() -> std::path::PathBuf {
             .join("morid")
     }
 }
+
+/// Move only the actual verb, never a global option's value named "list".
+pub fn normalize_arguments(args: &mut Vec<String>) {
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "list" | "download" | "engines" => {
+                let verb = args.remove(index);
+                args.insert(0, verb);
+                return;
+            }
+            "--settings" | "--config" | "--lang" => index += 2,
+            "--json" | "--quiet" | "--verbose" | "--no-color" => index += 1,
+            _ => return,
+        }
+    }
+}

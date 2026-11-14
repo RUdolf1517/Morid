@@ -5,15 +5,18 @@ use morid_ext::{SearchPath, Target};
 use std::path::PathBuf;
 
 fn main() -> ExitCode {
-    let mut args: Vec<String> = std::env::args().skip(1).collect();
-    // Global options may precede the verb; adapters accept the same flags after it.
-    if let Some(index) = args
-        .iter()
-        .position(|arg| ["list", "download", "engines"].contains(&arg.as_str()))
+    let mut args = match std::env::args_os()
+        .skip(1)
+        .map(|arg| arg.into_string())
+        .collect::<Result<Vec<_>, _>>()
     {
-        let command = args.remove(index);
-        args.insert(0, command);
-    }
+        Ok(args) => args,
+        Err(_) => {
+            eprintln!("morid: arguments must be UTF-8");
+            return ExitCode::from(1);
+        }
+    };
+    morid_cli::normalize_arguments(&mut args);
     let data = args
         .iter()
         .position(|v| v == "--config")

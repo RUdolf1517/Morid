@@ -310,3 +310,27 @@ fn url_round_trips_byte_for_byte_from_phase0_fixtures_and_s07_range_is_opaque() 
         ["garbage", "--x"]
     );
 }
+
+#[test]
+fn global_options_do_not_mistake_values_for_commands() {
+    let mut args = [
+        "--settings",
+        "list",
+        "--json",
+        "download",
+        "https://example.test/x",
+    ]
+    .map(str::to_owned)
+    .to_vec();
+    morid_cli::normalize_arguments(&mut args);
+    assert_eq!(
+        args,
+        [
+            "download",
+            "--settings",
+            "list",
+            "--json",
+            "https://example.test/x"
+        ]
+    );
+}

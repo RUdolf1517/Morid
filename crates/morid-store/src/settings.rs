@@ -121,7 +121,12 @@ pub fn import(document: &Document) -> (Document, Findings) {
                 return None;
             }
             let mut entry = entry.clone();
-            if entry.section.eq_ignore_ascii_case("General") && !known(&entry.key) {
+            if !entry.section.eq_ignore_ascii_case("General") {
+                findings
+                    .unknown
+                    .push(format!("{}/{}", entry.section, entry.key));
+                entry.section = format!("imported/{}", entry.section);
+            } else if !known(&entry.key) {
                 findings.unknown.push(entry.key.clone());
                 entry.section = "imported".into();
             } else if entry.section.eq_ignore_ascii_case("General")
@@ -161,6 +166,8 @@ pub fn export(document: &Document) -> Document {
                 let mut entry: Entry = entry.clone();
                 if entry.section == "imported" {
                     entry.section = "General".into();
+                } else if let Some(original) = entry.section.strip_prefix("imported/") {
+                    entry.section = original.to_owned();
                 }
                 entry
             })
@@ -181,6 +188,18 @@ mod tests {
         assert_eq!(entry.value, input.entries().next().expect("input").value);
         assert_eq!(export(&stored).encode(), input.encode());
     }
+    #[test]
+    fn unknown_groups_are_quarantined_without_namespace_collisions() {
+        let input = Document::parse(b"[General]\nNovelKey=\"one, two\"\n[Plugin]\nDownloadFolder=not-active\n[imported]\nCheckForUpdates=plugin-data\n").expect("input");
+        let (stored, report) = import(&input);
+        assert_eq!(report.unknown.len(), 3);
+        assert!(report.dropped.is_empty());
+        assert!(stored
+            .entries()
+            .all(|entry| entry.section.starts_with("imported")));
+        assert_eq!(export(&stored).encode(), input.encode());
+    }
+
     #[test]
     fn update_settings_are_dropped_with_a_notice() {
         let input = Document::parse(b"[General]\nCheckForUpdates=true\nWindowsUpdateChannel=release\nShowVersionInfoAndAutoDownloadUpdates=true\n").expect("input");

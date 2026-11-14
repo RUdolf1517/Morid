@@ -89,13 +89,18 @@ class UserData(unittest.TestCase):
         settings = self.source / "settings/settings.ini"
         settings.write_bytes(b"[General]\nDownloadFolder=/tmp\nNovelFutureKey=first, second\n")
         report = self.root / "unknown.json"
-        self.assertEqual(self.cli("import", self.source, "--report", report).returncode, 0)
+        (self.source / "data/future-user-data.bin").write_bytes(b"\x00\xfffuture\r\n")
+        result = self.cli("import", self.source, "--report", report)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("unknown item preserved:", result.stdout)
+        self.assertEqual([name.replace("\\", "/") for name in json.loads(report.read_bytes())["unknown_items"]], ["data/future-user-data.bin"])
         self.assertEqual(json.loads(report.read_text())["unknown_keys"], ["NovelFutureKey"])
         stored = (self.config / "settings/settings.ini").read_bytes()
         self.assertIn(b"[imported]\nNovelFutureKey=first, second", stored)
         exported = self.root / "exported"
         self.assertEqual(self.cli("export", exported).returncode, 0)
         self.assertEqual((exported / "settings/settings.ini").read_bytes(), settings.read_bytes())
+        self.assertEqual((exported / "data/future-user-data.bin").read_bytes(), b"\x00\xfffuture\r\n")
 
     def test_config_fixture_ini_reaches_actual_dry_run_and_json_overlay(self):
         extensions = self.source / "extensions"

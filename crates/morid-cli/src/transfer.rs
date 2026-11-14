@@ -97,6 +97,9 @@ pub fn run(args: &[String], out: &mut dyn Write) -> Result<u8, Error> {
     for file in &report.skipped {
         writeln!(out, "skipped: {file}").map_err(write_error)?;
     }
+    for item in &report.unknown_items {
+        writeln!(out, "unknown item preserved: {item}").map_err(write_error)?;
+    }
     for key in &report.unknown_keys {
         writeln!(out, "unknown key preserved: {key}").map_err(write_error)?;
     }

@@ -248,6 +248,8 @@ Required by [D-008](decisions.md): the size is measured and published, not gated
 | CI run 43589750369 (Linux job) | `86ee902` | 5,749,160 bytes (5.48 MiB) | 813,568 bytes (0.78 MiB) | Phase 3: service, planner, `list`/`download`/batch CLI, `libc`/`windows-sys` behind two modules. The console binary grew by 299,096 bytes over Phase 2
  — the queue, the stream reader, the planner and the JSON output. GUI unchanged, which is the point: Phase 3 adds no window code. [measurement](https://github.com/RUdolf1517/Morid/actions/runs/43589750369) |
 
+| CI run 43613774506 (Linux job) | `a2d2478` | 5,749,160 bytes (5.48 MiB) | 981,504 bytes (0.94 MiB) | Phase 4 checking measurement: Qt INI string/list store, typed data files, transactional import/export and history preservation. GUI unchanged. [Linux release-size annotation](https://github.com/RUdolf1517/Morid/actions/runs/43613774506/job/132504277071). This measures the named code commit, not phase acceptance. |
+
 For reference, the program being replaced ships as a Qt bundle: a Qt6 Windows installer is in the tens of
 megabytes before backends are counted. The Rust target is expected to be in single-digit megabytes for the
 console binary and in the low tens for the GUI, most of it Slint and TLS. Those are expectations, not promises;

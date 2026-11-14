@@ -164,6 +164,21 @@ jobs:
                   print("::notice title=Phase 3 review follow-up::" + line.replace("%", "%25"))
           PYCODE
 
+      - name: Phase 4 store evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test -p morid-store -- --nocapture 2>&1 | tee phase4-store.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("phase4-store.log").read_text(encoding="utf-8", errors="replace")
+          assert "settings_ini_from_fixture_decodes_without_loss ... ok" in text
+          assert "failed_copy_after_staging_or_backup_restores_previous_tree ... ok" in text
+          for index, start in enumerate(range(0, min(len(text), 24000), 3500)):
+              block = text[start:start + 3500]
+              print(f"::notice title=Phase 4 store tests {index}::" + block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
+          PYCODE
+
       - name: Phase 4 offline user-data CLI checks
         shell: bash
         run: |
@@ -208,9 +223,14 @@ jobs:
           fi
           python3 - <<'PYCODE'
           from pathlib import Path
-          for line in Path("phase4-original.log").read_text(encoding="utf-8", errors="replace").splitlines():
-              if line.startswith(("ORIGINAL_", "EXPORTED FILE LIST")):
-                  print("::notice title=Live original readback::" + line.replace("%", "%25"))
+          lines = Path("phase4-original.log").read_text(encoding="utf-8", errors="replace").splitlines()
+          lines = [line for line in lines if line.startswith(("ORIGINAL_", "EXPORTED FILE LIST"))]
+          # Group notices: Actions caps per-step annotations; one notice per row
+          # would drop the final success marker and most of the actual output.
+          text = "\n".join(lines)
+          for index, start in enumerate(range(0, min(len(text), 24000), 3500)):
+              block = text[start:start + 3500]
+              print(f"::notice title=Live original readback {index}::" + block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
           PYCODE
 
       # Deliberately separate from offline tests: installs a real backend, then
@@ -475,6 +495,7 @@ jobs:
             test.log
             phase3-cli.log
             phase4-cli.log
+            phase4-store.log
             phase4-original.log
             phase3-http.log
             phase3-goldens.log

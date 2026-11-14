@@ -40,7 +40,7 @@ fn collect(root: &Path, dir: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> 
         if kind.is_symlink() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "symlink in data tree refused",
+                format!("{}: symlink in data tree refused", entry.path().display()),
             ));
         }
         if kind.is_dir() {
@@ -56,7 +56,10 @@ fn collect(root: &Path, dir: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> 
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "special file in data tree refused",
+                format!(
+                    "{}: special file in data tree refused",
+                    entry.path().display()
+                ),
             ));
         }
     }
@@ -336,7 +339,38 @@ pub fn import(source: &Path, destination: &Path, force: bool) -> io::Result<Repo
                     (ORIGINAL_HISTORY.into(), bytes),
                 ]);
             }
-            let validation = match path.strip_prefix("data").ok().and_then(Path::to_str) {
+            let data_name = path.strip_prefix("data").ok().and_then(Path::to_str);
+            let archive = path.parent() == Some(Path::new("data"))
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("archiveFile-"));
+            let theme = path.parent() == Some(Path::new("data/themes"))
+                && path.extension().is_some_and(|ext| ext == "json");
+            if !archive
+                && !theme
+                && !matches!(
+                    data_name,
+                    Some(
+                        "presetOptions.json"
+                            | "downloadDefaultOptions.json"
+                            | "downloadEngineDefaultOptions.json"
+                            | "subscriptions.json"
+                            | "autoSavedList.json"
+                    )
+                )
+            {
+                report.unknown_items.push(path.display().to_string());
+            }
+            if theme {
+                if let Err(error) = data::Theme::read(&bytes) {
+                    report.warnings.push(format!(
+                        "{}: {error}; original bytes preserved",
+                        path.display()
+                    ));
+                }
+            }
+            let validation = match data_name {
                 Some("presetOptions.json") => data::read_presets(&bytes).map(|_| ()),
                 Some("downloadDefaultOptions.json") => data::read_url_rules(&bytes).map(|_| ()),
                 Some("downloadEngineDefaultOptions.json") => {

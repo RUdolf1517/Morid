@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 pub enum Command {
     Enqueue {
-        request: JobRequest,
+        request: Box<JobRequest>,
         reply: Sender<Result<JobId, Rejection>>,
     },
     Cancel(JobId),
@@ -59,7 +59,10 @@ impl Client {
         request: JobRequest,
     ) -> Result<Receiver<Result<JobId, Rejection>>, mpsc::SendError<Command>> {
         let (reply, receiver) = mpsc::channel();
-        self.send(Command::Enqueue { request, reply })?;
+        self.send(Command::Enqueue {
+            request: Box::new(request),
+            reply,
+        })?;
         Ok(receiver)
     }
 }
@@ -143,7 +146,7 @@ fn run(mut queue: Queue, commands: Receiver<Command>, events: Sender<ServiceEven
                     let result = if stopping.is_some() {
                         Err(Rejection::Stopping)
                     } else {
-                        queue.enqueue(request).map_err(Rejection::Queue)
+                        queue.enqueue(*request).map_err(Rejection::Queue)
                     };
                     // Dropped reply does not undo an accepted job; JobQueued is
                     // still emitted on the canonical event stream.

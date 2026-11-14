@@ -641,3 +641,85 @@ fn transport_command_reply_event_stream_and_clean_shutdown() {
     service.join().expect("worker join");
     assert!(service.events.try_recv().is_err());
 }
+
+#[test]
+fn transport_cancel_all_reaches_worker_and_publishes_no_live_descendants() {
+    use morid::service::{Command, Service, ServiceEvent};
+    let fixture = Fixture::new();
+    let mut service = Service::start(ConcurrencyLimit::new(1).expect("limit")).expect("worker");
+    let first = service
+        .client
+        .enqueue(fixture.request("tree-gate", "worker-tree"))
+        .expect("send")
+        .recv_timeout(Duration::from_secs(5))
+        .expect("reply")
+        .expect("accepted");
+    let queued = service
+        .client
+        .enqueue(fixture.request("plain", "worker-queued"))
+        .expect("send")
+        .recv_timeout(Duration::from_secs(5))
+        .expect("reply")
+        .expect("accepted");
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut events = Vec::new();
+    let pids = loop {
+        assert!(Instant::now() < deadline, "worker readiness deadline");
+        match service.events.recv_timeout(Duration::from_millis(5)) {
+            Ok(ServiceEvent::Job(event)) => events.push(event),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            other => panic!("unexpected readiness event: {other:?}"),
+        }
+        let pids = ["worker-tree", "child-worker-tree"]
+            .iter()
+            .map(|name| {
+                std::fs::read_to_string(fixture.root.join(format!("pid-{name}")))
+                    .ok()?
+                    .parse::<u32>()
+                    .ok()
+            })
+            .collect::<Option<Vec<_>>>();
+        if let Some(pids) = pids {
+            break pids;
+        }
+    };
+    service
+        .client
+        .send(Command::CancelAll)
+        .expect("cancel all command");
+    let mut finished = std::collections::BTreeSet::new();
+    while finished.len() != 2 {
+        assert!(Instant::now() < deadline, "worker cancellation deadline");
+        match service
+            .events
+            .recv_timeout(Duration::from_secs(5))
+            .expect("event")
+        {
+            ServiceEvent::Job(event) => {
+                if let Event::JobFinished { job, state } = event {
+                    assert_eq!(state, JobState::Cancelled);
+                    assert!(finished.insert(job));
+                }
+                events.push(event);
+            }
+            other => panic!("unexpected cancel event: {other:?}"),
+        }
+    }
+    assert_eq!(finished, [first, queued].into_iter().collect());
+    for pid in pids {
+        assert_pid_dead(pid, &fixture);
+    }
+    assert!(!fixture.root.join("worker-queued").exists());
+    assert!(!events
+        .iter()
+        .any(|event| matches!(event, Event::JobStarted { job, .. } if *job == queued)));
+    service.shutdown().expect("shutdown");
+    assert!(matches!(
+        service
+            .events
+            .recv_timeout(Duration::from_secs(5))
+            .expect("stopped"),
+        ServiceEvent::Stopped { clean: true }
+    ));
+    service.join().expect("join");
+}

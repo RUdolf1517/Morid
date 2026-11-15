@@ -533,6 +533,22 @@ jobs:
               assert result.returncode == 1, result.stderr or result.stdout
           PYCODE
 
+      - name: Phase 5 failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          for name in ["phase5-policy.log", "phase5-cli.log", "phase5-integrity.log"]:
+              path = Path(name)
+              if not path.exists(): continue
+              text = path.read_text(encoding="utf-8", errors="replace")[-11000:]
+              for index, start in enumerate(range(0, len(text), 3000)):
+                  block = text[start:start+3000]
+                  escaped = block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  print(f"::warning title=Phase5 failure {name} {index}::" + escaped)
+          PYCODE
+
       - name: Phase 2 evidence
         if: always()
         shell: bash

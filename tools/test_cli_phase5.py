@@ -22,6 +22,8 @@ class Lifecycle(unittest.TestCase):
             data = root / "data"
             (data / "extensions").mkdir(parents=True)
             (data / "bin").mkdir()
+            (data / "settings").mkdir()
+            (data / "settings/settings.ini").write_text("[General]\nUseSystemSupportingEngine=false\n", encoding="ascii")
             executable = "version-double.exe" if os.name == "nt" else "version-double"
             shutil.copy2(VERSION_FIXTURE, data / "bin" / executable)
             expected = {

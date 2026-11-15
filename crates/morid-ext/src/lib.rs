@@ -140,6 +140,10 @@ impl Target<'static> {
 /// Existence checks are injectable; tests do not need a process or an ambient PATH.
 pub trait Executables {
     fn find(&self, executable: &str) -> Option<PathBuf>;
+    fn find_system(&self, executable: &str) -> Option<PathBuf> {
+        self.find(executable)
+            .filter(|path| !path.starts_with(self.bin_dir()))
+    }
     fn bin_dir(&self) -> &Path;
 }
 
@@ -158,6 +162,15 @@ impl SearchPath {
     }
 }
 impl Executables for SearchPath {
+    fn find_system(&self, executable: &str) -> Option<PathBuf> {
+        self.paths.iter().find_map(|directory| {
+            SearchPath {
+                bin: directory.clone(),
+                paths: vec![],
+            }
+            .find(executable)
+        })
+    }
     fn bin_dir(&self) -> &Path {
         &self.bin
     }

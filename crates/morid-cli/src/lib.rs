@@ -142,8 +142,36 @@ pub fn run(
             .map_err(output_error)?;
         }
     }
+    let settings_path = search
+        .bin_dir()
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join("settings/settings.ini");
+    let use_system = match std::fs::read(&settings_path) {
+        Ok(bytes) => {
+            let document = morid::store::ini::Document::parse(&bytes).map_err(Error::Usage)?;
+            !document.entries().any(|entry| {
+                entry.section.eq_ignore_ascii_case("General")
+                    && entry.key == "UseSystemSupportingEngine"
+                    && entry.value == morid::store::value::IniValue::String("false".into())
+            })
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+        Err(error) => {
+            return Err(Error::Destination(format!(
+                "{}: {error}",
+                settings_path.display()
+            )))
+        }
+    };
     for helper in morid_ext::supporting::descriptors(target, you_get_present) {
-        let executable = search.find(helper.executable);
+        let executable = if use_system {
+            search.find_system(helper.executable)
+        } else {
+            search
+                .find(helper.executable)
+                .filter(|path| path.starts_with(search.bin_dir()))
+        };
         let (version, reason) = if let Some(path) = &executable {
             match morid_engine::version::probe(
                 helper.name,
@@ -157,14 +185,26 @@ pub fn run(
                 Err(error) => ("unavailable".to_owned(), error.to_string()),
             }
         } else {
-            ("unavailable".into(), "not-installed".into())
+            (
+                "unavailable".into(),
+                format!(
+                    "{} missing; required by {}; {} supporting engine requested",
+                    helper.name,
+                    match helper.name {
+                        "ffmpeg" | "deno" | "quickjs-ng" => "yt-dlp family",
+                        "python" => "you-get",
+                        _ => "archive installation",
+                    },
+                    if use_system { "system" } else { "private" }
+                ),
+            )
         };
         let verdict = if executable.is_some() {
             "ready"
         } else {
             "needs installation"
         };
-        let record = json!({"section":"supporting", "name":helper.name, "version":version, "version_status":reason, "executable":executable, "resolved":true, "verdict":verdict});
+        let record = json!({"section":"supporting", "use_system":use_system, "name":helper.name, "version":version, "version_status":reason, "executable":executable, "resolved":true, "verdict":verdict});
         if json_output {
             writeln!(out, "{record}").map_err(output_error)?;
         } else {

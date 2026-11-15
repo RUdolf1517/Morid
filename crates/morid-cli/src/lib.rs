@@ -30,6 +30,16 @@ pub fn run(
         writeln!(out, "morid {}", env!("CARGO_PKG_VERSION")).map_err(output_error)?;
         return Ok(0);
     }
+    if args.first().map(String::as_str) == Some("engines")
+        && args.get(1).is_some_and(|arg| arg == "--remove")
+    {
+        if args.len() != 3 {
+            return Err(Error::Usage("usage: morid engines --remove NAME".into()));
+        }
+        let result = morid::backend_removal::remove(&args[2], directory, target, search)?;
+        writeln!(out, "{}: {result}", args[2]).map_err(output_error)?;
+        return Ok(0);
+    }
     if args.first().map(String::as_str) != Some("engines")
         || args.len() > 2
         || args.get(1).is_some_and(|arg| arg != "--json")
@@ -51,9 +61,40 @@ pub fn run(
     files.retain(|file| file.extension().is_some_and(|ext| ext == "json"));
     files.sort();
     let mut status = 0;
+    let mut you_get_present = false;
     for file in files {
         let record = match read_path(&file, target, search) {
             Ok(extension) => {
+                if matches!(extension.id.as_str(), "deno" | "quickjs-ng") {
+                    continue;
+                }
+                if extension.id.as_str() == "you-get" && extension.executable.is_some() {
+                    you_get_present = true;
+                }
+                let (version, version_status) = if let Some(executable) = &extension.executable {
+                    let prefix = extension
+                        .command
+                        .args
+                        .iter()
+                        .skip(1)
+                        .map(std::ffi::OsString::from)
+                        .collect::<Vec<_>>();
+                    match morid_engine::version::probe(
+                        extension.id.as_str(),
+                        executable,
+                        &prefix,
+                        &extension.metadata.version_argument,
+                        usize::try_from(extension.metadata.version_string_line)
+                            .unwrap_or(usize::MAX),
+                        usize::try_from(extension.metadata.version_string_position)
+                            .unwrap_or(usize::MAX),
+                    ) {
+                        Ok(read) => (read.display().to_owned(), read.reason.to_owned()),
+                        Err(error) => ("unavailable".to_owned(), error.to_string()),
+                    }
+                } else {
+                    ("unavailable".into(), "not-installed".into())
+                };
                 let verdict = if extension.executable.is_some() {
                     "ready"
                 } else {
@@ -68,7 +109,7 @@ pub fn run(
                     )
                     .map_err(output_error)?;
                 }
-                json!({"file":extension.file,"name":extension.id.as_str(),"schema_version":extension.schema_version,"platform":target.platform,"arch":target.arch,"selected_arch":extension.selected_arch,"command":extension.command.args,"command_name":extension.command.name,"executable":extension.executable,"verdict":verdict,"resolved":true})
+                json!({"section":"downloaders","version":version,"version_status":version_status,"file":extension.file,"name":extension.id.as_str(),"schema_version":extension.schema_version,"platform":target.platform,"arch":target.arch,"selected_arch":extension.selected_arch,"command":extension.command.args,"command_name":extension.command.name,"executable":extension.executable,"verdict":verdict,"resolved":true})
             }
             Err(error) => {
                 status = error.exit_code();
@@ -85,7 +126,7 @@ pub fn run(
         } else {
             writeln!(
                 out,
-                "{} | {} | schema {} | {}/{} -> {} | {} | {}",
+                "{} | {} | schema {} | {}/{} -> {} | {} | {} | version {}",
                 record["file"].as_str().unwrap_or("?"),
                 record["name"].as_str().unwrap_or("?"),
                 record["schema_version"],
@@ -95,7 +136,83 @@ pub fn run(
                 record["command"],
                 record["error"]
                     .as_str()
-                    .unwrap_or_else(|| record["verdict"].as_str().unwrap_or("invalid"))
+                    .unwrap_or_else(|| record["verdict"].as_str().unwrap_or("invalid")),
+                record["version"].as_str().unwrap_or("unavailable")
+            )
+            .map_err(output_error)?;
+        }
+    }
+    let settings_path = search
+        .bin_dir()
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join("settings/settings.ini");
+    let use_system = match std::fs::read(&settings_path) {
+        Ok(bytes) => {
+            let document = morid::store::ini::Document::parse(&bytes).map_err(Error::Usage)?;
+            let disabled = document.entries().any(|entry| {
+                entry.section.eq_ignore_ascii_case("General")
+                    && entry.key == "UseSystemSupportingEngine"
+                    && entry.value == morid::store::value::IniValue::String("false".into())
+            });
+            !disabled
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+        Err(error) => {
+            return Err(Error::Destination(format!(
+                "{}: {error}",
+                settings_path.display()
+            )))
+        }
+    };
+    for helper in morid_ext::supporting::descriptors(target, you_get_present) {
+        let executable = if use_system {
+            search.find_system(helper.executable)
+        } else {
+            search
+                .find(helper.executable)
+                .filter(|path| path.starts_with(search.bin_dir()))
+        };
+        let (version, reason) = if let Some(path) = &executable {
+            match morid_engine::version::probe(
+                helper.name,
+                path,
+                &[],
+                helper.version_argument,
+                helper.version_line,
+                helper.version_position,
+            ) {
+                Ok(read) => (read.display().to_owned(), read.reason.to_owned()),
+                Err(error) => ("unavailable".to_owned(), error.to_string()),
+            }
+        } else {
+            (
+                "unavailable".into(),
+                format!(
+                    "{} missing; required by {}; {} supporting engine requested",
+                    helper.name,
+                    match helper.name {
+                        "ffmpeg" | "deno" | "quickjs-ng" => "yt-dlp family",
+                        "python" => "you-get",
+                        _ => "archive installation",
+                    },
+                    if use_system { "system" } else { "private" }
+                ),
+            )
+        };
+        let verdict = if executable.is_some() {
+            "ready"
+        } else {
+            "needs installation"
+        };
+        let record = json!({"section":"supporting", "use_system":use_system, "name":helper.name, "version":version, "version_status":reason, "executable":executable, "resolved":true, "verdict":verdict});
+        if json_output {
+            writeln!(out, "{record}").map_err(output_error)?;
+        } else {
+            writeln!(
+                out,
+                "[supporting] {} | {} | version {} | {}",
+                helper.name, verdict, version, reason
             )
             .map_err(output_error)?;
         }

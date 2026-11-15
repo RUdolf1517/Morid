@@ -14,7 +14,7 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "GPL-2.0-or-later"
 authors = ["Rudolf Zinovev"]
 repository = "https://github.com/RUdolf1517/Morid"
@@ -43,7 +43,7 @@ sha2 = { version = "0.10", default-features = false }
 ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
 tar = { version = "0.4", default-features = false }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
-zip = { version = "4", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 # Deviations from workspace-manifest.md §1, each forced by crates.io itself:
 #   * `std-widgets` does not exist in slint 1.13 or 1.18 at all (crates.io API,
 #     /api/v1/crates/slint/1.13.1: 33 features, no `std-widgets`); widgets are

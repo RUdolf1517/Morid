@@ -18,3 +18,5 @@ pub mod metadata;
 
 /// Data ownership stays in morid-store; adapters access it through the service.
 pub use morid_store as store;
+
+pub mod backend_removal;

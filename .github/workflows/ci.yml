@@ -87,6 +87,51 @@ jobs:
               print(f"::notice title=URL mutation proof {index}::" + escaped)
           PYCODE
 
+      - name: Phase 5 policy foundation evidence (offline doubles only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/check_phase5_endpoints.py 2>&1 | tee phase5-policy.log
+          cargo test --locked --offline -p morid-ext supporting::tests -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
+          cargo test --locked --offline -p morid-ext assets::tests -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
+          cargo test --locked --offline -p morid-net -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
+          cargo build --locked --offline -p morid-engine --example version_fixture
+          cargo test --locked --offline -p morid-engine --test version_probe -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("phase5-policy.log").read_text(encoding="utf-8")
+          for marker in ["EXACT_ENDPOINT_TABLE_OK", "Generic/x86 you_get_present=false", "ENDPOINT_REFUSED exit=9 transport_calls=0", "REDIRECT_REFUSED", "HTTP_FAILURE exit=3"]:
+              assert marker in text, marker
+          for index, start in enumerate(range(0, len(text), 3500)):
+              block = text[start:start + 3500]
+              escaped = block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::notice title=Phase 5 policy foundation {index}::" + escaped)
+          PYCODE
+
+      - name: Phase 5 old executable integrity proof (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MORID_INTEGRITY_EVIDENCE="$PWD/target/phase5-integrity-evidence"
+          cargo test --locked --offline -p morid-engine --test install_integrity synthetic_bad_size_and_hash_preserve_old_executable_and_it_still_runs -- --nocapture 2>&1 | tee phase5-integrity.log
+          {
+            echo 'cmp before.bin after.bin'
+            cmp "$MORID_INTEGRITY_EVIDENCE/before.bin" "$MORID_INTEGRITY_EVIDENCE/after.bin"
+            echo "cmp exit=$?"
+            sha256sum "$MORID_INTEGRITY_EVIDENCE/"*.bin
+            "$MORID_INTEGRITY_EVIDENCE/after.bin" --list
+            echo "old executable exit=$?"
+          } 2>&1 | tee -a phase5-integrity.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("phase5-integrity.log").read_text()
+          for index, start in enumerate(range(0, len(text), 3500)):
+              block = text[start:start + 3500]
+              escaped = block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::notice title=Phase 5 integrity {index}::" + escaped)
+          PYCODE
+
       - name: Test
         shell: bash
         run: |
@@ -267,7 +312,21 @@ jobs:
                   print("::notice title=real HTTP evidence::" + line.replace("%", "%25"))
           PYCODE
 
-      - name: Resolve all bundled engines without starting them
+      - name: Phase 5 offline CLI lifecycle evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/test_cli_phase5.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} target/debug/examples/version_fixture${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase5-cli.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("phase5-cli.log").read_text()
+          for index, start in enumerate(range(0, len(text), 3500)):
+              block = text[start:start + 3500]
+              escaped = block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::notice title=Phase 5 CLI lifecycle {index}::" + escaped)
+          PYCODE
+
+      - name: Resolve bundled engines and probe installed versions
         shell: bash
         run: |
           set -euo pipefail
@@ -283,7 +342,9 @@ jobs:
           import json
           from pathlib import Path
           rows = Path("engines.jsonl").read_text().splitlines()
-          assert len(rows) == 17, len(rows)
+          parsed = [json.loads(row) for row in rows]
+          assert len([r for r in parsed if r.get("section") == "downloaders"]) == 15
+          assert {"ffmpeg", "deno"}.issubset({r["name"] for r in parsed if r.get("section") == "supporting"})
           assert all(isinstance(record := json.loads(row), dict) and record["resolved"] for row in rows)
           print(rows[0])
           print(rows[-1])
@@ -472,6 +533,22 @@ jobs:
               assert result.returncode == 1, result.stderr or result.stdout
           PYCODE
 
+      - name: Phase 5 failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          for name in ["phase5-policy.log", "phase5-cli.log", "phase5-integrity.log"]:
+              path = Path(name)
+              if not path.exists(): continue
+              text = path.read_text(encoding="utf-8", errors="replace")[-11000:]
+              for index, start in enumerate(range(0, len(text), 3000)):
+                  block = text[start:start+3000]
+                  escaped = block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  print(f"::warning title=Phase5 failure {name} {index}::" + escaped)
+          PYCODE
+
       - name: Phase 2 evidence
         if: always()
         shell: bash
@@ -508,6 +585,9 @@ jobs:
             test.log
             phase3-cli.log
             phase4-cli.log
+            phase5-policy.log
+            phase5-integrity.log
+            phase5-cli.log
             phase4-store.log
             phase4-original.log
             phase3-http.log

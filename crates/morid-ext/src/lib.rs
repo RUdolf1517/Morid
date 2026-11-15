@@ -1,7 +1,9 @@
 //! Extension validation and command resolution. Never executes a command.
 #![forbid(unsafe_code)]
 
+pub mod assets;
 pub mod control;
+pub mod supporting;
 pub mod thin;
 
 use morid_core::{EngineId, Error, Version};
@@ -138,6 +140,10 @@ impl Target<'static> {
 /// Existence checks are injectable; tests do not need a process or an ambient PATH.
 pub trait Executables {
     fn find(&self, executable: &str) -> Option<PathBuf>;
+    fn find_system(&self, executable: &str) -> Option<PathBuf> {
+        self.find(executable)
+            .filter(|path| !path.starts_with(self.bin_dir()))
+    }
     fn bin_dir(&self) -> &Path;
 }
 
@@ -156,6 +162,15 @@ impl SearchPath {
     }
 }
 impl Executables for SearchPath {
+    fn find_system(&self, executable: &str) -> Option<PathBuf> {
+        self.paths.iter().find_map(|directory| {
+            SearchPath {
+                bin: directory.clone(),
+                paths: vec![],
+            }
+            .find(executable)
+        })
+    }
     fn bin_dir(&self) -> &Path {
         &self.bin
     }

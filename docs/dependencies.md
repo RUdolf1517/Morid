@@ -11,8 +11,7 @@ considered and rejected.
 It is written before the code exists. Entries below are therefore **proposals with a decision attached**, and a
 pull request that implements them must confirm the measured size rather than the estimate.
 
-**Language and toolchain:** Rust 1.85 or newer, edition 2021. The floor is set by Slint's current minimum; it
-will be raised only when a dependency forces it.
+**Language and toolchain:** Rust 1.88 or newer, edition 2021. The floor was 1.85 for Slint; Phase 5 raises it to 1.88 because the security-patched ZIP dependency requires it (§2.7). It is raised only when a dependency forces it.
 
 ---
 
@@ -105,18 +104,30 @@ A dependency that fails question 1 is rejected even if it is small and popular.
   operating system's trust store and certificate validation, which is smaller and matches user expectations on
   corporate networks, at the cost of three platform-specific implementations. To be settled in Phase 5.
 
-### 2.7 Archive unpacking — `tar` + `flate2` + `zip` (proposed)
+### 2.7 Archive unpacking — `tar` + `flate2` + `zip`
 
 - **Why:** installing a backend means unpacking what its project publishes: `.tar.gz`, `.zip`, and on Windows
   `.zip`. The original shells out to `bsdtar`/`unzip`, which means a missing system tool breaks extension
   installation, and extraction is where path traversal bugs live
   ([SECURITY.md](../SECURITY.md)).
-- **Proposal:** `tar` + `flate2` (pure-Rust `miniz_oxide` backend, no C) + `zip`.
-- **Alternative kept open:** keep shelling out, as the original does. Cheaper in size, but adds a runtime
-  dependency on a system tool and delegates the security property to it.
+- **Decision (Phase 5 implementation):** use `tar` + `flate2` with its pure-Rust backend and
+  `zip` 9 with only `deflate-flate2`. No shell or runtime extraction tool. Disable default features;
+  no encryption, zstd, xz or native compression libraries are needed for the accepted formats.
+- **Why not bsdtar:** its availability/version is outside the product's control and its extraction
+  behavior cannot enforce our per-entry refusal policy before writing. In-process parsers allow
+  preflight of every entry and refusal of links, duplicate paths and portable path attacks.
+- **Security/MSRV:** the proposed zip 4 is rejected: RUSTSEC-2026-0367, -0368, -0369 and
+  -0429 are patched in zip >=9.0.0. Although this code does not call the affected `extract`
+  helpers, the security gate is not waived. zip 9.0.0 declares Rust 1.88; the workspace/toolchain
+  floor is raised accordingly, rather than keeping a known-vulnerable dependency or suppressing
+  advisories. Its `typed-path` transitive dependency is MIT licensed.
+- **Safety:** parse entries, validate portable paths and types, enforce entry/expanded-size limits,
+  then write only into an empty staging directory. Do not delegate to archive `unpack` helpers.
+  All links are refused (including internal links), rather than following them.
 - **Licence:** MIT OR Apache-2.0 (`tar`, `flate2`), MIT (`zip`).
-- **Decision point:** Phase 5. The agent of the decision may well be "which is measurably smaller", since both
-  are defensible.
+- **Measurement:** final linked CLI size and delta will be recorded from CI in §6 once the install
+  command reaches these functions. This decision is implemented, but the measured-size acceptance
+  criterion is not closed by an unreferenced library's release size.
 
 ### 2.8 `libc` (Unix only) — process groups and signals
 

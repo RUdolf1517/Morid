@@ -218,9 +218,13 @@ class Cli(unittest.TestCase):
         result = self.run_cli("engines", "--json")
         self.assertIn(result.returncode, [0, 4])
         rows = self.records(result)
-        self.assertEqual(len(rows), 17)
+        downloaders = [row for row in rows if row.get("section") == "downloaders"]
+        supporting = [row for row in rows if row.get("section") == "supporting"]
+        self.assertEqual(len(downloaders), 15)
         self.assertTrue(all(row["resolved"] for row in rows))
-        print("OUTSIDE CHECKOUT SEVENTEEN ENGINES", result.stdout)
+        self.assertTrue({"ffmpeg", "deno"}.issubset({row["name"] for row in supporting}))
+        self.assertFalse({"deno", "quickjs-ng"} & {row["name"] for row in downloaders})
+        print("OUTSIDE CHECKOUT DOWNLOADERS AND SUPPORTING SEPARATED", result.stdout)
         shutil.rmtree(adjacent)
         shutil.rmtree(self.extensions)
         result = self.run_cli("engines")

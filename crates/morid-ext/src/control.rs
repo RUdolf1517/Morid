@@ -82,6 +82,10 @@ enum Expression {
 }
 
 impl Control {
+    pub fn disabled() -> Self {
+        Self(None)
+    }
+
     /// Parsing errors are wrapped by the extension reader with file and rule.
     pub fn parse(value: &Value) -> Result<Self, String> {
         let object = value

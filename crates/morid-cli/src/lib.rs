@@ -150,11 +150,12 @@ pub fn run(
     let use_system = match std::fs::read(&settings_path) {
         Ok(bytes) => {
             let document = morid::store::ini::Document::parse(&bytes).map_err(Error::Usage)?;
-            !document.entries().any(|entry| {
+            let disabled = document.entries().any(|entry| {
                 entry.section.eq_ignore_ascii_case("General")
                     && entry.key == "UseSystemSupportingEngine"
                     && entry.value == morid::store::value::IniValue::String("false".into())
-            })
+            });
+            !disabled
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
         Err(error) => {

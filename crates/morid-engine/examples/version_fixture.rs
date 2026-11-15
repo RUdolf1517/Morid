@@ -9,6 +9,10 @@ fn main() {
     if args.len() != 2 {
         std::process::exit(40);
     }
+    if args[0] == "flood" {
+        std::io::stderr().write_all(&vec![b'x'; 70000]).unwrap();
+        return;
+    }
     let (argument, bytes): (&str, &[u8]) = match args[0].as_str() {
         "yt-dlp" => (
             "--version",

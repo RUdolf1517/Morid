@@ -1,16 +1,19 @@
 //! Bounded, shell-free version probing through the existing contained child.
-use crate::{
-    managed::ManagedChild,
-    output::Classified,
-    spawn::SpawnSpec,
-    stream::{OutputPoll, Rules, Stream},
-};
+use crate::{managed::ManagedChild, spawn::SpawnSpec};
 use morid_core::Error;
 use std::{
     ffi::OsString,
+    io::Read,
     path::Path,
+    sync::mpsc,
     time::{Duration, Instant},
 };
+
+fn capture(mut input: impl Read) -> std::io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    input.by_ref().take(65537).read_to_end(&mut bytes)?;
+    Ok(bytes)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VersionRead {
@@ -72,66 +75,69 @@ pub fn probe(
         env: vec![],
     };
     let mut child = ManagedChild::spawn(&spec).map_err(|e| Error::BackendFailure(e.to_string()))?;
-    let mut output = child
-        .take_output(Rules {
-            split_lines_by: vec!["\r\n".into(), "\n".into()],
-            remove_text: vec![],
-            skip_line_with_text: vec![],
-            control: morid_ext::control::Control::disabled(),
+    let (stdout, stderr) = child
+        .take_probe_pipes()
+        .map_err(|e| Error::BackendFailure(e.to_string()))?;
+    let (sender, receiver) = mpsc::channel();
+    let out_sender = sender.clone();
+    let out = std::thread::Builder::new()
+        .name("version-stdout".into())
+        .spawn(move || {
+            let _ = out_sender.send((0usize, capture(stdout)));
+        })
+        .map_err(|e| Error::BackendFailure(e.to_string()))?;
+    let err = std::thread::Builder::new()
+        .name("version-stderr".into())
+        .spawn(move || {
+            let _ = sender.send((1usize, capture(stderr)));
         })
         .map_err(|e| Error::BackendFailure(e.to_string()))?;
     let start = Instant::now();
-    let mut stdout = String::new();
-    let mut stderr = String::new();
-    let mut end = false;
+    let mut captured: [Option<Vec<u8>>; 2] = [None, None];
     loop {
+        while let Ok((index, result)) = receiver.try_recv() {
+            let bytes = result.map_err(|e| Error::BackendFailure(e.to_string()))?;
+            if bytes.len() > 65536 {
+                child
+                    .cancel_observed(Duration::from_secs(2))
+                    .map_err(|e| Error::BackendFailure(e.to_string()))?;
+                let _ = out.join();
+                let _ = err.join();
+                return Ok(VersionRead {
+                    value: None,
+                    reason: "probe-output-limit",
+                });
+            }
+            captured[index] = Some(bytes);
+        }
         if start.elapsed() > Duration::from_secs(5) {
             child
                 .cancel_observed(Duration::from_secs(2))
                 .map_err(|e| Error::BackendFailure(e.to_string()))?;
+            let _ = out.join();
+            let _ = err.join();
             return Ok(VersionRead {
                 value: None,
                 reason: "probe-timeout",
             });
         }
-        match output.poll_next() {
-            OutputPoll::Item(Ok(event)) => {
-                if let Classified::Output(line) = event.data {
-                    let text = if event.stream == Stream::Stdout {
-                        &mut stdout
-                    } else {
-                        &mut stderr
-                    };
-                    if text.len() + line.len() > 65536 {
-                        child
-                            .cancel_observed(Duration::from_secs(2))
-                            .map_err(|e| Error::BackendFailure(e.to_string()))?;
-                        return Ok(VersionRead {
-                            value: None,
-                            reason: "probe-output-limit",
-                        });
-                    }
-                    text.push_str(&line);
-                    text.push('\n');
-                }
-            }
-            OutputPoll::Item(Err(e)) => return Err(Error::BackendFailure(e.to_string())),
-            OutputPoll::End => end = true,
-            OutputPoll::Pending => {}
-        }
         if let Some(status) = child
             .poll_finished()
             .map_err(|e| Error::BackendFailure(e.to_string()))?
         {
-            if end {
+            if let [Some(stdout), Some(stderr)] = &captured {
+                out.join()
+                    .map_err(|_| Error::BackendFailure("version stdout reader failed".into()))?;
+                err.join()
+                    .map_err(|_| Error::BackendFailure("version stderr reader failed".into()))?;
                 if status.code != Some(0) {
                     return Ok(VersionRead {
                         value: None,
                         reason: "probe-exit-failure",
                     });
                 }
-                // you-get writes its version to stderr. Do not merge pipe lines
-                // nondeterministically; stdout is preferred when it has text.
+                let stdout = String::from_utf8_lossy(stdout);
+                let stderr = String::from_utf8_lossy(stderr);
                 return Ok(token(
                     name,
                     if stdout.trim().is_empty() {

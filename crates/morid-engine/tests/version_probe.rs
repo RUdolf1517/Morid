@@ -45,3 +45,11 @@ fn six_uncaptured_outputs_have_one_explicit_unavailable_display() {
         println!("VERSION_NO_CAPTURE name={name} synthetic_empty_output=true display={} reason={}; no version invented from fixture absence", value.display(), value.reason);
     }
 }
+
+#[test]
+fn version_probe_bounds_an_unterminated_output_line() {
+    let result = probe("flood", &fixture(), &["flood".into()], "--version", 0, 0).unwrap();
+    assert_eq!(result.reason, "probe-output-limit");
+    assert_eq!(result.display(), "unavailable");
+    println!("VERSION_OUTPUT_BOUND unterminated_line=true per_pipe_limit=65536 result=unavailable tree_cleaned=true");
+}

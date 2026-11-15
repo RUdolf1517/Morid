@@ -44,6 +44,25 @@ impl ManagedChild {
         self.child.id()
     }
 
+    pub(crate) fn take_probe_pipes(
+        &mut self,
+    ) -> io::Result<(std::process::ChildStdout, std::process::ChildStderr)> {
+        if self.child.stdout.is_none() || self.child.stderr.is_none() {
+            return Err(io::Error::other("backend pipes already taken"));
+        }
+        let stdout = self
+            .child
+            .stdout
+            .take()
+            .ok_or_else(|| io::Error::other("stdout missing"))?;
+        let stderr = self
+            .child
+            .stderr
+            .take()
+            .ok_or_else(|| io::Error::other("stderr missing"))?;
+        Ok((stdout, stderr))
+    }
+
     /// Take each pipe exactly once and start concurrent draining/classification.
     /// If reader setup fails, cancel the backend rather than leave it blocked on
     /// an undrained pipe. Reader threads own their pipe ends, not the child.

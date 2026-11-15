@@ -274,6 +274,64 @@ mod tests {
     }
 
     #[test]
+    fn synthetic_zip_pipeline_and_verified_hostile_tar_leave_no_staging() {
+        use std::io::Cursor;
+        let root = Directory::new();
+        let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        zip.start_file("package/backend", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(b"new-backend").unwrap();
+        let body = zip.finish().unwrap().into_inner();
+        let expected = Integrity::from_metadata(
+            body.len() as u64,
+            &format!("sha256:{}", hex(&Sha256::digest(&body))),
+        )
+        .unwrap();
+        assert_eq!(
+            publish_archive(
+                &root.0,
+                "backend",
+                &body,
+                &expected,
+                crate::archive::Format::Zip,
+                Path::new("package/backend")
+            )
+            .unwrap(),
+            Published::Installed
+        );
+        let gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        let mut tar = tar::Builder::new(gzip);
+        let mut header = tar::Header::new_gnu();
+        header.set_entry_type(tar::EntryType::Symlink);
+        header.set_size(0);
+        header.set_mode(0o777);
+        header.set_link_name("../outside").unwrap();
+        header.set_cksum();
+        tar.append_data(&mut header, "escape-link", &b""[..])
+            .unwrap();
+        let body = tar.into_inner().unwrap().finish().unwrap();
+        let expected = Integrity::from_metadata(
+            body.len() as u64,
+            &format!("sha256:{}", hex(&Sha256::digest(&body))),
+        )
+        .unwrap();
+        let error = publish_archive(
+            &root.0,
+            "backend",
+            &body,
+            &expected,
+            crate::archive::Format::TarGz,
+            Path::new("escape-link"),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("escape-link"));
+        assert_eq!(error.exit_code(), 3);
+        assert_eq!(fs::read(root.0.join("backend")).unwrap(), b"new-backend");
+        assert_eq!(fs::read_dir(&root.0).unwrap().count(), 1);
+        println!("SYNTHETIC_ARCHIVE_PIPELINE zip=Installed authenticated_hostile_tar=refused old_bytes=equal stage_residue=0 error={error}");
+    }
+
+    #[test]
     fn synthetic_verified_archive_publishes_only_explicit_member_and_cleans_staging() {
         let root = Directory::new();
         let body = synthetic_tar("package/backend");

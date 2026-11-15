@@ -14,6 +14,13 @@ pub trait Transport {
     fn get(&mut self, url: &str) -> Result<Response, Error>;
 }
 
+/// Explicit archive mapping supplied by the engine's installation policy.
+pub struct ArchiveTarget<'a> {
+    pub bin: &'a std::path::Path,
+    pub name: &'a str,
+    pub member: &'a std::path::Path,
+}
+
 /// No caller-provided allow-list: a user extension cannot authorize itself.
 pub struct ReleaseClient<T> {
     transport: T,
@@ -66,9 +73,7 @@ impl<T: Transport> ReleaseClient<T> {
         endpoint: &str,
         codeberg_list: bool,
         matches: impl Fn(&str) -> bool,
-        bin: &std::path::Path,
-        name: &str,
-        member: &std::path::Path,
+        target: ArchiveTarget<'_>,
     ) -> Result<crate::install::Published, Error> {
         let (asset, body) = self.selected_asset(endpoint, codeberg_list, matches)?;
         let format = if asset.name.ends_with(".tar.gz") {
@@ -81,7 +86,14 @@ impl<T: Transport> ReleaseClient<T> {
                 asset.name
             )));
         };
-        crate::install::publish_archive(bin, name, &body, &asset.integrity, format, member)
+        crate::install::publish_archive(
+            target.bin,
+            target.name,
+            &body,
+            &asset.integrity,
+            format,
+            target.member,
+        )
     }
 
     /// The asset authority is the exact selected URL returned by an approved

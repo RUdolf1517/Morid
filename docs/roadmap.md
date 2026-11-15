@@ -295,10 +295,15 @@ test that fails when the rule is inverted.
 
 ### Phase 5 — Network, backend installation, updates
 
-**Status: task issued 4 November 2026** — [tasks/phase-5-network.md](tasks/phase-5-network.md). This is the first
-phase that touches the network, so the order inside it is: the transport trait and the recorded responses first,
-then integrity, then unpacking, then the three verbs — and version reading last, because `morid engines` reporting a
-version is the visible result of the other four.
+**Status: implementation in progress, PR #16 remains draft; not accepted.**
+[tasks/phase-5-network.md](tasks/phase-5-network.md) is the contract. The transport double and exact
+endpoint policy, synthetic release parsing, integrity staging, guarded tar/ZIP preflight, native version
+probes, separated supporting inventory and custom removal are implemented. Real HTTP/TLS integration,
+CLI install/update, whole-package publication and final dependency size measurements are not complete.
+No release API capture is claimed. The proposed ring-based TLS configuration conflicts with the written
+no-C-toolchain guarantee; that provider decision is reported separately, without stopping independent work.
+The minimum Rust version is now 1.88 because security-patched zip 9 requires it (dependencies §2.7).
+No trustworthy actual person-day measurement exists; the 10–14 day estimate below is unchanged.
 
 **Two specification errors of this task were corrected by the coder's pre-flight report, before any code:**
 the supporting engines are **six**, not the five the audit's summary listed ([D-020](decisions.md)), and one helper

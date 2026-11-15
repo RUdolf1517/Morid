@@ -15,6 +15,38 @@ fn capture(mut input: impl Read) -> std::io::Result<Vec<u8>> {
     Ok(bytes)
 }
 
+fn stop_probe(child: &mut ManagedChild) -> Result<(), Error> {
+    if child
+        .poll_finished()
+        .map_err(|e| Error::BackendFailure(e.to_string()))?
+        .is_some()
+    {
+        return Ok(());
+    }
+    match child.cancel_observed(Duration::from_secs(2)) {
+        Ok(_) => Ok(()),
+        // Darwin can reject killpg for an exited, unreaped leader. Only the
+        // existing read-only tree-absence observation may turn that into success.
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            let deadline = Instant::now() + Duration::from_secs(2);
+            loop {
+                if child
+                    .poll_finished()
+                    .map_err(|e| Error::BackendFailure(e.to_string()))?
+                    .is_some()
+                {
+                    return Ok(());
+                }
+                if Instant::now() >= deadline {
+                    return Err(Error::BackendFailure(error.to_string()));
+                }
+                std::thread::sleep(Duration::from_millis(2));
+            }
+        }
+        Err(error) => Err(Error::BackendFailure(error.to_string())),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VersionRead {
     pub value: Option<String>,
@@ -98,9 +130,7 @@ pub fn probe(
         while let Ok((index, result)) = receiver.try_recv() {
             let bytes = result.map_err(|e| Error::BackendFailure(e.to_string()))?;
             if bytes.len() > 65536 {
-                child
-                    .cancel_observed(Duration::from_secs(2))
-                    .map_err(|e| Error::BackendFailure(e.to_string()))?;
+                stop_probe(&mut child)?;
                 let _ = out.join();
                 let _ = err.join();
                 return Ok(VersionRead {
@@ -111,9 +141,7 @@ pub fn probe(
             captured[index] = Some(bytes);
         }
         if start.elapsed() > Duration::from_secs(5) {
-            child
-                .cancel_observed(Duration::from_secs(2))
-                .map_err(|e| Error::BackendFailure(e.to_string()))?;
+            stop_probe(&mut child)?;
             let _ = out.join();
             let _ = err.join();
             return Ok(VersionRead {

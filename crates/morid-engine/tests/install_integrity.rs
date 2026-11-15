@@ -1,10 +1,30 @@
 //! Synthetic integrity acceptance: the saved native test executable stands in
 //! for the previously installed backend. No real backend or socket is used.
-use morid_net::install::{publish_binary, Integrity};
+use morid_core::Error;
+use morid_net::transport::{ReleaseClient, Response, Transport};
 use sha2::{Digest, Sha256};
+use std::cell::Cell;
 use std::{fs, path::PathBuf};
 const SYNTHETIC_DIGEST: &str =
     "sha256:42404f785c9107ddb29581517f9eb04fc57a168eb84cac0f6b7e2ac9c6ae5ccf";
+const ENDPOINT: &str = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest";
+const ASSET: &str = "https://github.com/yt-dlp/yt-dlp/releases/download/synthetic/backend";
+struct SyntheticTransport<'a> {
+    body: &'a [u8],
+    calls: &'a Cell<usize>,
+}
+impl Transport for SyntheticTransport<'_> {
+    fn get(&mut self, url: &str) -> Result<Response, Error> {
+        self.calls.set(self.calls.get() + 1);
+        let body = if url == ENDPOINT {
+            serde_json::to_vec(&serde_json::json!({"_test_provenance":"SYNTHETIC NOT CAPTURED", "tag_name":"synthetic", "assets":[{"name":"backend", "size":11, "digest":SYNTHETIC_DIGEST, "browser_download_url":ASSET}]})).unwrap()
+        } else {
+            assert_eq!(url, ASSET);
+            self.body.to_vec()
+        };
+        Ok(Response { status: 200, body })
+    }
+}
 struct Directory(PathBuf);
 impl Directory {
     fn new() -> Self {
@@ -36,19 +56,28 @@ fn synthetic_bad_size_and_hash_preserve_old_executable_and_it_still_runs() {
     fs::copy(std::env::current_exe().expect("test binary"), &old).expect("old backend");
     let before = fs::read(&old).expect("before");
     let before_hash = hex(&Sha256::digest(&before));
-    let expected = Integrity::from_metadata(11, SYNTHETIC_DIGEST).expect("synthetic metadata");
     println!("SYNTHETIC_EXPECTED_ORIGIN fixed test metadata size=11 digest={SYNTHETIC_DIGEST}; not derived from downloaded bytes");
     for (body, failed_check) in [
         (b"short".as_slice(), "size check failed: expected 11, got 5"),
         (b"bad-backend".as_slice(), "SHA-256 check failed: expected"),
     ] {
-        let error = publish_binary(
-            &root.0,
-            old.file_name().unwrap().to_str().unwrap(),
+        let calls = Cell::new(0);
+        let mut client = ReleaseClient::new(SyntheticTransport {
             body,
-            &expected,
-        )
-        .expect_err("corruption");
+            calls: &calls,
+        });
+        let error = client
+            .install_binary(
+                ENDPOINT,
+                |name| name == "backend",
+                &root.0,
+                old.file_name().unwrap().to_str().unwrap(),
+            )
+            .expect_err("corruption");
+        assert_eq!(calls.get(), 2);
+        println!(
+            "SYNTHETIC_PIPELINE metadata_requests=1 exact_selected_asset_requests=1 real_sockets=0"
+        );
         assert_eq!(error.exit_code(), 3);
         assert!(error.to_string().contains(failed_check), "{error}");
         let after = fs::read(&old).expect("after");

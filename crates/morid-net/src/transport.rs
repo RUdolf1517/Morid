@@ -45,6 +45,74 @@ impl<T: Transport> ReleaseClient<T> {
         }
         Ok(response.body)
     }
+    pub fn install_binary(
+        &mut self,
+        endpoint: &str,
+        matches: impl Fn(&str) -> bool,
+        bin: &std::path::Path,
+        name: &str,
+    ) -> Result<crate::install::Published, Error> {
+        let (asset, body) = self.selected_asset(endpoint, false, matches)?;
+        if asset.name.ends_with(".zip") || asset.name.ends_with(".tar.gz") {
+            return Err(Error::BackendFailure(
+                "archive asset requires verified extraction, not binary publication".into(),
+            ));
+        }
+        crate::install::publish_binary(bin, name, &body, &asset.integrity)
+    }
+
+    /// The asset authority is the exact selected URL returned by an approved
+    /// metadata request, additionally bound to that release repository. This
+    /// never adds an asset URL (or a host wildcard) to RELEASE_ENDPOINTS.
+    pub fn selected_asset(
+        &mut self,
+        endpoint: &str,
+        codeberg_list: bool,
+        matches: impl Fn(&str) -> bool,
+    ) -> Result<(crate::release::Asset, Vec<u8>), Error> {
+        let metadata = self.metadata(endpoint)?;
+        let asset = crate::release::select_matching(&metadata, codeberg_list, matches)?;
+        let repository = if let Some(path) = endpoint.strip_prefix("https://api.github.com/repos/")
+        {
+            path.split_once("/releases")
+                .map(|(repo, _)| format!("https://github.com/{repo}/releases/download/"))
+        } else if let Some(path) = endpoint.strip_prefix("https://codeberg.org/api/v1/repos/") {
+            path.split_once("/releases")
+                .map(|(repo, _)| format!("https://codeberg.org/{repo}/releases/download/"))
+        } else {
+            None
+        };
+        let repository = repository.ok_or_else(|| {
+            Error::Internal(format!("no asset authority rule for endpoint {endpoint}"))
+        })?;
+        let remainder = asset.url.strip_prefix(&repository);
+        if remainder.is_none_or(|path| {
+            path.is_empty()
+                || path.contains(['%', '\\', '?', '#'])
+                || path
+                    .split('/')
+                    .any(|part| part.is_empty() || matches!(part, "." | ".."))
+        }) {
+            return Err(Error::Internal(format!(
+                "asset URL is outside its approved release repository: {}",
+                asset.url
+            )));
+        }
+        let response = self.transport.get(&asset.url)?;
+        if (300..400).contains(&response.status) {
+            return Err(Error::Internal(format!(
+                "asset redirect refused: {} (HTTP {})",
+                asset.url, response.status
+            )));
+        }
+        if response.status != 200 {
+            return Err(Error::BackendFailure(format!(
+                "asset {}: HTTP {}",
+                asset.url, response.status
+            )));
+        }
+        Ok((asset, response.body))
+    }
 }
 
 #[cfg(test)]

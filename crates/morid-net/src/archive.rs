@@ -42,6 +42,7 @@ fn path(name: &str) -> Result<PathBuf, Error> {
     for part in name.split('/') {
         let stem = part.split('.').next().unwrap_or("").to_ascii_uppercase();
         if part.is_empty()
+            || part == "."
             || part.ends_with(['.', ' '])
             || part.chars().any(|c| c.is_control())
             || matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")

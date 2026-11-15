@@ -3,6 +3,9 @@
 use std::io::Write;
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args == ["--version"] {
+        return;
+    } // uncaptured helper double
     if args.len() != 2 {
         std::process::exit(40);
     }

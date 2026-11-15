@@ -316,7 +316,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/test_cli_phase5.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase5-cli.log
+          python3 tools/test_cli_phase5.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} target/debug/examples/version_fixture${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase5-cli.log
           python3 - <<'PYCODE'
           from pathlib import Path
           text = Path("phase5-cli.log").read_text()

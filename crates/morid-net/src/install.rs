@@ -155,12 +155,14 @@ pub fn publish_archive(
     let staging = loop {
         let serial = SERIAL.fetch_add(1, Ordering::Relaxed);
         let path = bin.join(format!(".morid-unpack-{}-{serial}", stamp()));
-        let mut builder = fs::DirBuilder::new();
+        let builder = fs::DirBuilder::new();
         #[cfg(unix)]
-        {
+        let builder = {
             use std::os::unix::fs::DirBuilderExt;
+            let mut builder = builder;
             builder.mode(0o700);
-        }
+            builder
+        };
         match builder.create(&path) {
             Ok(()) => break StagedDirectory(path),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,

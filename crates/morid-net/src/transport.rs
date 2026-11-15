@@ -222,4 +222,74 @@ mod tests {
         assert_eq!(calls.get(), 1);
         println!("HTTP_FAILURE exit=3 transport_calls=1 error={error}");
     }
+    struct SyntheticAssetTransport<'a> {
+        calls: &'a Cell<usize>,
+        asset_url: &'a str,
+        asset_status: u16,
+    }
+    impl Transport for SyntheticAssetTransport<'_> {
+        fn get(&mut self, url: &str) -> Result<Response, Error> {
+            let call = self.calls.get();
+            self.calls.set(call + 1);
+            if call == 0 {
+                assert_eq!(
+                    url,
+                    "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
+                );
+                Ok(Response { status:200, body: serde_json::to_vec(&serde_json::json!({"_test_provenance":"SYNTHETIC NOT CAPTURED", "assets":[{"name":"backend", "size":11, "digest":"sha256:42404f785c9107ddb29581517f9eb04fc57a168eb84cac0f6b7e2ac9c6ae5ccf", "browser_download_url":self.asset_url}]})).unwrap() })
+            } else {
+                assert_eq!(call, 1, "no redirects or additional requests");
+                assert_eq!(url, self.asset_url);
+                Ok(Response {
+                    status: self.asset_status,
+                    body: b"new-backend".to_vec(),
+                })
+            }
+        }
+    }
+    #[test]
+    fn synthetic_foreign_asset_is_refused_before_its_transport_call() {
+        for url in [
+            "https://evil.invalid/backend",
+            "https://github.com/foreign/project/releases/download/v/backend",
+            "https://github.com/yt-dlp/yt-dlp/releases/download/../backend",
+            "https://github.com/yt-dlp/yt-dlp/releases/download/%2e%2e/backend",
+        ] {
+            let calls = Cell::new(0);
+            let mut client = ReleaseClient::new(SyntheticAssetTransport {
+                calls: &calls,
+                asset_url: url,
+                asset_status: 200,
+            });
+            let error = client
+                .selected_asset(
+                    "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest",
+                    false,
+                    |name| name == "backend",
+                )
+                .unwrap_err();
+            assert_eq!(error.exit_code(), 9);
+            assert_eq!(calls.get(), 1);
+            println!("SYNTHETIC_ASSET_REFUSED exit=9 metadata_calls=1 asset_calls=0 {error}");
+        }
+    }
+    #[test]
+    fn synthetic_asset_redirect_cannot_open_a_third_request() {
+        let calls = Cell::new(0);
+        let mut client = ReleaseClient::new(SyntheticAssetTransport {
+            calls: &calls,
+            asset_url: "https://github.com/yt-dlp/yt-dlp/releases/download/v/backend",
+            asset_status: 302,
+        });
+        let error = client
+            .selected_asset(
+                "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest",
+                false,
+                |name| name == "backend",
+            )
+            .unwrap_err();
+        assert_eq!(error.exit_code(), 9);
+        assert_eq!(calls.get(), 2);
+        println!("SYNTHETIC_ASSET_REDIRECT_REFUSED metadata_calls=1 asset_calls=1 redirect_calls=0 {error}");
+    }
 }

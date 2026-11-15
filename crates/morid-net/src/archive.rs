@@ -29,11 +29,13 @@ fn path(name: &str) -> Result<PathBuf, Error> {
         || name.len() > 4096
         || name.starts_with('/')
         || name.contains(['\\', ':', '\0'])
-        || name.split('/').any(|p| p == ".." || p == ".")
+        || name.split('/').any(|p| p == "..")
     {
         return Err(refused(name, "non-relative or non-portable path"));
     }
+    // A conventional leading ./ is harmless; never strip a parent component.
     let name = name.trim_end_matches('/');
+    let name = name.trim_start_matches("./");
     if name.is_empty() {
         return Err(refused(name, "empty path"));
     }
@@ -92,8 +94,11 @@ pub fn extract(body: &[u8], format: Format, destination: &Path) -> Result<(), Er
                 let name = std::str::from_utf8(&raw)
                     .map_err(|_| refused(&String::from_utf8_lossy(&raw), "invalid UTF-8"))?
                     .to_owned();
-                let path = path(&name)?;
                 let kind = item.header().entry_type();
+                if kind.is_dir() && matches!(name.as_str(), "." | "./") {
+                    continue;
+                }
+                let path = path(&name)?;
                 if !(kind.is_file() || kind.is_dir()) {
                     return Err(refused(&name, "link or special entry"));
                 }

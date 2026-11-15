@@ -22,3 +22,5 @@ pub mod stream;
 pub use job_object::{install_interrupt_handler, interrupted};
 #[cfg(unix)]
 pub use process_group::{install_interrupt_handler, interrupted};
+
+pub mod version;

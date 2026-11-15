@@ -94,6 +94,8 @@ jobs:
           python3 tools/check_phase5_endpoints.py 2>&1 | tee phase5-policy.log
           cargo test --locked --offline -p morid-ext supporting::tests -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
           cargo test --locked --offline -p morid-net -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
+          cargo build --locked --offline -p morid-engine --example version_fixture
+          cargo test --locked --offline -p morid-engine --test version_probe -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
           python3 - <<'PYCODE'
           from pathlib import Path
           text = Path("phase5-policy.log").read_text(encoding="utf-8")
@@ -309,7 +311,7 @@ jobs:
                   print("::notice title=real HTTP evidence::" + line.replace("%", "%25"))
           PYCODE
 
-      - name: Resolve all bundled engines without starting them
+      - name: Resolve bundled engines and probe installed versions
         shell: bash
         run: |
           set -euo pipefail
@@ -325,7 +327,9 @@ jobs:
           import json
           from pathlib import Path
           rows = Path("engines.jsonl").read_text().splitlines()
-          assert len(rows) == 17, len(rows)
+          parsed = [json.loads(row) for row in rows]
+          assert len([r for r in parsed if r.get("section") == "downloaders"]) == 15
+          assert {"ffmpeg", "deno"}.issubset({r["name"] for r in parsed if r.get("section") == "supporting"})
           assert all(isinstance(record := json.loads(row), dict) and record["resolved"] for row in rows)
           print(rows[0])
           print(rows[-1])

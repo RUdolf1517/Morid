@@ -27,7 +27,11 @@ fn cli_engines_integration_without_spawning() {
             4
         );
         let text = String::from_utf8(out).expect("UTF-8");
-        assert_eq!(text.lines().count(), 17, "{text}");
+        assert_eq!(
+            text.lines().count(),
+            15 + morid_ext::supporting::descriptors(&Target::current(), false).len(),
+            "{text}"
+        );
         for line in text.lines() {
             if json_output {
                 let value: serde_json::Value = serde_json::from_str(line).expect("one JSON object");

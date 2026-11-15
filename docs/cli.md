@@ -121,6 +121,13 @@ backend is present, `4` when at least one is unavailable or invalid, and `1` for
 matters: **a missing backend is not a failure of the extension** — it is reported as `needs installation` and keeps
 the file in the list ([extensions](extensions.md) §8 rule 6).
 
+**Phase 5 work in progress:** engine inventory now labels records with `section: "downloaders"`
+or `section: "supporting"`; deno and quickjs-ng are never downloader rows. Installed commands are
+run with their VersionArgument in a contained, time-limited probe. `version` preserves the printed
+token, and `version_status` explains failures; every absent/unreadable value displays `unavailable`,
+not a guessed version. you-get retains its comma; getsauce alone skips captured leading blank
+lines and retains the printed `v`. Lifecycle verbs are not delivered yet.
+
 ### 2.4 `morid import <dir>` / `morid export <dir>`
 
 Import a Media Downloader data directory, or produce one

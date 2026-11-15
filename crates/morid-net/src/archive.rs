@@ -118,7 +118,7 @@ pub fn extract(body: &[u8], format: Format, destination: &Path) -> Result<(), Er
             }
             for i in 0..archive.len() {
                 let mut item = archive.by_index(i).map_err(malformed)?;
-                let name = item.name().to_owned();
+                let name = item.name().map_err(malformed)?.into_owned();
                 let path = path(&name)?;
                 let kind = item.unix_mode().unwrap_or(0) & 0o170000;
                 if kind != 0 && kind != 0o100000 && kind != 0o040000 {

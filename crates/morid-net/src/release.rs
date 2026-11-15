@@ -21,6 +21,14 @@ fn invalid(message: &str) -> Error {
 /// A malformed chosen asset fails closed; it is not skipped in favor of a later
 /// asset, which would change the original's first-match behavior.
 pub fn select(bytes: &[u8], codeberg_list: bool, names: &[&str]) -> Result<Asset, Error> {
+    select_matching(bytes, codeberg_list, |name| names.contains(&name))
+}
+
+pub fn select_matching(
+    bytes: &[u8],
+    codeberg_list: bool,
+    matches: impl Fn(&str) -> bool,
+) -> Result<Asset, Error> {
     let json: Value = serde_json::from_slice(bytes).map_err(|e| invalid(&e.to_string()))?;
     let release = if codeberg_list {
         json.as_array()
@@ -37,7 +45,7 @@ pub fn select(bytes: &[u8], codeberg_list: bool, names: &[&str]) -> Result<Asset
         let Some(name) = row.get("name").and_then(Value::as_str) else {
             continue;
         };
-        if !names.contains(&name) {
+        if !matches(name) {
             continue;
         }
         let size = row

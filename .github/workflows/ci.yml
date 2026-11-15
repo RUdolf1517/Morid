@@ -93,6 +93,7 @@ jobs:
           set -euo pipefail
           python3 tools/check_phase5_endpoints.py 2>&1 | tee phase5-policy.log
           cargo test --locked --offline -p morid-ext supporting::tests -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
+          cargo test --locked --offline -p morid-ext assets::tests -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
           cargo test --locked --offline -p morid-net -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log
           cargo build --locked --offline -p morid-engine --example version_fixture
           cargo test --locked --offline -p morid-engine --test version_probe -- --nocapture --test-threads=1 2>&1 | tee -a phase5-policy.log

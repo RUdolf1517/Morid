@@ -245,6 +245,9 @@ mod tests {
             ("C:\\outside", false),
         ] {
             let root = Sandbox::new();
+            let absolute_existed = Path::new(name)
+                .is_absolute()
+                .then(|| Path::new(name).exists());
             let error = extract(
                 &synthetic_tar(name, link),
                 Format::TarGz,
@@ -253,6 +256,9 @@ mod tests {
             .expect_err("attack");
             assert!(error.to_string().contains(&format!("{name:?}")), "{error}");
             assert_eq!(error.exit_code(), 3);
+            if let Some(existed) = absolute_existed {
+                assert_eq!(Path::new(name).exists(), existed);
+            }
             assert_eq!(fs::read(root.0.join("outside")).unwrap(), b"untouched");
             assert_eq!(fs::read_dir(&root.0).unwrap().count(), 2);
             assert_eq!(fs::read_dir(root.0.join("target")).unwrap().count(), 0);

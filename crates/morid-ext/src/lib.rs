@@ -1,6 +1,7 @@
 //! Extension validation and command resolution. Never executes a command.
 #![forbid(unsafe_code)]
 
+pub mod assets;
 pub mod control;
 pub mod supporting;
 pub mod thin;

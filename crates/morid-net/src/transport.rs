@@ -61,6 +61,29 @@ impl<T: Transport> ReleaseClient<T> {
         crate::install::publish_binary(bin, name, &body, &asset.integrity)
     }
 
+    pub fn install_archive(
+        &mut self,
+        endpoint: &str,
+        codeberg_list: bool,
+        matches: impl Fn(&str) -> bool,
+        bin: &std::path::Path,
+        name: &str,
+        member: &std::path::Path,
+    ) -> Result<crate::install::Published, Error> {
+        let (asset, body) = self.selected_asset(endpoint, codeberg_list, matches)?;
+        let format = if asset.name.ends_with(".tar.gz") {
+            crate::archive::Format::TarGz
+        } else if asset.name.ends_with(".zip") {
+            crate::archive::Format::Zip
+        } else {
+            return Err(Error::BackendFailure(format!(
+                "unsupported archive: {}",
+                asset.name
+            )));
+        };
+        crate::install::publish_archive(bin, name, &body, &asset.integrity, format, member)
+    }
+
     /// The asset authority is the exact selected URL returned by an approved
     /// metadata request, additionally bound to that release repository. This
     /// never adds an asset URL (or a host wildcard) to RELEASE_ENDPOINTS.

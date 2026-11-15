@@ -95,6 +95,98 @@ pub enum Published {
     Unchanged,
 }
 
+fn valid_name(name: &str) -> Result<(), Error> {
+    let mut parts = Path::new(name).components();
+    if name.is_empty()
+        || name.contains(['/', '\\', ':'])
+        || !matches!(parts.next(), Some(Component::Normal(_)))
+        || parts.next().is_some()
+    {
+        return Err(failure(format!("invalid executable filename: {name:?}")));
+    }
+    Ok(())
+}
+
+struct StagedDirectory(PathBuf);
+impl Drop for StagedDirectory {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Verify the downloaded archive beside the destination before inspecting it.
+/// Extract only into a fresh private directory; publish exactly the explicitly
+/// selected regular file, never a guessed basename or an archive-provided link.
+/// The archive digest authenticates the member. No release digest is invented
+/// for that member: its internal digest below only rechecks the local copy.
+pub fn publish_archive(
+    bin: &Path,
+    name: &str,
+    body: &[u8],
+    expected: &Integrity,
+    format: crate::archive::Format,
+    member: &Path,
+) -> Result<Published, Error> {
+    valid_name(name)?;
+    if member.as_os_str().is_empty()
+        || member.to_string_lossy().contains(['\\', ':'])
+        || member
+            .components()
+            .any(|part| !matches!(part, Component::Normal(_)))
+    {
+        return Err(failure(format!(
+            "invalid archive executable member: {member:?}"
+        )));
+    }
+    fs::create_dir_all(bin).map_err(io_error)?;
+    let (download, mut file) = loop {
+        let serial = SERIAL.fetch_add(1, Ordering::Relaxed);
+        let path = bin.join(format!(".morid-download-{}-{serial}", stamp()));
+        match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(file) => break (Staged(path), file),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(io_error(e)),
+        }
+    };
+    file.write_all(body).map_err(io_error)?;
+    file.sync_all().map_err(io_error)?;
+    drop(file);
+    verify(&download.0, expected)?;
+    let staging = loop {
+        let serial = SERIAL.fetch_add(1, Ordering::Relaxed);
+        let path = bin.join(format!(".morid-unpack-{}-{serial}", stamp()));
+        let mut builder = fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        match builder.create(&path) {
+            Ok(()) => break StagedDirectory(path),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(io_error(e)),
+        }
+    };
+    let verified_body = fs::read(&download.0).map_err(io_error)?;
+    crate::archive::extract(&verified_body, format, &staging.0)?;
+    let executable = staging.0.join(member);
+    if !fs::symlink_metadata(&executable)
+        .map_err(io_error)?
+        .file_type()
+        .is_file()
+    {
+        return Err(failure(format!(
+            "archive executable is not a regular file: {member:?}"
+        )));
+    }
+    let bytes = fs::read(executable).map_err(io_error)?;
+    let local_copy = Integrity {
+        size: bytes.len() as u64,
+        sha256: Sha256::digest(&bytes).into(),
+    };
+    publish_binary(bin, name, &bytes, &local_copy)
+}
+
 /// Stage inside `bin`, verify size then SHA-256, then rename on the same
 /// filesystem. Never move/remove the old binary as a preparation step.
 /// Archive callers must separately verify the archive and safely unpack it;
@@ -105,14 +197,7 @@ pub fn publish_binary(
     body: &[u8],
     expected: &Integrity,
 ) -> Result<Published, Error> {
-    let mut parts = Path::new(name).components();
-    if name.is_empty()
-        || name.contains(['/', '\\', ':'])
-        || !matches!(parts.next(), Some(Component::Normal(_)))
-        || parts.next().is_some()
-    {
-        return Err(failure(format!("invalid executable filename: {name:?}")));
-    }
+    valid_name(name)?;
     fs::create_dir_all(bin).map_err(io_error)?;
     let (stage, mut file) = loop {
         let serial = SERIAL.fetch_add(1, Ordering::Relaxed);
@@ -172,6 +257,88 @@ mod tests {
     impl Drop for Directory {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn synthetic_tar(member: &str) -> Vec<u8> {
+        let gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        let mut archive = tar::Builder::new(gzip);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(11);
+        header.set_mode(0o7777); // Archive privileges must not survive publication.
+        header.set_cksum();
+        archive
+            .append_data(&mut header, member, &b"new-backend"[..])
+            .unwrap();
+        archive.into_inner().unwrap().finish().unwrap()
+    }
+
+    #[test]
+    fn synthetic_verified_archive_publishes_only_explicit_member_and_cleans_staging() {
+        let root = Directory::new();
+        let body = synthetic_tar("package/backend");
+        // Synthetic release metadata for this dynamically generated archive.
+        let digest = format!("sha256:{}", hex(&Sha256::digest(&body)));
+        let expected = Integrity::from_metadata(body.len() as u64, &digest).unwrap();
+        for outcome in [Published::Installed, Published::Unchanged] {
+            assert_eq!(
+                publish_archive(
+                    &root.0,
+                    "backend",
+                    &body,
+                    &expected,
+                    crate::archive::Format::TarGz,
+                    Path::new("package/backend")
+                )
+                .unwrap(),
+                outcome
+            );
+            assert_eq!(fs::read_dir(&root.0).unwrap().count(), 1);
+        }
+        assert_eq!(fs::read(root.0.join("backend")).unwrap(), b"new-backend");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(root.0.join("backend"))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o7777,
+                0o755
+            );
+        }
+        println!("SYNTHETIC_ARCHIVE_PUBLICATION verified_archive=true explicit_member=package/backend first=Installed repeat=Unchanged residue=0 privileged_bits=not_preserved");
+    }
+
+    #[test]
+    fn synthetic_archive_bad_hash_and_missing_member_preserve_old_binary() {
+        let root = Directory::new();
+        fs::write(root.0.join("backend"), b"old-backend").unwrap();
+        let body = synthetic_tar("package/backend");
+        let digest = format!("sha256:{}", hex(&Sha256::digest(&body)));
+        let expected = Integrity::from_metadata(body.len() as u64, &digest).unwrap();
+        let wrong = Integrity::from_metadata(body.len() as u64, SYNTHETIC_DIGEST).unwrap();
+        for (metadata, member) in [
+            (&wrong, "package/backend"),
+            (&expected, "missing"),
+            (&expected, "../backend"),
+        ] {
+            let error = publish_archive(
+                &root.0,
+                "backend",
+                &body,
+                metadata,
+                crate::archive::Format::TarGz,
+                Path::new(member),
+            )
+            .unwrap_err();
+            assert_eq!(error.exit_code(), 3);
+            assert_eq!(fs::read(root.0.join("backend")).unwrap(), b"old-backend");
+            assert_eq!(fs::read_dir(&root.0).unwrap().count(), 1);
+            println!(
+                "SYNTHETIC_ARCHIVE_FAILURE old_bytes=equal stage_residue=0 exit=3 error={error}"
+            );
         }
     }
 

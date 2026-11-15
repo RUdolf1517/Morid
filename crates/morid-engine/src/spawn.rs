@@ -94,7 +94,7 @@ mod tests {
         };
         let child = spec.spawn().map_err(io::Error::other)?;
         let output = child.wait_with_output()?;
-        assert!(output.status.success(), "{:?}", output);
+        assert!(output.status.success(), "{output:?}");
         assert!(String::from_utf8_lossy(&output.stdout).contains("stdout-only"));
         assert!(!String::from_utf8_lossy(&output.stdout).contains("stderr-only"));
         assert!(String::from_utf8_lossy(&output.stderr).contains("stderr-only"));

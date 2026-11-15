@@ -13,3 +13,7 @@ description = "HTTP, hash verification and archive unpacking"
 [dependencies]
 morid-core = { workspace = true }
 sha2 = { workspace = true }
+tar = { workspace = true }
+flate2 = { workspace = true }
+zip = { workspace = true }
+serde_json = { workspace = true }

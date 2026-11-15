@@ -7,3 +7,6 @@
 pub mod endpoints;
 pub mod install;
 pub mod transport;
+
+pub mod archive;
+pub mod release;

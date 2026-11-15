@@ -312,6 +312,20 @@ jobs:
                   print("::notice title=real HTTP evidence::" + line.replace("%", "%25"))
           PYCODE
 
+      - name: Phase 5 offline CLI lifecycle evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/test_cli_phase5.py target/release/morid${{ runner.os == 'Windows' && '.exe' || '' }} 2>&1 | tee phase5-cli.log
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          text = Path("phase5-cli.log").read_text()
+          for index, start in enumerate(range(0, len(text), 3500)):
+              block = text[start:start + 3500]
+              escaped = block.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::notice title=Phase 5 CLI lifecycle {index}::" + escaped)
+          PYCODE
+
       - name: Resolve bundled engines and probe installed versions
         shell: bash
         run: |
@@ -557,6 +571,7 @@ jobs:
             phase4-cli.log
             phase5-policy.log
             phase5-integrity.log
+            phase5-cli.log
             phase4-store.log
             phase4-original.log
             phase3-http.log

@@ -30,6 +30,16 @@ pub fn run(
         writeln!(out, "morid {}", env!("CARGO_PKG_VERSION")).map_err(output_error)?;
         return Ok(0);
     }
+    if args.first().map(String::as_str) == Some("engines")
+        && args.get(1).is_some_and(|arg| arg == "--remove")
+    {
+        if args.len() != 3 {
+            return Err(Error::Usage("usage: morid engines --remove NAME".into()));
+        }
+        let result = morid::backend_removal::remove(&args[2], directory, target, search)?;
+        writeln!(out, "{}: {result}", args[2]).map_err(output_error)?;
+        return Ok(0);
+    }
     if args.first().map(String::as_str) != Some("engines")
         || args.len() > 2
         || args.get(1).is_some_and(|arg| arg != "--json")

@@ -126,7 +126,9 @@ or `section: "supporting"`; deno and quickjs-ng are never downloader rows. Insta
 run with their VersionArgument in a contained, time-limited probe. `version` preserves the printed
 token, and `version_status` explains failures; every absent/unreadable value displays `unavailable`,
 not a guessed version. you-get retains its comma; getsauce alone skips captured leading blank
-lines and retains the printed `v`. Lifecycle verbs are not delivered yet.
+lines and retains the printed `v`. `--remove NAME` removes only a private custom backend executable and retains its JSON;
+repeating it succeeds. Bundled identities/shared bundled executables refuse with usage code `1`,
+unknown names use `4`. Install/update are not delivered yet.
 
 ### 2.4 `morid import <dir>` / `morid export <dir>`
 
